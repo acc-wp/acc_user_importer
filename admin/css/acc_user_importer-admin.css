@@ -1,0 +1,28 @@
+/**
+ * Admin-specific CSS
+ */
+
+#acc_admin_page {
+	column-count: 2;
+	column-gap: 20px;
+}
+
+#update_log {
+	width: 96%;
+	height: 300px;
+	background-color: white;
+	margin: 1%;
+	padding: 1%;
+	border: 1px solid grey;
+	overflow: scroll;
+}
+
+#updateStatusTitle {
+	display: inline-block;
+	margin: 10px 0;
+}
+
+#update_status_submit, #debug_status_submit {
+	float: right;
+	margin: 2px;
+}
