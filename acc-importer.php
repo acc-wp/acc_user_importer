@@ -8,8 +8,8 @@
  * Plugin Name:       ACC User Importer
  * Plugin URI:        http://accvancouver.ca
  * Description:       A plugin for synchronizing users from the <a href="http://alpineclubofcanada.ca">Alpine Club of Canada</a> national office.
- * Version:           1.0.1
- * Author:            Raz Peel (edits by KFG)
+ * Version:           1.0.2
+ * Author:            Raz Peel (edits by KFG and Francois Bessette)
  * Author URI:        https://www.facebook.com/razpeel
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
