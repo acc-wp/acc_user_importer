@@ -1,4 +1,4 @@
-var usersInData, newUsers, updatedUsers, usersWithErrors;
+var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 
 (function( $ ) {
 	'use strict';
@@ -32,11 +32,14 @@ var usersInData, newUsers, updatedUsers, usersWithErrors;
 	function startMembershipUpdate () {
 		
 		usersInData = 0;
+		roleRefreshed = 0;
 		newUsers = 0;
 		updatedUsers = 0;
 		usersWithErrors = 0;
-		
-		logLocalOutput("Member update requested started.");
+
+		logLocalOutput("Manual member update starting.");
+		accSyncStartTime = new Date();
+		logLocalOutput("Start time: " + accSyncStartTime);
 		
 		//Establish API
 		wpEstablishLocalAPI(function (apiResponse) {
@@ -71,6 +74,7 @@ var usersInData, newUsers, updatedUsers, usersWithErrors;
 					
 					//Add Totals
 					usersInData += results.usersInData;
+					roleRefreshed += results.roleRefreshed;
 					newUsers += results.newUsers;
 					updatedUsers += results.updatedUsers;
 					usersWithErrors += results.usersWithErrors;
@@ -90,6 +94,7 @@ var usersInData, newUsers, updatedUsers, usersWithErrors;
 						logLocalOutput("&nbsp;");
 						logLocalOutput("<b><u>Membership update complete.</u>");
 						logLocalOutput("--Parsed data for " + usersInData + " people total.");
+						logLocalOutput("--Refreshed roles for " + roleRefreshed + " people total.");
 						logLocalOutput("--Created accounts for " + newUsers + " people total.");
 						logLocalOutput("--Updated data for " + updatedUsers + " people total.");
 						logLocalOutput("--Errors updating " + usersWithErrors + " accounts total.</b>");
@@ -97,6 +102,11 @@ var usersInData, newUsers, updatedUsers, usersWithErrors;
 						$("#update_status_submit, #debug_status_submit").removeAttr("disabled");
 						logLocalOutput("&nbsp;");
 						logLocalOutput("This journey has come to an end.");
+						var accSyncEndTime = new Date();
+						var duration = (accSyncEndTime.getTime() - accSyncStartTime.getTime()) / 1000;
+						logLocalOutput("Start time: " + accSyncStartTime);
+						logLocalOutput("End time: " + accSyncEndTime);
+						logLocalOutput("Duration: " + duration + "seconds");
 					}
 			
 				}, onPostRequestFailure);	

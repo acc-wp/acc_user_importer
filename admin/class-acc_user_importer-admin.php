@@ -9,8 +9,8 @@
  * Plugin Name:       ACC User Importer
  * Plugin URI:        http://accvancouver.ca
  * Description:       A plugin for synchronizing users from the <a href="http://alpineclubofcanada.ca">Alpine Club of Canada</a> national office.
- * Version:           1.0.1
- * Author:            Raz Peel (edits by KFG)
+ * Version:           1.0.2
+ * Author:            Raz Peel (edits by KFG and Francois Bessette)
  * Author URI:        https://www.facebook.com/razpeel
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
@@ -23,7 +23,7 @@ class acc_user_importer_Admin {
 	private $plugin_name;
 	private $version;
 	private $debug_mode = false;
-	private $error_logging = true;
+	private $error_logging = false;
 	
 	public function __construct( $plugin_name, $version ) {
 
@@ -42,7 +42,9 @@ class acc_user_importer_Admin {
 		//force certificate validation - i.e. speed up authentication process
 		add_filter( 'https_local_ssl_verify', '__return_true' );
 		
-		$this->log_local_output("Member update requested started.");
+		$this->log_local_output("Automatic member update starting");
+		$timestamp_start = date_i18n("Y-m-d-H-i-s");
+
 		
 		//request token
 		$this->log_local_output("Requesting access token from national office.");
@@ -122,7 +124,10 @@ class acc_user_importer_Admin {
 			$this->log_local_output("Error: Token was not granted.");
 		}
 		
+		$timestamp_end = date_i18n("Y-m-d-H-i-s");
 		$this->log_local_output("This journey has come to an end.");
+		$this->log_local_output("Start time: " . $timestamp_start);
+		$this->log_local_output("End time: " . $timestamp_end);
 	}
 	
 	/**
@@ -326,10 +331,17 @@ class acc_user_importer_Admin {
 		//loop through data and create users
 		$update_errors = [];
 		$new_users = [];
+		$role_refreshed = [];
 
-		//add default roles -- edit FLAG by KFG
-		$roles = get_editable_roles();
+		// Get the configured default role for new users
 		$default_role = get_option( "acc_role_editor", "subscriber" );
+		$this->log_local_output("For new users, default role=" . $default_role);
+
+		// Existing users which are expired needs to have their role refreshed
+		$role_expiry1 = get_option("acc_expiry_lvl_1");
+		$role_expiry2 = get_option("acc_expiry_lvl_2");
+		$this->log_local_output("For existing users, refresh role if:" . $role_expiry1 . " or " . $role_expiry2);
+
 
 		foreach ( $users as $id => $user ) {
 	
@@ -371,6 +383,21 @@ class acc_user_importer_Admin {
 				$user_data = array_merge( array('ID' => $user_id), $user_data);
 				$api_response['log'] .= "&nbsp;&gt; found <em>(unique #" . $user_contact_id . ", user #" . email_exists($user_email) . ")</em><br/>";
 				$this->log_local_output(" > found (unique #" . $user_contact_id . ", user #" . email_exists($user_email) . ")");
+
+				// Get the user object.
+				$user_meta = get_userdata($user_id);
+				// Get all the user roles as an array.
+				$user_roles = $user_meta->roles;
+				// Check if user has expired or ex-member role. If so, update role to default
+				if ( in_array( $role_expiry1, $user_roles, true ) ) {
+					$this->log_local_output("User is " . $role_expiry1 . ", refreshing role to " . $default_role);
+					$user_data["role"] = $default_role;
+					$role_refreshed[] = $user_contact_id;
+				} elseif (in_array( $role_expiry2, $user_roles, true ) ) {
+					$this->log_local_output("User is " . $role_expiry2 . ", refreshing role to " . $default_role);
+					$user_data["role"] = $default_role;
+					$role_refreshed[] = $user_contact_id;
+				}
 			}
 			
 			//if no ID was matched, try find email
@@ -398,6 +425,7 @@ class acc_user_importer_Admin {
 					$this->log_local_output(" > email not found on any other users");
 					$this->log_local_output(" > creating new user account");
 					$new_users[] = $user_contact_id;
+					$user_data["role"] = $default_role;
 				}
 			}
 			
@@ -409,26 +437,9 @@ class acc_user_importer_Admin {
 				$update_errors[] = $user['FirstName'] . " " . $user['LastName'] . " (" . $user_contact_id . ")";
 			}
 			
-			//add default role only to new imports -- edit FLAG by KFG
-			//check if the user already has a role 
-			//$user_wp_data = get_user_meta( $user_id );
-			$user_wp_data = get_user_meta( $wp_user);
-			$user_roles = $user_wp_data["wp_capabilities"];
-			$user["role"] = $user_roles[0];
 
 			//only run if indicated
 			if ($update_this_user) {
-				
-
-				//add default role only to new imports -- edit FLAG by KFG
-				foreach ($roles as $key => $role) {
-					if($role["name"] == $default_role && empty($user["role"])) {
-						// $api_response['log'] .= "&nbsp;&gt; Import&eacute; en tant que: ". $key ."<br/>";
-						// $this->log_local_output(" > Importé en tant que: ". $key);
-						$user_data["role"] = $key;
-						break;
-					}
-				}
 
 				$wp_user = wp_insert_user( $user_data ) ;
 				
@@ -464,6 +475,7 @@ class acc_user_importer_Admin {
 		//log outcomes
 		$api_response['log'] .= "<br/>Processing complete.";
 		$api_response['log'] .= "<br/>--Parsed data for " . count($users) . " people.";
+		$api_response['log'] .= "<br/>--Refreshed roles for " . count($role_refreshed) . " people.";
 		$api_response['log'] .= "<br/>--Created accounts for " . count($new_users) . " people.";
 		$api_response['log'] .= "<br/>--Updated data for " . (count($users) - count($update_errors)) . " people.";
 		$api_response['log'] .= "<br/>--Errors updating " . count($update_errors) . " accounts.";
@@ -479,6 +491,7 @@ class acc_user_importer_Admin {
 		//error log
 		$this->log_local_output("Processing complete.");
 		$this->log_local_output("--Parsed data for " . count($users) . " people.");
+		$this->log_local_output("--Refreshed roles for " . count($role_refreshed) . " people.");
 		$this->log_local_output("--Created accounts for " . count($new_users) . " people.");
 		$this->log_local_output("--Updated data for " . (count($users) - count($update_errors)) . " people.");
 		$this->log_local_output("--Errors updating " . count($update_errors) . " accounts.");
@@ -494,6 +507,7 @@ class acc_user_importer_Admin {
 		}
 		
 		$api_response['usersInData'] = count($users);
+		$api_response['roleRefreshed'] = count($role_refreshed);
 		$api_response['newUsers'] = count($new_users);
 		$api_response['updatedUsers'] = (count($users) - count($update_errors));
 		$api_response['usersWithErrors'] = count($update_errors);
@@ -647,7 +661,12 @@ class acc_user_importer_Admin {
 			error_log(strval($v));
 		}
 
-		//FLAG: edition par kfg, afin d'ajouter des logs en format fichier
+		/*
+		 * Create log files. (code from KFG)
+		 * Very inefficient. Goes through the directory and try to find an existing log file
+		 * with a date/timestamp within the same hour. If so, reuse the file (append).
+		 * If not, create a new one.
+		 */
 		if( is_plugin_active( 'karinegaufre/index.php' ) ) {
 			$log_directory  = KFG_BASE_DIR . '/logs/acc/';
 			$today_date = date_i18n("Y-m-d-H");
