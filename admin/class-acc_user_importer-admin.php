@@ -667,7 +667,7 @@ class acc_user_importer_Admin {
 		 * with a date/timestamp within the same hour. If so, reuse the file (append).
 		 * If not, create a new one.
 		 */
-		if( is_plugin_active( 'karinegaufre/index.php' ) ) {
+		if( is_plugin_active( 'acc-periodic-sync/index.php' ) ) {
 			$log_directory  = KFG_BASE_DIR . '/logs/acc/';
 			$today_date = date_i18n("Y-m-d-H");
 			$log_date = date_i18n("Y-m-d-H-i-s");
