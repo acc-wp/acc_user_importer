@@ -1,7 +1,7 @@
 <?php
 
 
-$logstr = "";		//handy global to store log string
+$acc_logstr = "";		//handy global to store log string
 
 class acc_user_importer_Admin {
 
@@ -254,7 +254,7 @@ class acc_user_importer_Admin {
 	 */
 	private function log_dual( $string ) {
 		$this->log_local_output($string);
-		$GLOBALS['logstr'] .= "<br/>" . $string;
+		$GLOBALS['acc_logstr'] .= "<br/>" . $string;
 	}
 
 
@@ -263,7 +263,7 @@ class acc_user_importer_Admin {
 	 * This is where most of the work gets done.
 	 */
 	private function proccess_user_data ( $users ) {
-		$GLOBALS['logstr'] = "";		//Clear the API response log string
+		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 
 		//create response object
 		$api_response = Array();
@@ -375,60 +375,17 @@ class acc_user_importer_Admin {
 			//check if ID already exist
 			$user_id = username_exists($user_contact_id);
 			$update_this_user = false;
-			$user_already_exists = false;
-			$create_this_user = false;
 			
-			//if user was found
 			if( is_numeric( $user_id ) ) {
-				$update_this_user = true;
-				$user_already_exists = true;
+				//---------USER WAS FOUND IN DATABASE------------
+				$this->log_dual(" > found " . $user_contact_id . " (user #" . $user_id . ")");
 
 				//append ID to data object - wordpress will update the user instead of create a new one
 				$user_data = array_merge( array('ID' => $user_id), $user_data);
-				$this->log_dual(" > found " . $user_contact_id . " (user #" . $user_id . ")");
-			}
-			
-			//User is not in DB. But before creating a new record, make sure email is unique.
-			//We want emails to be unique in DB because it is a login identifier.
-			elseif ( strlen($user_email) > 1 ) {		//If email field exists
-				$this->log_dual(" > user not found");
-				$user_id = email_exists($user_email);
-				
-				//if email exists in different contact ID, skip updating user
-				if ( is_numeric($user_id) ) {
-					$user2 = get_user_by( 'id', $user_id);
-					$username2 = $user2->user_firstname . " " . $user2->user_lastname;
 
-					$this->log_dual(" > existing user #" . $user_id . " " . $username2 .
-					                " already has email " . $user_email);
-					$this->log_dual(" > user update skipped");
-					$user_data = array_merge( array('ID' => $user_id), $user_data); //point to correct ID (future proofing)
-					$update_errors[] = $user;
-				} else {
-					//email is unique, proceed to create a new record
-					$update_this_user = true;
-					$create_this_user = true;
-					$this->log_dual(" > email not found on any other users");
-					$this->log_dual(" > will create new user account");
-					$new_users[] = $user_contact_id;
-					$new_users_email[] = $user_email ;
-					$user_data["role"] = $default_role;
-				}
-			}
-			
-			//didn't find a user by contact ID, and don't have an email to search for either
-			else {
-				$this->log_dual(" > error: no email given, cannot create new user account.");
-				$update_errors[] = $user['FirstName'] . " " . $user['LastName'] . " (" . $user_contact_id . ")";
-			}
-			
-			//If user already exists, update only if something changed.
-			//Do a bunch of compare to decide if an update is needed.
-			//This logic needs to be undated each time we add a new user field.
-			if ($update_this_user && $user_already_exists) {
-
-				$update_this_user = false;
-
+				//Update DB only if something changed.
+				//Do a bunch of compare to decide if an update is needed.
+				//This logic needs to be extended each time we add a new user field.
 				// Get the user object
 				$user_meta = get_userdata($user_id);
 
@@ -450,55 +407,74 @@ class acc_user_importer_Admin {
 				}
 
 				//Check if email changed
-				if (!$update_this_user) {
-					if ($user_email != $user_meta->user_email) {
-						$this->log_dual(" > email changed from " . $user_meta->user_email . " to " . $user_email);
-						$update_this_user = true;
-					}
+				if ($user_email != $user_meta->user_email) {
+					$this->log_dual(" > email changed from " . $user_meta->user_email . " to " . $user_email);
+					$update_this_user = true;
 				}
 
 				//Check if HomePhone changed
-				if (!$update_this_user) {
-					if ($user["HomePhone"] != $user_meta->home_phone) {
-						$this->log_dual(" > home phone changed from " . $user_meta->home_phone . " to " . $user["HomePhone"]);
-						$update_this_user = true;
-					}
+				if ($user["HomePhone"] != $user_meta->home_phone) {
+					$this->log_dual(" > home phone changed from " . $user_meta->home_phone . " to " . $user["HomePhone"]);
+					$update_this_user = true;
 				}
 
 				//Check if Cell phone changed
-				if (!$update_this_user) {
-					if ($user["Cell Phone"] != $user_meta->cell_phone) {
-						$this->log_dual(" > cell phone changed from " . $user_meta->cell_phone . " to " . $user["Cell Phone"]);
-						$update_this_user = true;
-					}
+				if ($user["Cell Phone"] != $user_meta->cell_phone) {
+					$this->log_dual(" > cell phone changed from " . $user_meta->cell_phone . " to " . $user["Cell Phone"]);
+					$update_this_user = true;
 				}
 
 				//Check if MEMBERSHIP_N changed
-				if (!$update_this_user) {
-					if ($user["MEMBERSHIP_N"] != $user_meta->membership) {
-						$this->log_dual(" > membership# changed from " . $user_meta->membership . " to " . $user["MEMBERSHIP_N"]);
-						$update_this_user = true;
-					}
+				if ($user["MEMBERSHIP_N"] != $user_meta->membership) {
+					$this->log_dual(" > membership# changed from " . $user_meta->membership . " to " . $user["MEMBERSHIP_N"]);
+					$update_this_user = true;
 				}
 
 				//Check if Membership Expiry changed
-				if (!$update_this_user) {
-					if ($user["Membership Expiry Date"] != $user_meta->expiry) {
-						$this->log_dual(" > expiry changed from " . $user_meta->expiry . " to " . $user["Membership Expiry Date"]);
-						$update_this_user = true;
-					}
+				if ($user["Membership Expiry Date"] != $user_meta->expiry) {
+					$this->log_dual(" > expiry changed from " . $user_meta->expiry . " to " . $user["Membership Expiry Date"]);
+					$update_this_user = true;
 				}
 
 				//Check if city changed
-				if (!$update_this_user) {
-					if ($user["City"] != $user_meta->city) {
-						$this->log_dual(" > city changed from " . $user_meta->city . " to " . $user["City"]);
-						$update_this_user = true;
-					}
+				if ($user["City"] != $user_meta->city) {
+					$this->log_dual(" > city changed from " . $user_meta->city . " to " . $user["City"]);
+					$update_this_user = true;
 				}
 
 				if (!$update_this_user) {
 					$this->log_dual(" > Nothing changed for this user");
+				}
+
+			//--------USER NOT FOUND IN DATABASE-----
+			//But before creating a new record, make sure email is unique.
+			//We want emails to be unique in DB because it is a login identifier.
+			} elseif ( !(strlen($user_email) > 1) ) {
+				//User has no email field, skip it
+				$this->log_dual(" > error: no email given, cannot create new user account.");
+				$update_errors[] = $user['FirstName'] . " " . $user['LastName'] . " (" . $user_contact_id . ")";
+
+			} else {
+				$this->log_dual(" > user not found");
+
+				$user_id = email_exists($user_email);
+				if ( is_numeric($user_id) ) {
+					//An existing user already has this email address, skip updating
+					$user2 = get_userdata($user_id);
+					$username2 = $user2->user_firstname . " " . $user2->user_lastname;
+					$this->log_dual(" > existing user #" . $user_id . " " . $username2 .
+					                " already has email " . $user_email);
+					$this->log_dual(" > user update skipped");
+					$user_data = array_merge( array('ID' => $user_id), $user_data); //point to correct ID (future proofing)
+					$update_errors[] = $user;
+				} else {
+					//email is unique, proceed to create a new record
+					$update_this_user = true;
+					$this->log_dual(" > email not found on any other users");
+					$this->log_dual(" > will create new user account");
+					$new_users[] = $user_contact_id;
+					$new_users_email[] = $user_email ;
+					$user_data["role"] = $default_role;
 				}
 			}
 
@@ -519,7 +495,7 @@ class acc_user_importer_Admin {
 					update_user_meta( $wp_user, 'city', $user['City'] );
 					$this->log_dual(" > Updated user information");
 					//Add user to the updated_users list only if it's not already in the created list
-					if (!$create_this_user) {
+					if (!in_array($user_contact_id, $new_users)) {
 						$updated_users[] = $user_contact_id;
 						$updated_users_email[] = $user_email;
 					}
@@ -554,7 +530,7 @@ class acc_user_importer_Admin {
 		$api_response['updatedUsers'] = (count($users) - count($update_errors));
 		$api_response['usersWithErrors'] = count($update_errors);
 		$api_response['message'] = "success";
-		$api_response['log'] = $GLOBALS['logstr'];	//Return the big log string
+		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
 		
 		return $api_response;
 	}
