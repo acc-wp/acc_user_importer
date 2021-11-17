@@ -343,42 +343,45 @@ class acc_user_importer_Admin {
 
 
 		foreach ( $users as $id => $user ) {
-	
-			//everyone should have an acc-membership number
-			//$user_contact_id = $user['MEMBERSHIP_N'];
-			$user_contact_id = $user['FirstName'] . " " . $user['LastName'];
+
+			//Avoid PHP warnings in case some fields are unpopulated
+			$userFirstName= $user["FirstName"] ?? '';
+			$userLastName= $user["LastName"] ?? '';
+			$userContactId = $userFirstName . " " . $userLastName;
+			$userEmail = strtolower($user["Email"] ?? '');
+			$userHomePhone = $user["HomePhone"] ?? '';
+			$userCellPhone = $user["Cell Phone"] ?? '';
+			$userMembership = $user["MEMBERSHIP_N"] ?? '';
+			$userExpiry = $user["Membership Expiry Date"] ?? '';
+			$userCity = $user["City"] ?? '';
 			
-			//using first-names to help make a unique identifier (id)
-			//$user_contact_id .= strval( ord($user['FirstName']) );			
-			$user_info = $user['FirstName'] . " " . $user['LastName'];
-			$user_info = $user_info . " " . $user['Email'];
-			$user_info = $user_info . " home:" . $user['HomePhone'];
-			$user_info = $user_info . " cell:" . $user['Cell Phone'];
-			$user_info = $user_info . " member#:" . $user['MEMBERSHIP_N'];
-			$user_info = $user_info . " expiry:" . $user['Membership Expiry Date'];
+			//Log the info we received for this user
+			$user_info = $userContactId;
+			$user_info = $user_info . " " . $userEmail;
+			$user_info = $user_info . " home:" . $userHomePhone;
+			$user_info = $user_info . " cell:" . $userCellPhone;
+			$user_info = $user_info . " member#:" . $userMembership;
+			$user_info = $user_info . " expiry:" . $userExpiry;
 			$this->log_dual("Received " . $user_info);
 
-			//populate a defined user object that wordpress can use
-			if(!empty($user["Email"]))
-				$user_email = strtolower($user['Email']);
-
+			//Create an array for the core wordpress user information
 			$user_data = array(
-				'first_name'	=>	$user['FirstName'],
-				'last_name'		=>	$user['LastName'],
-				'display_name'	=>	$user['FirstName'] . " " . $user['LastName'],
-				'user_nicename'	=>	strtolower( $user['FirstName'] ) . "-" . strtolower( $user['LastName'] ),
-				'user_login'	=>	$user_contact_id,
-				'user_email'	=>	$user_email,
+				'first_name'	=>	$userFirstName,
+				'last_name'		=>	$userLastName,
+				'display_name'	=>	$userContactId,
+				'user_nicename'	=>	strtolower($userFirstName . "-" . $userLastName),
+				'user_login'	=>	$userContactId,
+				'user_email'	=>	$userEmail,
 				'user_pass'		=>	null,
 			);
 			
 			//check if ID already exist
-			$user_id = username_exists($user_contact_id);
+			$user_id = username_exists($userContactId);
 			$update_this_user = false;
 			
 			if( is_numeric( $user_id ) ) {
 				//---------USER WAS FOUND IN DATABASE------------
-				$this->log_dual(" > found " . $user_contact_id . " (user #" . $user_id . ")");
+				$this->log_dual(" > found " . $userContactId . " (user #" . $user_id . ")");
 
 				//append ID to data object - wordpress will update the user instead of create a new one
 				$user_data = array_merge( array('ID' => $user_id), $user_data);
@@ -396,50 +399,64 @@ class acc_user_importer_Admin {
 					$this->log_dual(" > User is " . $role_expiry1 . ", refreshing role to " . $default_role);
 					$update_this_user = true;
 					$user_data["role"] = $default_role;
-					$role_refreshed[] = $user_contact_id;
-					$role_refreshed_email[] = $user_email;
+					$role_refreshed[] = $userContactId;
+					$role_refreshed_email[] = $userEmail;
 				} elseif (in_array( $role_expiry2, $user_roles, true ) ) {
 					$this->log_dual(" > User is " . $role_expiry2 . ", refreshing role to " . $default_role);
 					$update_this_user = true;
 					$user_data["role"] = $default_role;
-					$role_refreshed[] = $user_contact_id;
-					$role_refreshed_email[] = $user_email;
+					$role_refreshed[] = $userContactId;
+					$role_refreshed_email[] = $userEmail;
 				}
 
 				//Check if email changed
-				if ($user_email != $user_meta->user_email) {
-					$this->log_dual(" > email changed from " . $user_meta->user_email . " to " . $user_email);
+				if ($userEmail != $user_meta->user_email) {
+					$this->log_dual(" > email changed from " . $user_meta->user_email . " to " . $userEmail);
 					$update_this_user = true;
 				}
 
 				//Check if HomePhone changed
-				if ($user["HomePhone"] != $user_meta->home_phone) {
-					$this->log_dual(" > home phone changed from " . $user_meta->home_phone . " to " . $user["HomePhone"]);
+				if ($userHomePhone != $user_meta->home_phone) {
+					$this->log_dual(" > home phone changed from " . $user_meta->home_phone . " to " . $userHomePhone);
 					$update_this_user = true;
 				}
 
 				//Check if Cell phone changed
-				if ($user["Cell Phone"] != $user_meta->cell_phone) {
-					$this->log_dual(" > cell phone changed from " . $user_meta->cell_phone . " to " . $user["Cell Phone"]);
+				if ($userCellPhone != $user_meta->cell_phone) {
+					$this->log_dual(" > cell phone changed from " . $user_meta->cell_phone . " to " . $userCellPhone);
 					$update_this_user = true;
 				}
 
 				//Check if MEMBERSHIP_N changed
-				if ($user["MEMBERSHIP_N"] != $user_meta->membership) {
-					$this->log_dual(" > membership# changed from " . $user_meta->membership . " to " . $user["MEMBERSHIP_N"]);
+				if ($userMembership != $user_meta->membership) {
+					$this->log_dual(" > membership# changed from " . $user_meta->membership . " to " . $userMembership);
 					$update_this_user = true;
 				}
 
 				//Check if Membership Expiry changed
-				if ($user["Membership Expiry Date"] != $user_meta->expiry) {
-					$this->log_dual(" > expiry changed from " . $user_meta->expiry . " to " . $user["Membership Expiry Date"]);
+				if ($userExpiry != $user_meta->expiry) {
+					$this->log_dual(" > expiry changed from " . $user_meta->expiry . " to " . $userExpiry);
 					$update_this_user = true;
 				}
 
 				//Check if city changed
-				if ($user["City"] != $user_meta->city) {
-					$this->log_dual(" > city changed from " . $user_meta->city . " to " . $user["City"]);
+				if ($userCity != $user_meta->city) {
+					$this->log_dual(" > city changed from " . $user_meta->city . " to " . $userCity);
 					$update_this_user = true;
+				}
+
+				//Introduce a special rule to NOT update a user if the incoming data has
+				//a expiry date earlier than the one in the local DB. This is because
+				//sometimes a user has 2 memberships, one family and one personal, with
+				//different information in each. When the plugin runs, it receives asynchronously
+				//the 2 memberships, so one overwrites the other. Which one is the best one
+				//is hard to say, but most likely the information in the membership with
+				//latest expiry date is the best, because it is the latest one subscribed
+				//to by the user.
+				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
+				if ($userExpiry < $user_meta->expiry) {
+					$this->log_dual(" > Received expiry is earlier than expected. Reject update");
+					$update_this_user = false;
 				}
 
 				if (!$update_this_user) {
@@ -449,21 +466,21 @@ class acc_user_importer_Admin {
 			//--------USER NOT FOUND IN DATABASE-----
 			//But before creating a new record, make sure email is unique.
 			//We want emails to be unique in DB because it is a login identifier.
-			} elseif ( !(strlen($user_email) > 1) ) {
+			} elseif ( !(strlen($userEmail) > 1) ) {
 				//User has no email field, skip it
 				$this->log_dual(" > error: no email given, cannot create new user account.");
-				$update_errors[] = $user['FirstName'] . " " . $user['LastName'] . " (" . $user_contact_id . ")";
+				$update_errors[] = $user;
 
 			} else {
 				$this->log_dual(" > user not found");
 
-				$user_id = email_exists($user_email);
+				$user_id = email_exists($userEmail);
 				if ( is_numeric($user_id) ) {
 					//An existing user already has this email address, skip updating
 					$user2 = get_userdata($user_id);
 					$username2 = $user2->user_firstname . " " . $user2->user_lastname;
 					$this->log_dual(" > existing user #" . $user_id . " " . $username2 .
-					                " already has email " . $user_email);
+					                " already has email " . $userEmail);
 					$this->log_dual(" > user update skipped");
 					$user_data = array_merge( array('ID' => $user_id), $user_data); //point to correct ID (future proofing)
 					$update_errors[] = $user;
@@ -472,14 +489,15 @@ class acc_user_importer_Admin {
 					$update_this_user = true;
 					$this->log_dual(" > email not found on any other users");
 					$this->log_dual(" > will create new user account");
-					$new_users[] = $user_contact_id;
-					$new_users_email[] = $user_email ;
+					$new_users[] = $userContactId;
+					$new_users_email[] = $userEmail ;
 					$user_data["role"] = $default_role;
 				}
 			}
 
 			//only update user if needed
 			if ($update_this_user) {
+
 				//update core info (name, email)
 				$wp_user = wp_insert_user( $user_data );
 				if ( is_wp_error($wp_user) ) {
@@ -488,16 +506,16 @@ class acc_user_importer_Admin {
 
 				} else {
 					//update user meta
-					update_user_meta( $wp_user, 'home_phone', $user['HomePhone'] );
-					update_user_meta( $wp_user, 'cell_phone', $user['Cell Phone'] );
-					update_user_meta( $wp_user, 'membership', $user['MEMBERSHIP_N'] );
-					update_user_meta( $wp_user, 'expiry', $user['Membership Expiry Date'] );
-					update_user_meta( $wp_user, 'city', $user['City'] );
+					update_user_meta( $wp_user, 'home_phone', $userHomePhone );
+					update_user_meta( $wp_user, 'cell_phone', $userCellPhone );
+					update_user_meta( $wp_user, 'membership', $userMembership );
+					update_user_meta( $wp_user, 'expiry', $userExpiry );
+					update_user_meta( $wp_user, 'city', $userCity );
 					$this->log_dual(" > Updated user information");
 					//Add user to the updated_users list only if it's not already in the created list
-					if (!in_array($user_contact_id, $new_users)) {
-						$updated_users[] = $user_contact_id;
-						$updated_users_email[] = $user_email;
+					if (!in_array($userContactId, $new_users)) {
+						$updated_users[] = $userContactId;
+						$updated_users_email[] = $userEmail;
 					}
 				}
 			}
