@@ -327,20 +327,12 @@ class acc_user_importer_Admin {
 		$update_errors = [];
 		$new_users = [];
 		$new_users_email = [];
-		$role_refreshed = [];
-		$role_refreshed_email = [];
 		$updated_users = [];
 		$updated_users_email = [];
 
 		// Get the configured default role for new users
 		$default_role = get_option( "acc_role_editor", "subscriber" );
 		$this->log_dual("For new users, default role=" . $default_role);
-
-		// Existing users which are expired needs to have their role refreshed
-		$role_expiry1 = get_option("acc_expiry_lvl_1");
-		$role_expiry2 = get_option("acc_expiry_lvl_2");
-		$this->log_dual("For existing users, refresh role if:" . $role_expiry1 . " or " . $role_expiry2);
-
 
 		foreach ( $users as $id => $user ) {
 
@@ -392,22 +384,6 @@ class acc_user_importer_Admin {
 				// Get the user object
 				$user_meta = get_userdata($user_id);
 
-				// Get all the user roles as an array.
-				$user_roles = $user_meta->roles;
-				// Check if user has expired or ex-member role. If so, update role to default
-				if ( in_array( $role_expiry1, $user_roles, true ) ) {
-					$this->log_dual(" > User is " . $role_expiry1 . ", refreshing role to " . $default_role);
-					$update_this_user = true;
-					$user_data["role"] = $default_role;
-					$role_refreshed[] = $userContactId;
-					$role_refreshed_email[] = $userEmail;
-				} elseif (in_array( $role_expiry2, $user_roles, true ) ) {
-					$this->log_dual(" > User is " . $role_expiry2 . ", refreshing role to " . $default_role);
-					$update_this_user = true;
-					$user_data["role"] = $default_role;
-					$role_refreshed[] = $userContactId;
-					$role_refreshed_email[] = $userEmail;
-				}
 
 				//Check if email changed
 				if ($userEmail != $user_meta->user_email) {
@@ -529,10 +505,6 @@ class acc_user_importer_Admin {
 		foreach ( $new_users as $id => $user ) {
 			$this->log_dual("  " . $user . " (" . $new_users_email[$id] . ")");
 		}
-		$this->log_dual("--Refreshed roles for " . count($role_refreshed) . " people:");
-		foreach ( $role_refreshed as $id => $user ) {
-			$this->log_dual("  " . $user . " (" . $role_refreshed_email[$id] . ")");
-		}
 		$this->log_dual("--Updated data for " . count($updated_users) . " people:");
 		foreach ( $updated_users as $id => $user ) {
 			$this->log_dual("  " . $user . " (" . $updated_users_email[$id] . ")");
@@ -544,7 +516,6 @@ class acc_user_importer_Admin {
 		
 		$api_response['usersInData'] = count($users);
 		$api_response['newUsers'] = count($new_users);
-		$api_response['roleRefreshed'] = count($role_refreshed);
 		$api_response['updatedUsers'] = (count($users) - count($update_errors));
 		$api_response['usersWithErrors'] = count($update_errors);
 		$api_response['message'] = "success";
