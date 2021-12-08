@@ -22,7 +22,7 @@ class acc_user_importer_Admin {
 	/**
 	 * The journey of 1000 miles begins with a single footstep.
 	 */
-	public function begin_automatic_update () {
+	public function begin_automatic_update() {
 		
 		//force certificate validation - i.e. speed up authentication process
 		add_filter( 'https_local_ssl_verify', '__return_true' );
@@ -370,7 +370,10 @@ class acc_user_importer_Admin {
 			//check if ID already exist
 			$user_id = username_exists($userContactId);
 			$update_this_user = false;
+			$updatedFields = [];
 			
+
+			// Existing user, check if any fields were updated
 			if( is_numeric( $user_id ) ) {
 				//---------USER WAS FOUND IN DATABASE------------
 				$this->log_dual(" > found " . $userContactId . " (user #" . $user_id . ")");
@@ -385,42 +388,6 @@ class acc_user_importer_Admin {
 				$user_meta = get_userdata($user_id);
 
 
-				//Check if email changed
-				if ($userEmail != $user_meta->user_email) {
-					$this->log_dual(" > email changed from " . $user_meta->user_email . " to " . $userEmail);
-					$update_this_user = true;
-				}
-
-				//Check if HomePhone changed
-				if ($userHomePhone != $user_meta->home_phone) {
-					$this->log_dual(" > home phone changed from " . $user_meta->home_phone . " to " . $userHomePhone);
-					$update_this_user = true;
-				}
-
-				//Check if Cell phone changed
-				if ($userCellPhone != $user_meta->cell_phone) {
-					$this->log_dual(" > cell phone changed from " . $user_meta->cell_phone . " to " . $userCellPhone);
-					$update_this_user = true;
-				}
-
-				//Check if MEMBERSHIP_N changed
-				if ($userMembership != $user_meta->membership) {
-					$this->log_dual(" > membership# changed from " . $user_meta->membership . " to " . $userMembership);
-					$update_this_user = true;
-				}
-
-				//Check if Membership Expiry changed
-				if ($userExpiry != $user_meta->expiry) {
-					$this->log_dual(" > expiry changed from " . $user_meta->expiry . " to " . $userExpiry);
-					$update_this_user = true;
-				}
-
-				//Check if city changed
-				if ($userCity != $user_meta->city) {
-					$this->log_dual(" > city changed from " . $user_meta->city . " to " . $userCity);
-					$update_this_user = true;
-				}
-
 				//Introduce a special rule to NOT update a user if the incoming data has
 				//a expiry date earlier than the one in the local DB. This is because
 				//sometimes a user has 2 memberships, one family and one personal, with
@@ -432,44 +399,95 @@ class acc_user_importer_Admin {
 				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
 				if ($userExpiry < $user_meta->expiry) {
 					$this->log_dual(" > Received expiry is earlier than expected. Reject update");
-					$update_this_user = false;
+					continue;
 				}
 
-				if (!$update_this_user) {
-					$this->log_dual(" > Nothing changed for this user");
+
+
+				// TODO: Create a loop to do this
+				//Check if email changed
+				if ($userEmail != $user_meta->user_email) {
+					$this->log_dual(" > email changed from " . $user_meta->user_email . " to " . $userEmail);
+					$update_this_user = true;
+					$updatedFields[] = 'user_email';
 				}
+
+				//Check if HomePhone changed
+				if ($userHomePhone != $user_meta->home_phone) {
+					$this->log_dual(" > home phone changed from " . $user_meta->home_phone . " to " . $userHomePhone);
+					$update_this_user = true;
+					$updatedFields[] = 'home_phone';
+				}
+
+				//Check if Cell phone changed
+				if ($userCellPhone != $user_meta->cell_phone) {
+					$this->log_dual(" > cell phone changed from " . $user_meta->cell_phone . " to " . $userCellPhone);
+					$update_this_user = true;
+					$updatedFields[] = 'cell_phone';
+				}
+
+				//Check if MEMBERSHIP_N changed
+				if ($userMembership != $user_meta->membership) {
+					$this->log_dual(" > membership# changed from " . $user_meta->membership . " to " . $userMembership);
+					$update_this_user = true;
+					$updatedFields[] = 'membership';
+				}
+
+				//Check if Membership Expiry changed
+				if ($userExpiry != $user_meta->expiry) {
+					$this->log_dual(" > expiry changed from " . $user_meta->expiry . " to " . $userExpiry);
+					$update_this_user = true;
+					$updatedFields[] = 'expiry';
+				}
+
+				//Check if city changed
+				if ($userCity != $user_meta->city) {
+					$this->log_dual(" > city changed from " . $user_meta->city . " to " . $userCity);
+					$update_this_user = true;
+					$updatedFields[] = 'city';
+				}
+
+			} 
+
+			// No updates to existing user, nothing to do here and we can move on to the next user.
+			if (empty($updatedFields)) {
+				$this->log_dual(" > Nothing changed for this user");
+				continue;
+			}
+			
 
 			//--------USER NOT FOUND IN DATABASE-----
-			//But before creating a new record, make sure email is unique.
-			//We want emails to be unique in DB because it is a login identifier.
-			} elseif ( !(strlen($userEmail) > 1) ) {
+			//But before creating a new record, make sure email is valid & unique.
+			// We want emails to be unique in DB because it is a login identifier.
+			if (!is_email($userEmail)) {
 				//User has no email field, skip it
 				$this->log_dual(" > error: no email given, cannot create new user account.");
 				$update_errors[] = $user;
+				continue;
+			} 
 
+			$this->log_dual(" > user not found");
+
+			$user_id = email_exists($userEmail);
+			if ( is_numeric($user_id) ) {
+				//An existing user already has this email address, skip updating
+				$user2 = get_userdata($user_id);
+				$username2 = $user2->user_firstname . " " . $user2->user_lastname;
+				$this->log_dual(" > existing user #" . $user_id . " " . $username2 .
+								" already has email " . $userEmail);
+				$this->log_dual(" > user update skipped");
+				$user_data = array_merge( array('ID' => $user_id), $user_data); //point to correct ID (future proofing)
+				$update_errors[] = $user;
 			} else {
-				$this->log_dual(" > user not found");
-
-				$user_id = email_exists($userEmail);
-				if ( is_numeric($user_id) ) {
-					//An existing user already has this email address, skip updating
-					$user2 = get_userdata($user_id);
-					$username2 = $user2->user_firstname . " " . $user2->user_lastname;
-					$this->log_dual(" > existing user #" . $user_id . " " . $username2 .
-					                " already has email " . $userEmail);
-					$this->log_dual(" > user update skipped");
-					$user_data = array_merge( array('ID' => $user_id), $user_data); //point to correct ID (future proofing)
-					$update_errors[] = $user;
-				} else {
-					//email is unique, proceed to create a new record
-					$update_this_user = true;
-					$this->log_dual(" > email not found on any other users");
-					$this->log_dual(" > will create new user account");
-					$new_users[] = $userContactId;
-					$new_users_email[] = $userEmail ;
-					$user_data["role"] = $default_role;
-				}
+				//email is unique, proceed to create a new record
+				$update_this_user = true;
+				$this->log_dual(" > email not found on any other users");
+				$this->log_dual(" > will create new user account");
+				$new_users[] = $userContactId;
+				$new_users_email[] = $userEmail ;
+				$user_data["role"] = $default_role;
 			}
+			
 
 			//only update user if needed
 			if ($update_this_user) {
