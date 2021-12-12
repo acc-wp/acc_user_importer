@@ -357,7 +357,7 @@ class acc_user_importer_Admin {
 			$this->log_dual("Received " . $user_info);
 
 			//Create an array for the core wordpress user information
-			$user_data = array(
+			$accUserData = [
 				'first_name'	=>	$userFirstName,
 				'last_name'		=>	$userLastName,
 				'display_name'	=>	$userContactId,
@@ -365,11 +365,19 @@ class acc_user_importer_Admin {
 				'user_login'	=>	$userContactId,
 				'user_email'	=>	$userEmail,
 				'user_pass'		=>	null,
-			);
+			];
+
+			$accUserMetaData = [
+				'home_phone' => $userHomePhone,
+				'cell_phone' => $userCellPhone,
+				'membership' => $userMembership,
+				'expiry' => $userExpiry,
+				'city' => $userCity
+			];
 			
 			//check if ID already exist
 			$user_id = username_exists($userContactId);
-			$update_this_user = false;
+			
 			$updatedFields = [];
 			
 
@@ -379,7 +387,7 @@ class acc_user_importer_Admin {
 				$this->log_dual(" > found " . $userContactId . " (user #" . $user_id . ")");
 
 				//append ID to data object - wordpress will update the user instead of create a new one
-				$user_data = array_merge( array('ID' => $user_id), $user_data);
+				$accUserData = array_merge( array('ID' => $user_id), $accUserData);
 
 				//Update DB only if something changed.
 				//Do a bunch of compare to decide if an update is needed.
@@ -403,58 +411,36 @@ class acc_user_importer_Admin {
 				}
 
 
-
-				// TODO: Create a loop to do this
-				//Check if email changed
-				if ($userEmail != $user_meta->user_email) {
-					$this->log_dual(" > email changed from " . $user_meta->user_email . " to " . $userEmail);
-					$update_this_user = true;
-					$updatedFields[] = 'user_email';
+				// Update the core user data, skip metadata update if this fails
+				if ( is_wp_error($updateResp = wp_update_user($accUserData)) ) {
+					$this->log_dual(" > failed to update user");
+					$this->log_dual(" > WP:" . $updateResp->get_error_message());
+					continue;
 				}
 
-				//Check if HomePhone changed
-				if ($userHomePhone != $user_meta->home_phone) {
-					$this->log_dual(" > home phone changed from " . $user_meta->home_phone . " to " . $userHomePhone);
-					$update_this_user = true;
-					$updatedFields[] = 'home_phone';
+
+				// Update all metadata fields
+				foreach ($accUserMetaData as $field => $value) {
+					if ($value != $user_meta->$field) {
+						update_user_meta( $user_id, $field, $value );
+						$this->log_dual(" > $field changed from " . $user_meta->$field . " to " . $value);
+						$updatedFields[] = $field;
+					}
 				}
 
-				//Check if Cell phone changed
-				if ($userCellPhone != $user_meta->cell_phone) {
-					$this->log_dual(" > cell phone changed from " . $user_meta->cell_phone . " to " . $userCellPhone);
-					$update_this_user = true;
-					$updatedFields[] = 'cell_phone';
+
+				if (in_array('expiry', $updatedFields)) {
+					do_action('acc_membership_renewal', $user_id);
 				}
 
-				//Check if MEMBERSHIP_N changed
-				if ($userMembership != $user_meta->membership) {
-					$this->log_dual(" > membership# changed from " . $user_meta->membership . " to " . $userMembership);
-					$update_this_user = true;
-					$updatedFields[] = 'membership';
+				if (!empty($updatedFields)) {
+					$updated_users[] = $userContactId;
+					$updated_users_email[] = $userEmail;
 				}
 
-				//Check if Membership Expiry changed
-				if ($userExpiry != $user_meta->expiry) {
-					$this->log_dual(" > expiry changed from " . $user_meta->expiry . " to " . $userExpiry);
-					$update_this_user = true;
-					$updatedFields[] = 'expiry';
-				}
-
-				//Check if city changed
-				if ($userCity != $user_meta->city) {
-					$this->log_dual(" > city changed from " . $user_meta->city . " to " . $userCity);
-					$update_this_user = true;
-					$updatedFields[] = 'city';
-				}
-
-			} 
-
-			// No updates to existing user, nothing to do here and we can move on to the next user.
-			if (empty($updatedFields)) {
-				$this->log_dual(" > Nothing changed for this user");
+				// All done with updating the user
 				continue;
 			}
-			
 
 			//--------USER NOT FOUND IN DATABASE-----
 			//But before creating a new record, make sure email is valid & unique.
@@ -466,54 +452,40 @@ class acc_user_importer_Admin {
 				continue;
 			} 
 
-			$this->log_dual(" > user not found");
-
-			$user_id = email_exists($userEmail);
-			if ( is_numeric($user_id) ) {
-				//An existing user already has this email address, skip updating
+			//An existing user already has this email address, skip updating
+			if ( is_numeric($user_id = email_exists($userEmail)) ) {
 				$user2 = get_userdata($user_id);
 				$username2 = $user2->user_firstname . " " . $user2->user_lastname;
 				$this->log_dual(" > existing user #" . $user_id . " " . $username2 .
 								" already has email " . $userEmail);
 				$this->log_dual(" > user update skipped");
-				$user_data = array_merge( array('ID' => $user_id), $user_data); //point to correct ID (future proofing)
 				$update_errors[] = $user;
+				continue;
+			}
+
+			//--------CREATE NEW USER-----
+			//email is unique, proceed to create a new record
+			$this->log_dual(" > email not found on any other users");
+			$this->log_dual(" > will create new user account");
+			$new_users[] = $userContactId;
+			$new_users_email[] = $userEmail ;
+			$accUserData["role"] = $default_role;
+	
+			//update core info (name, email)
+			$user_id = wp_insert_user( $accUserData );
+			if ( is_wp_error($user_id) ) {
+				$this->log_dual(" > failed to create user");
+				$this->log_dual(" > WP:" . $user_id->get_error_message());
+
 			} else {
-				//email is unique, proceed to create a new record
-				$update_this_user = true;
-				$this->log_dual(" > email not found on any other users");
-				$this->log_dual(" > will create new user account");
-				$new_users[] = $userContactId;
-				$new_users_email[] = $userEmail ;
-				$user_data["role"] = $default_role;
-			}
-			
-
-			//only update user if needed
-			if ($update_this_user) {
-
-				//update core info (name, email)
-				$wp_user = wp_insert_user( $user_data );
-				if ( is_wp_error($wp_user) ) {
-					$this->log_dual(" > failed to update user");
-					$this->log_dual(" > WP:" . $wp_user->get_error_message());
-
-				} else {
-					//update user meta
-					update_user_meta( $wp_user, 'home_phone', $userHomePhone );
-					update_user_meta( $wp_user, 'cell_phone', $userCellPhone );
-					update_user_meta( $wp_user, 'membership', $userMembership );
-					update_user_meta( $wp_user, 'expiry', $userExpiry );
-					update_user_meta( $wp_user, 'city', $userCity );
-					$this->log_dual(" > Updated user information");
-					//Add user to the updated_users list only if it's not already in the created list
-					if (!in_array($userContactId, $new_users)) {
-						$updated_users[] = $userContactId;
-						$updated_users_email[] = $userEmail;
-					}
+				foreach ($accUserMetaData as $field => $value) {
+					update_user_meta( $user_id, $field, $value );	
 				}
+
+				do_action('acc_new_membership', $user_id);
 			}
-			
+
+
 		} //end user loop
 		
 		//Outcome summary
