@@ -86,6 +86,19 @@
 				'default' => 'Asi.Scheduler_DEV/api/IQA?QueryName=$/ACC/Queries/REST/ACC_VA'
 			)
 		);
+
+		add_settings_field(
+			'acc_member_login_name',		//ID
+			'ACC Member Login Name Style',	//Title
+			'accUM_select_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_member_login_name',
+				'values' => ['Firstname Lastname', 'Contact ID'],
+				'accUM_member_login_name' => 'Firstname Lastname'
+			)
+		);
 		
 		//Register the array that will store all plugin data
 		register_setting( 'acc_admin_page', 'accUM_data', 'accUM_sanitize_data' );

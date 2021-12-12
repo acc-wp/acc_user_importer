@@ -25,7 +25,7 @@ if ( ! defined( 'WPINC' ) ) {
 /**
  * Current plugin version.
  */
-define( 'ACC_USER_IMPORTER_VERSION', '1.1.10' );
+define( 'ACC_USER_IMPORTER_VERSION', '1.1.0' );
 
 /**
  * Plugin activation.

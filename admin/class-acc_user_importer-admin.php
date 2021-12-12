@@ -277,52 +277,6 @@ class acc_user_importer_Admin {
 			return $api_response;
 		}
 		
-		//remove record entirely if membership number is missing
-		$malformed_users = [];
-		foreach ( $users as $key => $user ) {
-			$member_id = $user['MEMBERSHIP_N'];
-			if (! (is_numeric($member_id) )) {
-				$malformed_users[] = $user;
-				unset( $users[$key] );
-				continue;
-			}
-		}
-		
-		//log outcome of removing users without a membership number
-		if (count($malformed_users) > 0) {
-			$this->log_dual("Removed " . count($malformed_users) . " record(s) without membership numbers.");
-			foreach ( $malformed_users as $id => $user ) {
-				$this->log_dual("  [" . ($id + 1) . "] " . $user['FirstName'] . " " . $user['LastName']);
-			}
-		}
-		
-		//sanitize - i.e. remove keys/values that aren't in this list
-		foreach ( $users as $key => $user ) {
-			
-			$allowed_columns = array(	//'PRODUCT_CODE',
-										//'MemberType',
-										'Membership Expiry Date',
-										'Email',
-										'Cell Phone',
-										'HomePhone',
-										//'Address1',
-										//'Address2',
-										'City',
-										'LastName',
-										'FirstName',
-										//'Contact ID',
-										'MEMBERSHIP_N'
-									);
-									
-			foreach ( $user as $value_key => $value ) {
-				
-				if (! in_array( $value_key, $allowed_columns ) ) {
-					unset( $user[$value_key] );
-				}
-				$users[$key] = $user; //save into correct scope
-			}
-		}
-		
 		//loop through data and create users
 		$update_errors = [];
 		$new_users = [];
@@ -335,11 +289,10 @@ class acc_user_importer_Admin {
 		$this->log_dual("For new users, default role=" . $default_role);
 
 		foreach ( $users as $id => $user ) {
-
 			//Avoid PHP warnings in case some fields are unpopulated
 			$userFirstName= $user["FirstName"] ?? '';
 			$userLastName= $user["LastName"] ?? '';
-			$userContactId = $userFirstName . " " . $userLastName;
+			$userContactId = $user['Contact ID'] ?? '';
 			$userEmail = strtolower($user["Email"] ?? '');
 			$userHomePhone = $user["HomePhone"] ?? '';
 			$userCellPhone = $user["Cell Phone"] ?? '';
@@ -348,19 +301,26 @@ class acc_user_importer_Admin {
 			$userCity = $user["City"] ?? '';
 			
 			//Log the info we received for this user
-			$user_info = $userContactId;
-			$user_info = $user_info . " " . $userEmail;
-			$user_info = $user_info . " home:" . $userHomePhone;
-			$user_info = $user_info . " cell:" . $userCellPhone;
-			$user_info = $user_info . " member#:" . $userMembership;
-			$user_info = $user_info . " expiry:" . $userExpiry;
-			$this->log_dual("Received " . $user_info);
+			$userInfoString = $userContactId;
+			$userInfoString .= " " . $userEmail;
+			$userInfoString .= " home:" . $userHomePhone;
+			$userInfoString .= " cell:" . $userCellPhone;
+			$userInfoString .= " member#:" . $userMembership;
+			$userInfoString .= " expiry:" . $userExpiry;
+			$this->log_dual("Received " . $userInfoString);
+
+
+			// Skip users without membership number
+			if (!is_numeric($userMembership) || !is_numeric($userContactId)) {
+				$this->log_dual("User is missing membership number or contact ID, skipping.");
+				continue;
+			}
 
 			//Create an array for the core wordpress user information
 			$accUserData = [
 				'first_name'	=>	$userFirstName,
 				'last_name'		=>	$userLastName,
-				'display_name'	=>	$userContactId,
+				'display_name'	=>	$userFirstName . " " . $userLastName,
 				'user_nicename'	=>	strtolower($userFirstName . "-" . $userLastName),
 				'user_login'	=>	$userContactId,
 				'user_email'	=>	$userEmail,
@@ -377,9 +337,7 @@ class acc_user_importer_Admin {
 			
 			//check if ID already exist
 			$user_id = username_exists($userContactId);
-			
 			$updatedFields = [];
-			
 
 			// Existing user, check if any fields were updated
 			if( is_numeric( $user_id ) ) {
@@ -677,7 +635,7 @@ class acc_user_importer_Admin {
 			//If it's a new run of the script, evaluate which log file to use
 			//and cache it for next time around for efficiency.
 			if ($new_run) {
-				$log_directory  = KFG_BASE_DIR . '/logs/acc/';
+				$log_directory  = WP_CONTENT_DIR . '/acc/logs/';
 				$log_date = date_i18n("Y-m-d-H-i-s");
 				$log_mode = "wb";
 				$log_filename = $log_directory . "log_auto_". $log_date . ".txt";
