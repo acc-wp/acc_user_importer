@@ -301,7 +301,7 @@ class acc_user_importer_Admin {
 			$userCity = $user["City"] ?? '';
 			
 			//Log the info we received for this user
-			$userInfoString = $userContactId;
+			$userInfoString = $userFirstName . " " . $userLastName;
 			$userInfoString .= " " . $userEmail;
 			$userInfoString .= " home:" . $userHomePhone;
 			$userInfoString .= " cell:" . $userCellPhone;
@@ -335,24 +335,15 @@ class acc_user_importer_Admin {
 				'city' => $userCity
 			];
 			
-			//check if ID already exist
-			$user_id = username_exists($userContactId);
+			// Check if ID or email already exist. Both should be unique 
+			$existingUser = get_user_by('login', $userContactId) ?: get_user_by('email', $userEmail);
+
 			$updatedFields = [];
 
 			// Existing user, check if any fields were updated
-			if( is_numeric( $user_id ) ) {
+			if( is_a( $existingUser, WP_User::class ) ) {
 				//---------USER WAS FOUND IN DATABASE------------
-				$this->log_dual(" > found " . $userContactId . " (user #" . $user_id . ")");
-
-				//append ID to data object - wordpress will update the user instead of create a new one
-				$accUserData = array_merge( array('ID' => $user_id), $accUserData);
-
-				//Update DB only if something changed.
-				//Do a bunch of compare to decide if an update is needed.
-				//This logic needs to be extended each time we add a new user field.
-				// Get the user object
-				$user_meta = get_userdata($user_id);
-
+				$this->log_dual(" > found " . $existingUser->display_name . " (user #" . $existingUser->ID . ")");
 
 				//Introduce a special rule to NOT update a user if the incoming data has
 				//a expiry date earlier than the one in the local DB. This is because
@@ -363,37 +354,39 @@ class acc_user_importer_Admin {
 				//latest expiry date is the best, because it is the latest one subscribed
 				//to by the user.
 				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
-				if ($userExpiry < $user_meta->expiry) {
+				if ($userExpiry < $existingUser->expiry) {
 					$this->log_dual(" > Received expiry is earlier than expected. Reject update");
 					continue;
 				}
 
 
-				// Update the core user data, skip metadata update if this fails
-				if ( is_wp_error($updateResp = wp_update_user($accUserData)) ) {
-					$this->log_dual(" > failed to update user");
-					$this->log_dual(" > WP:" . $updateResp->get_error_message());
-					continue;
-				}
-
-
-				// Update all metadata fields
-				foreach ($accUserMetaData as $field => $value) {
-					if ($value != $user_meta->$field) {
-						update_user_meta( $user_id, $field, $value );
-						$this->log_dual(" > $field changed from " . $user_meta->$field . " to " . $value);
+				// Update all changed core & metadata fields on the user object
+				foreach (array_merge($accUserData, $accUserMetaData) as $field => $value) {
+					if ($value != $existingUser->$field) {
+						$existingUser->$field = $value;
+						$this->log_dual(" > $field changed from " . $existingUser->$field . " to " . $value);
 						$updatedFields[] = $field;
 					}
 				}
 
-
-				if (in_array('expiry', $updatedFields)) {
-					do_action('acc_membership_renewal', $user_id);
-				}
-
+				// Update the user in the database if fields were updated.
 				if (!empty($updatedFields)) {
+					// Passing in the $existingUser object with the updated values will persist everything to the database.
+					$updateResp = wp_update_user($existingUser);
+					if ( is_wp_error($existingUser) ) {
+						$this->log_dual(" > failed to update user");
+						$this->log_dual(" > WP:" . $updateResp->get_error_message());
+						continue;
+					}
+
 					$updated_users[] = $userContactId;
 					$updated_users_email[] = $userEmail;
+				}
+
+
+				// Trigger hook if expiry date changed (updated membership)
+				if (in_array('expiry', $updatedFields)) {
+					do_action('acc_membership_renewal', $existingUser->ID);
 				}
 
 				// All done with updating the user
@@ -401,49 +394,33 @@ class acc_user_importer_Admin {
 			}
 
 			//--------USER NOT FOUND IN DATABASE-----
-			//But before creating a new record, make sure email is valid & unique.
-			// We want emails to be unique in DB because it is a login identifier.
+			// But before creating a new record, make sure email is valid.
 			if (!is_email($userEmail)) {
 				//User has no email field, skip it
-				$this->log_dual(" > error: no email given, cannot create new user account.");
-				$update_errors[] = $user;
-				continue;
-			} 
-
-			//An existing user already has this email address, skip updating
-			if ( is_numeric($user_id = email_exists($userEmail)) ) {
-				$user2 = get_userdata($user_id);
-				$username2 = $user2->user_firstname . " " . $user2->user_lastname;
-				$this->log_dual(" > existing user #" . $user_id . " " . $username2 .
-								" already has email " . $userEmail);
-				$this->log_dual(" > user update skipped");
+				$this->log_dual(" > error: no valid email given, cannot create new user account.");
 				$update_errors[] = $user;
 				continue;
 			}
 
 			//--------CREATE NEW USER-----
-			//email is unique, proceed to create a new record
 			$this->log_dual(" > email not found on any other users");
 			$this->log_dual(" > will create new user account");
 			$new_users[] = $userContactId;
 			$new_users_email[] = $userEmail ;
 			$accUserData["role"] = $default_role;
+			// Assign custom meta data
+			$accUserData["meta_input"] = $accUserMetaData;
 	
-			//update core info (name, email)
-			$user_id = wp_insert_user( $accUserData );
-			if ( is_wp_error($user_id) ) {
+			// Insert new user
+			$userID = wp_insert_user( $accUserData );
+			if ( is_wp_error($userID) ) {
 				$this->log_dual(" > failed to create user");
-				$this->log_dual(" > WP:" . $user_id->get_error_message());
-
-			} else {
-				foreach ($accUserMetaData as $field => $value) {
-					update_user_meta( $user_id, $field, $value );	
-				}
-
-				do_action('acc_new_membership', $user_id);
+				$this->log_dual(" > WP:" . $userID->get_error_message());
+				continue;
 			}
 
-
+			// Execute hooks for new membership
+			do_action('acc_new_membership', $userID);
 		} //end user loop
 		
 		//Outcome summary
