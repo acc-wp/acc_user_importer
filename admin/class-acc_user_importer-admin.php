@@ -321,10 +321,9 @@ class acc_user_importer_Admin {
 				'first_name'	=>	$userFirstName,
 				'last_name'		=>	$userLastName,
 				'display_name'	=>	$userFirstName . " " . $userLastName,
-				'user_nicename'	=>	strtolower($userFirstName . "-" . $userLastName),
+				'user_nicename'	=>	strtolower(remove_accents($userFirstName . "-" . $userLastName)),
 				'user_login'	=>	$userContactId,
 				'user_email'	=>	$userEmail,
-				'user_pass'		=>	null,
 			];
 
 			$accUserMetaData = [
@@ -336,7 +335,23 @@ class acc_user_importer_Admin {
 			];
 			
 			// Check if ID or email already exist. Both should be unique 
-			$existingUser = get_user_by('login', $userContactId) ?: get_user_by('email', $userEmail);
+			//$existingUser = get_user_by('login', $userContactId) ?: get_user_by('email', $userEmail);
+			$existingUser = get_user_by('login', $userContactId);
+			if( !is_a( $existingUser, WP_User::class ) ) {
+				$this->log_dual(" > not found by login");
+				//Not found by login, search by email
+				$existingUser = get_user_by('email', $userEmail);
+				if( is_a( $existingUser, WP_User::class ) ) {
+					//We found a user. If the name is the same, update it.
+					//However if the name is different, it must be a family membership
+					//sharing the same email, so abort, let the current user be.
+					$this->log_dual(" > found by email, name is " . $existingUser->display_name);
+					if ($accUserData['display_name'] != $existingUser->display_name) {
+						$this->log_dual(" > email already used by someone else, skip");
+						continue;
+					}
+				}
+			}
 
 			$updatedFields = [];
 
@@ -363,8 +378,8 @@ class acc_user_importer_Admin {
 				// Update all changed core & metadata fields on the user object
 				foreach (array_merge($accUserData, $accUserMetaData) as $field => $value) {
 					if ($value != $existingUser->$field) {
-						$existingUser->$field = $value;
 						$this->log_dual(" > $field changed from " . $existingUser->$field . " to " . $value);
+						$existingUser->$field = $value;
 						$updatedFields[] = $field;
 					}
 				}
@@ -373,14 +388,25 @@ class acc_user_importer_Admin {
 				if (!empty($updatedFields)) {
 					// Passing in the $existingUser object with the updated values will persist everything to the database.
 					$updateResp = wp_update_user($existingUser);
-					if ( is_wp_error($existingUser) ) {
+					if ( is_wp_error($updateResp) ) {
 						$this->log_dual(" > failed to update user");
 						$this->log_dual(" > WP:" . $updateResp->get_error_message());
 						continue;
 					}
-
-					$updated_users[] = $userContactId;
+					$this->log_dual(" > updated user");
+					$updated_users[] = $accUserData['display_name'];
 					$updated_users_email[] = $userEmail;
+
+					//user_login is a special case, not updated by wp_update_user.
+					//If this field changed, use a SQL command to update it.
+					//See https://wordpress.stackexchange.com/questions/103504/how-to-programatically-change-username-user-login
+					if (in_array('user_login', $updatedFields)) {
+						$this->log_dual(" > Need to update user_login using SQL");
+						global $wpdb;
+						$wpdb->update($wpdb->users,
+									  ['user_login' => $existingUser->user_login],
+									  ['ID' => $existingUser->ID]);
+					}
 				}
 
 
@@ -404,10 +430,12 @@ class acc_user_importer_Admin {
 
 			//--------CREATE NEW USER-----
 			$this->log_dual(" > email not found on any other users");
-			$this->log_dual(" > will create new user account");
 			$new_users[] = $userContactId;
 			$new_users_email[] = $userEmail ;
 			$accUserData["role"] = $default_role;
+			$accUserData["user_registered"] = date('Y-m-d H:i:s');
+			$this->log_dual(" > Creating new user account, user registered on " . $accUserData["user_registered"]);
+
 			// Assign custom meta data
 			$accUserData["meta_input"] = $accUserMetaData;
 	
@@ -612,7 +640,7 @@ class acc_user_importer_Admin {
 			//If it's a new run of the script, evaluate which log file to use
 			//and cache it for next time around for efficiency.
 			if ($new_run) {
-				$log_directory  = WP_CONTENT_DIR . '/acc/logs/';
+				$log_directory  = plugin_dir_path . 'logs/acc/';
 				$log_date = date_i18n("Y-m-d-H-i-s");
 				$log_mode = "wb";
 				$log_filename = $log_directory . "log_auto_". $log_date . ".txt";
