@@ -303,9 +303,10 @@ class acc_user_importer_Admin {
 			//Log the info we received for this user
 			$userInfoString = $userFirstName . " " . $userLastName;
 			$userInfoString .= " " . $userEmail;
+			$userInfoString .= " ContactID:" . $userContactId;
+			$userInfoString .= " membership#:" . $userMembership;
 			$userInfoString .= " home:" . $userHomePhone;
 			$userInfoString .= " cell:" . $userCellPhone;
-			$userInfoString .= " member#:" . $userMembership;
 			$userInfoString .= " expiry:" . $userExpiry;
 			$this->log_dual("Received " . $userInfoString);
 
@@ -400,13 +401,15 @@ class acc_user_importer_Admin {
 					//user_login is a special case, not updated by wp_update_user.
 					//If this field changed, use a SQL command to update it.
 					//See https://wordpress.stackexchange.com/questions/103504/how-to-programatically-change-username-user-login
-					if (in_array('user_login', $updatedFields)) {
-						$this->log_dual(" > Need to update user_login using SQL");
-						global $wpdb;
-						$wpdb->update($wpdb->users,
-									  ['user_login' => $existingUser->user_login],
-									  ['ID' => $existingUser->ID]);
-					}
+					//This is disabled right now because it seems a bit dangerous to change username.
+					//There is probably a good reason why Wordpress does not allow changing usernames.
+					// if (in_array('user_login', $updatedFields)) {
+					// 	$this->log_dual(" > Need to update user_login using SQL");
+					// 	global $wpdb;
+					// 	$wpdb->update($wpdb->users,
+					// 				  ['user_login' => $existingUser->user_login],
+					// 				  ['ID' => $existingUser->ID]);
+					// }
 				}
 
 
@@ -433,8 +436,7 @@ class acc_user_importer_Admin {
 			$new_users[] = $userContactId;
 			$new_users_email[] = $userEmail ;
 			$accUserData["role"] = $default_role;
-			$accUserData["user_registered"] = date('Y-m-d H:i:s');
-			$this->log_dual(" > Creating new user account, user registered on " . $accUserData["user_registered"]);
+			$this->log_dual(" > Creating new user account");
 
 			// Assign custom meta data
 			$accUserData["meta_input"] = $accUserMetaData;
@@ -640,7 +642,8 @@ class acc_user_importer_Admin {
 			//If it's a new run of the script, evaluate which log file to use
 			//and cache it for next time around for efficiency.
 			if ($new_run) {
-				$log_directory  = plugin_dir_path . 'logs/acc/';
+				//$log_directory  = plugin_dir_path(__FILE__) . 'logs/acc/';
+				$log_directory  = KFG_BASE_DIR . '/logs/acc/';
 				$log_date = date_i18n("Y-m-d-H-i-s");
 				$log_mode = "wb";
 				$log_filename = $log_directory . "log_auto_". $log_date . ".txt";
