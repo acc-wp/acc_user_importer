@@ -293,6 +293,7 @@ class acc_user_importer_Admin {
 			$userFirstName= $user["FirstName"] ?? '';
 			$userLastName= $user["LastName"] ?? '';
 			$userContactId = $user['Contact ID'] ?? '';
+			$userImisId = $user['imis_id'] ?? '';
 			$userEmail = strtolower($user["Email"] ?? '');
 			$userHomePhone = $user["HomePhone"] ?? '';
 			$userCellPhone = $user["Cell Phone"] ?? '';
@@ -304,6 +305,7 @@ class acc_user_importer_Admin {
 			$userInfoString = $userFirstName . " " . $userLastName;
 			$userInfoString .= " " . $userEmail;
 			$userInfoString .= " ContactID:" . $userContactId;
+			$userInfoString .= " imis_id:" . $userImisId;
 			$userInfoString .= " membership#:" . $userMembership;
 			$userInfoString .= " home:" . $userHomePhone;
 			$userInfoString .= " cell:" . $userCellPhone;
@@ -332,6 +334,7 @@ class acc_user_importer_Admin {
 				'cell_phone' => $userCellPhone,
 				'membership' => $userMembership,
 				'expiry' => $userExpiry,
+				'imis_id' => $userImisId,
 				'city' => $userCity
 			];
 			
@@ -395,6 +398,15 @@ class acc_user_importer_Admin {
 						continue;
 					}
 					$this->log_dual(" > updated user");
+
+					//Update meta fields (update_user_meta will not always do it)
+					foreach ($accUserMetaData as $field => $value) {
+						if (in_array($field, $updatedFields)) {
+							update_user_meta($existingUser->ID, $field, $value);
+							$this->log_dual(" > updated " . $field . " to " . $value);
+						}
+					}
+
 					$updated_users[] = $accUserData['display_name'];
 					$updated_users_email[] = $userEmail;
 
@@ -642,13 +654,12 @@ class acc_user_importer_Admin {
 			//If it's a new run of the script, evaluate which log file to use
 			//and cache it for next time around for efficiency.
 			if ($new_run) {
-				//$log_directory  = plugin_dir_path(__FILE__) . 'logs/acc/';
-				$log_directory  = KFG_BASE_DIR . '/logs/acc/';
+				$log_directory = ACC_BASE_DIR . '/logs/';
 				$log_date = date_i18n("Y-m-d-H-i-s");
 				$log_mode = "wb";
 				$log_filename = $log_directory . "log_auto_". $log_date . ".txt";
 
-				//Get list of files, sorted so the lastest is on top
+				//Get list of files, sorted so the latest is on top
 				$files2 = scandir($log_directory, SCANDIR_SORT_DESCENDING);
 
 				foreach ($files2 as $filename) {

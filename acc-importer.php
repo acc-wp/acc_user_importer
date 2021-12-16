@@ -22,6 +22,8 @@ if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
+define('ACC_BASE_DIR', WP_PLUGIN_DIR . '/' . dirname(plugin_basename(__FILE__)));
+
 /**
  * Current plugin version.
  */
