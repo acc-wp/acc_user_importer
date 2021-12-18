@@ -23,7 +23,7 @@ class acc_user_importer_Admin {
 	 * The journey of 1000 miles begins with a single footstep.
 	 */
 	public function begin_automatic_update() {
-		
+
 		//force certificate validation - i.e. speed up authentication process
 		add_filter( 'https_local_ssl_verify', '__return_true' );
 		
@@ -650,54 +650,51 @@ class acc_user_importer_Admin {
 		 * What I see: after the first batch of 100 members is done, the
 		 * script is done and the static variables are reset.
 		 */
-		if( is_plugin_active( 'acc-periodic-sync/index.php' ) ) {
-			//If it's a new run of the script, evaluate which log file to use
-			//and cache it for next time around for efficiency.
-			if ($new_run) {
-				$log_directory = ACC_BASE_DIR . '/logs/';
-				$log_date = date_i18n("Y-m-d-H-i-s");
-				$log_mode = "wb";
-				$log_filename = $log_directory . "log_auto_". $log_date . ".txt";
+		//If it's a new run of the script, evaluate which log file to use
+		//and cache it for next time around for efficiency.
+		if ($new_run) {
+			$log_directory = ACC_BASE_DIR . '/logs/';
+			$log_date = date_i18n("Y-m-d-H-i-s");
+			$log_mode = "wb";
+			$log_filename = $log_directory . "log_auto_". $log_date . ".txt";
 
-				//Get list of files, sorted so the latest is on top
-				$files2 = scandir($log_directory, SCANDIR_SORT_DESCENDING);
+			//Get list of files, sorted so the latest is on top
+			$files2 = scandir($log_directory, SCANDIR_SORT_DESCENDING);
 
-				foreach ($files2 as $filename) {
-					if (strpos($filename, "log_auto_") === false) {
-						//Not a log file, skip
+			foreach ($files2 as $filename) {
+				if (strpos($filename, "log_auto_") === false) {
+					//Not a log file, skip
+				} else {
+					//Found the latest log file.
+					//From filename, extract timestamp and see how long it's been.
+					sscanf($filename, "log_auto_%u-%u-%u-%u-%u-%u.txt", $year,$month,$day,$hour,$min,$sec);
+					$log_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
+					sscanf($log_date, "%u-%u-%u-%u-%u-%u", $year,$month,$day,$hour,$min,$sec);
+					$current_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
+					$elapsed = $current_ts - $log_ts;
+					if ($elapsed < 60) {		//less than 60 seconds old
+						//The log file is very recent, so append to it.
+						$log_mode = "a";
+						$log_filename = $log_directory . $filename;
 					} else {
-						//Found the latest log file.
-						//From filename, extract timestamp and see how long it's been.
-						sscanf($filename, "log_auto_%u-%u-%u-%u-%u-%u.txt", $year,$month,$day,$hour,$min,$sec);
-						$log_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
-						sscanf($log_date, "%u-%u-%u-%u-%u-%u", $year,$month,$day,$hour,$min,$sec);
-						$current_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
-						$elapsed = $current_ts - $log_ts;
-						if ($elapsed < 60) {		//less than 60 seconds old
-							//The log file is very recent, so append to it.
-							$log_mode = "a";
-							$log_filename = $log_directory . $filename;
-						} else {
-							//It's been more than 60s since creation of log file.
-							//We must be in a new run of importation. Create a new file.
-						}
-						break;
+						//It's been more than 60s since creation of log file.
+						//We must be in a new run of importation. Create a new file.
 					}
+					break;
 				}
-				$new_run = false;
-				$cached_filename = $log_filename;
-			} else {
-				//Same run, use the cached filename
-				$log_filename = $cached_filename;
-				$log_mode = "a";
 			}
+			$new_run = false;
+			$cached_filename = $log_filename;
+		} else {
+			//Same run, use the cached filename
+			$log_filename = $cached_filename;
+			$log_mode = "a";
+		}
 
-			$log_content = "\n" . $v;
-			$log = fopen($log_filename, $log_mode);
-			fwrite( $log, $log_content );
-			fclose( $log );
-			
-		}  
+		$log_content = "\n" . $v;
+		$log = fopen($log_filename, $log_mode);
+		fwrite( $log, $log_content );
+		fclose( $log );
 
 	}
 

@@ -14,16 +14,37 @@
 	 */
 	add_action( 'admin_menu', 'accUM_add_menu_page' );
 	function accUM_add_menu_page () {
-		
-		add_plugins_page(
+		add_options_page(
 			'ACC Administration',			//Title
 			'ACC Admin',					//Menu Title
 			'edit_users',					//Capability
 			'acc_admin_page',				//Slug
 			'accUM_render_options_pages'	//Callback
 		);
+		add_options_page(
+			'ACC Cron Jobs',			//Title
+			'ACC Cron Jobs',			//Menu Title
+			'edit_users',				//Capability
+			'acc_cron_list',			//Slug
+			'acc_cron_settings_lite'	//Callback
+		);
+		add_options_page(
+			'ACC Email Templates',		//Title
+			'ACC Email Templates',		//Menu Title
+			'edit_users',				//Capability
+			'email_templates',			//Slug
+			'acc_email_settings'		//Callback
+		);
 	}
-	
+
+	function acc_cron_settings_lite() {
+		require_once (ACC_BASE_DIR . '/template/cron_settings.php');
+	}
+
+	function acc_email_settings() {
+		require_once (ACC_BASE_DIR . '/template/email_settings.php');
+	}
+
 	/*
 	 * Register user settings for options page.
 	 */
@@ -96,6 +117,7 @@
 	 */
 	function accUM_render_options_pages () {
 		require plugin_dir_path( __FILE__ ) . '/acc_user_importer-admin-display.php';
+		require_once (ACC_BASE_DIR . '/template/acc_logs.php');
 	}
 
 	/*
