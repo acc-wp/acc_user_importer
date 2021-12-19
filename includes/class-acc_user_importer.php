@@ -107,7 +107,7 @@ class acc_user_importer {
 		//$this->loader->add_action( 'admin_head', $plugin_admin, 'begin_automatic_update' );
 		
 		//action hook for automatic updates
-		$this->loader->add_action( 'wpb_sync_acc_users', $plugin_admin, 'begin_automatic_update' );
+		$this->loader->add_action( 'acc_automatic_import', $plugin_admin, 'begin_automatic_update' );
 	}
 
 	/**

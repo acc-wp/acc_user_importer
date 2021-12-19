@@ -22,8 +22,8 @@ class acc_user_importer_Admin {
 	/**
 	 * The journey of 1000 miles begins with a single footstep.
 	 */
-	public function begin_automatic_update () {
-		
+	public function begin_automatic_update() {
+
 		//force certificate validation - i.e. speed up authentication process
 		add_filter( 'https_local_ssl_verify', '__return_true' );
 		
@@ -277,58 +277,10 @@ class acc_user_importer_Admin {
 			return $api_response;
 		}
 		
-		//remove record entirely if membership number is missing
-		$malformed_users = [];
-		foreach ( $users as $key => $user ) {
-			$member_id = $user['MEMBERSHIP_N'];
-			if (! (is_numeric($member_id) )) {
-				$malformed_users[] = $user;
-				unset( $users[$key] );
-				continue;
-			}
-		}
-		
-		//log outcome of removing users without a membership number
-		if (count($malformed_users) > 0) {
-			$this->log_dual("Removed " . count($malformed_users) . " record(s) without membership numbers.");
-			foreach ( $malformed_users as $id => $user ) {
-				$this->log_dual("  [" . ($id + 1) . "] " . $user['FirstName'] . " " . $user['LastName']);
-			}
-		}
-		
-		//sanitize - i.e. remove keys/values that aren't in this list
-		foreach ( $users as $key => $user ) {
-			
-			$allowed_columns = array(	//'PRODUCT_CODE',
-										//'MemberType',
-										'Membership Expiry Date',
-										'Email',
-										'Cell Phone',
-										'HomePhone',
-										//'Address1',
-										//'Address2',
-										'City',
-										'LastName',
-										'FirstName',
-										//'Contact ID',
-										'MEMBERSHIP_N'
-									);
-									
-			foreach ( $user as $value_key => $value ) {
-				
-				if (! in_array( $value_key, $allowed_columns ) ) {
-					unset( $user[$value_key] );
-				}
-				$users[$key] = $user; //save into correct scope
-			}
-		}
-		
 		//loop through data and create users
 		$update_errors = [];
 		$new_users = [];
 		$new_users_email = [];
-		$role_refreshed = [];
-		$role_refreshed_email = [];
 		$updated_users = [];
 		$updated_users_email = [];
 
@@ -336,18 +288,12 @@ class acc_user_importer_Admin {
 		$default_role = get_option( "acc_role_editor", "subscriber" );
 		$this->log_dual("For new users, default role=" . $default_role);
 
-		// Existing users which are expired needs to have their role refreshed
-		$role_expiry1 = get_option("acc_expiry_lvl_1");
-		$role_expiry2 = get_option("acc_expiry_lvl_2");
-		$this->log_dual("For existing users, refresh role if:" . $role_expiry1 . " or " . $role_expiry2);
-
-
 		foreach ( $users as $id => $user ) {
-
 			//Avoid PHP warnings in case some fields are unpopulated
 			$userFirstName= $user["FirstName"] ?? '';
 			$userLastName= $user["LastName"] ?? '';
-			$userContactId = $userFirstName . " " . $userLastName;
+			$userContactId = $user['Contact ID'] ?? '';
+			$userImisId = $user['imis_id'] ?? '';
 			$userEmail = strtolower($user["Email"] ?? '');
 			$userHomePhone = $user["HomePhone"] ?? '';
 			$userCellPhone = $user["Cell Phone"] ?? '';
@@ -356,94 +302,71 @@ class acc_user_importer_Admin {
 			$userCity = $user["City"] ?? '';
 			
 			//Log the info we received for this user
-			$user_info = $userContactId;
-			$user_info = $user_info . " " . $userEmail;
-			$user_info = $user_info . " home:" . $userHomePhone;
-			$user_info = $user_info . " cell:" . $userCellPhone;
-			$user_info = $user_info . " member#:" . $userMembership;
-			$user_info = $user_info . " expiry:" . $userExpiry;
-			$this->log_dual("Received " . $user_info);
+			$userInfoString = $userFirstName . " " . $userLastName;
+			$userInfoString .= " " . $userEmail;
+			$userInfoString .= " ContactID:" . $userContactId;
+			$userInfoString .= " imis_id:" . $userImisId;
+			$userInfoString .= " membership#:" . $userMembership;
+			$userInfoString .= " home:" . $userHomePhone;
+			$userInfoString .= " cell:" . $userCellPhone;
+			$userInfoString .= " expiry:" . $userExpiry;
+			$this->log_dual("Received " . $userInfoString);
 
-			//Create an array for the core wordpress user information
-			$user_data = array(
+
+			// Skip users without membership number
+			if (!is_numeric($userMembership) || !is_numeric($userContactId)) {
+				$this->log_dual("User is missing membership number or contact ID, skipping.");
+				continue;
+			}
+
+			// Create an array for the core wordpress user information.
+			// Note: once created, a user nicename should not change otherwise the
+			// author and post Permalinks would be affected. This is why we dont create
+			// a user_nicename field here; we dont want to generate our version and
+			// compare with what is in DB and trigger a user update, even if the user
+			// changed slightly the spelling of his name.
+			$accUserData = [
 				'first_name'	=>	$userFirstName,
 				'last_name'		=>	$userLastName,
-				'display_name'	=>	$userContactId,
-				'user_nicename'	=>	strtolower($userFirstName . "-" . $userLastName),
+				'display_name'	=>	$userFirstName . " " . $userLastName,
 				'user_login'	=>	$userContactId,
 				'user_email'	=>	$userEmail,
-				'user_pass'		=>	null,
-			);
+			];
+
+			$accUserMetaData = [
+				'home_phone' => $userHomePhone,
+				'cell_phone' => $userCellPhone,
+				'membership' => $userMembership,
+				'expiry' => $userExpiry,
+				'imis_id' => $userImisId,
+				'city' => $userCity
+			];
 			
-			//check if ID already exist
-			$user_id = username_exists($userContactId);
-			$update_this_user = false;
-			
-			if( is_numeric( $user_id ) ) {
+			// Check if ID or email already exist. Both should be unique 
+			//$existingUser = get_user_by('login', $userContactId) ?: get_user_by('email', $userEmail);
+			$existingUser = get_user_by('login', $userContactId);
+			if( !is_a( $existingUser, WP_User::class ) ) {
+				$this->log_dual(" > not found by login");
+				//Not found by login, search by email
+				$existingUser = get_user_by('email', $userEmail);
+				if( is_a( $existingUser, WP_User::class ) ) {
+					//We found a user. If the name is the same, update it.
+					//However if the name is different, it must be a family membership
+					//sharing the same email, so abort, let the current user be.
+					$this->log_dual(" > found by email, name is " . $existingUser->display_name);
+					if ($accUserData['display_name'] != $existingUser->display_name) {
+						$this->log_dual(" > email already used by someone else, skip");
+						continue;
+					}
+				}
+			}
+
+			$updatedFields = [];
+
+			// Existing user, check if any fields were updated
+			if( is_a( $existingUser, WP_User::class ) ) {
 				//---------USER WAS FOUND IN DATABASE------------
-				$this->log_dual(" > found " . $userContactId . " (user #" . $user_id . ")");
-
-				//append ID to data object - wordpress will update the user instead of create a new one
-				$user_data = array_merge( array('ID' => $user_id), $user_data);
-
-				//Update DB only if something changed.
-				//Do a bunch of compare to decide if an update is needed.
-				//This logic needs to be extended each time we add a new user field.
-				// Get the user object
-				$user_meta = get_userdata($user_id);
-
-				// Get all the user roles as an array.
-				$user_roles = $user_meta->roles;
-				// Check if user has expired or ex-member role. If so, update role to default
-				if ( in_array( $role_expiry1, $user_roles, true ) ) {
-					$this->log_dual(" > User is " . $role_expiry1 . ", refreshing role to " . $default_role);
-					$update_this_user = true;
-					$user_data["role"] = $default_role;
-					$role_refreshed[] = $userContactId;
-					$role_refreshed_email[] = $userEmail;
-				} elseif (in_array( $role_expiry2, $user_roles, true ) ) {
-					$this->log_dual(" > User is " . $role_expiry2 . ", refreshing role to " . $default_role);
-					$update_this_user = true;
-					$user_data["role"] = $default_role;
-					$role_refreshed[] = $userContactId;
-					$role_refreshed_email[] = $userEmail;
-				}
-
-				//Check if email changed
-				if ($userEmail != $user_meta->user_email) {
-					$this->log_dual(" > email changed from " . $user_meta->user_email . " to " . $userEmail);
-					$update_this_user = true;
-				}
-
-				//Check if HomePhone changed
-				if ($userHomePhone != $user_meta->home_phone) {
-					$this->log_dual(" > home phone changed from " . $user_meta->home_phone . " to " . $userHomePhone);
-					$update_this_user = true;
-				}
-
-				//Check if Cell phone changed
-				if ($userCellPhone != $user_meta->cell_phone) {
-					$this->log_dual(" > cell phone changed from " . $user_meta->cell_phone . " to " . $userCellPhone);
-					$update_this_user = true;
-				}
-
-				//Check if MEMBERSHIP_N changed
-				if ($userMembership != $user_meta->membership) {
-					$this->log_dual(" > membership# changed from " . $user_meta->membership . " to " . $userMembership);
-					$update_this_user = true;
-				}
-
-				//Check if Membership Expiry changed
-				if ($userExpiry != $user_meta->expiry) {
-					$this->log_dual(" > expiry changed from " . $user_meta->expiry . " to " . $userExpiry);
-					$update_this_user = true;
-				}
-
-				//Check if city changed
-				if ($userCity != $user_meta->city) {
-					$this->log_dual(" > city changed from " . $user_meta->city . " to " . $userCity);
-					$update_this_user = true;
-				}
+				$this->log_dual(" > found " . $existingUser->display_name . " (user #" . $existingUser->ID . ")");
 
 				//Introduce a special rule to NOT update a user if the incoming data has
 				//a expiry date earlier than the one in the local DB. This is because
@@ -454,72 +377,100 @@ class acc_user_importer_Admin {
 				//latest expiry date is the best, because it is the latest one subscribed
 				//to by the user.
 				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
-				if ($userExpiry < $user_meta->expiry) {
+				if ($userExpiry < $existingUser->expiry) {
 					$this->log_dual(" > Received expiry is earlier than expected. Reject update");
-					$update_this_user = false;
+					continue;
 				}
 
-				if (!$update_this_user) {
-					$this->log_dual(" > Nothing changed for this user");
-				}
 
-			//--------USER NOT FOUND IN DATABASE-----
-			//But before creating a new record, make sure email is unique.
-			//We want emails to be unique in DB because it is a login identifier.
-			} elseif ( !(strlen($userEmail) > 1) ) {
-				//User has no email field, skip it
-				$this->log_dual(" > error: no email given, cannot create new user account.");
-				$update_errors[] = $user;
-
-			} else {
-				$this->log_dual(" > user not found");
-
-				$user_id = email_exists($userEmail);
-				if ( is_numeric($user_id) ) {
-					//An existing user already has this email address, skip updating
-					$user2 = get_userdata($user_id);
-					$username2 = $user2->user_firstname . " " . $user2->user_lastname;
-					$this->log_dual(" > existing user #" . $user_id . " " . $username2 .
-					                " already has email " . $userEmail);
-					$this->log_dual(" > user update skipped");
-					$user_data = array_merge( array('ID' => $user_id), $user_data); //point to correct ID (future proofing)
-					$update_errors[] = $user;
-				} else {
-					//email is unique, proceed to create a new record
-					$update_this_user = true;
-					$this->log_dual(" > email not found on any other users");
-					$this->log_dual(" > will create new user account");
-					$new_users[] = $userContactId;
-					$new_users_email[] = $userEmail ;
-					$user_data["role"] = $default_role;
-				}
-			}
-
-			//only update user if needed
-			if ($update_this_user) {
-
-				//update core info (name, email)
-				$wp_user = wp_insert_user( $user_data );
-				if ( is_wp_error($wp_user) ) {
-					$this->log_dual(" > failed to update user");
-					$this->log_dual(" > WP:" . $wp_user->get_error_message());
-
-				} else {
-					//update user meta
-					update_user_meta( $wp_user, 'home_phone', $userHomePhone );
-					update_user_meta( $wp_user, 'cell_phone', $userCellPhone );
-					update_user_meta( $wp_user, 'membership', $userMembership );
-					update_user_meta( $wp_user, 'expiry', $userExpiry );
-					update_user_meta( $wp_user, 'city', $userCity );
-					$this->log_dual(" > Updated user information");
-					//Add user to the updated_users list only if it's not already in the created list
-					if (!in_array($userContactId, $new_users)) {
-						$updated_users[] = $userContactId;
-						$updated_users_email[] = $userEmail;
+				// Check which fields might have changed. On purpose we dont want to check nicename.
+				foreach (array_merge($accUserData, $accUserMetaData) as $field => $value) {
+					if ($value != $existingUser->$field) {
+						$this->log_dual(" > $field changed from " . $existingUser->$field . " to " . $value);
+						$existingUser->$field = $value;
+						$updatedFields[] = $field;
 					}
 				}
+
+				// If fields changed, then update the user in the database.
+				if (!empty($updatedFields)) {
+					// Passing in the $existingUser object with the updated values will persist to the database.
+					$updateResp = wp_update_user($existingUser);
+					if ( is_wp_error($updateResp) ) {
+						$this->log_dual(" > failed to update user");
+						$this->log_dual(" > WP:" . $updateResp->get_error_message());
+						continue;
+					}
+					$this->log_dual(" > updated user #" . $updateResp);
+
+					//Update meta fields
+					foreach ($accUserMetaData as $field => $value) {
+						if (in_array($field, $updatedFields)) {
+							update_user_meta($existingUser->ID, $field, $value);
+						}
+					}
+
+					$updated_users[] = $accUserData['display_name'];
+					$updated_users_email[] = $userEmail;
+
+					//user_login is a special case, not updated by wp_update_user.
+					//If this field changed, use a SQL command to update it.
+					//See https://wordpress.stackexchange.com/questions/103504/how-to-programatically-change-username-user-login
+					//This is disabled right now because it seems a bit dangerous to change username.
+					//There is probably a good reason why Wordpress does not allow changing usernames.
+					// if (in_array('user_login', $updatedFields)) {
+					// 	$this->log_dual(" > Need to update user_login using SQL");
+					// 	global $wpdb;
+					// 	$wpdb->update($wpdb->users,
+					// 				  ['user_login' => $existingUser->user_login],
+					// 				  ['ID' => $existingUser->ID]);
+					// }
+				}
+
+
+				// Trigger hook if expiry date changed (updated membership)
+				if (in_array('expiry', $updatedFields)) {
+					do_action('acc_membership_renewal', $existingUser->ID);
+				}
+
+				// All done with updating the user
+				continue;
 			}
-			
+
+			//--------USER NOT FOUND IN DATABASE-----
+			// But before creating a new record, make sure email is valid.
+			if (!is_email($userEmail)) {
+				//User has no email field, skip it
+				$this->log_dual(" > error: no valid email given, cannot create new user account.");
+				$update_errors[] = $user;
+				continue;
+			}
+
+			//--------CREATE NEW USER-----
+			$this->log_dual(" > email not found on any other users");
+			$new_users[] = $userContactId;
+			$new_users_email[] = $userEmail ;
+			$accUserData["user_pass"] = null;
+			$accUserData["role"] = $default_role;
+			$accUserData["user_nicename"] = $accUserData['display_name'];  //WP will sanitize
+
+			// Insert new user
+			$userID = wp_insert_user( $accUserData );
+			if ( is_wp_error($userID) ) {
+				$this->log_dual(" > failed to create user");
+				$this->log_dual(" > WP:" . $userID->get_error_message());
+				continue;
+			}
+
+			$this->log_dual(" > Created new user #" . $userID);
+
+			//Insert meta fields
+			foreach ($accUserMetaData as $field => $value) {
+				update_user_meta($userID, $field, $value);
+			}
+
+			// Execute hooks for new membership
+			do_action('acc_new_membership', $userID);
 		} //end user loop
 		
 		//Outcome summary
@@ -528,10 +479,6 @@ class acc_user_importer_Admin {
 		$this->log_dual("--Created account for " . count($new_users) . " people:");
 		foreach ( $new_users as $id => $user ) {
 			$this->log_dual("  " . $user . " (" . $new_users_email[$id] . ")");
-		}
-		$this->log_dual("--Refreshed roles for " . count($role_refreshed) . " people:");
-		foreach ( $role_refreshed as $id => $user ) {
-			$this->log_dual("  " . $user . " (" . $role_refreshed_email[$id] . ")");
 		}
 		$this->log_dual("--Updated data for " . count($updated_users) . " people:");
 		foreach ( $updated_users as $id => $user ) {
@@ -544,7 +491,6 @@ class acc_user_importer_Admin {
 		
 		$api_response['usersInData'] = count($users);
 		$api_response['newUsers'] = count($new_users);
-		$api_response['roleRefreshed'] = count($role_refreshed);
 		$api_response['updatedUsers'] = (count($users) - count($update_errors));
 		$api_response['usersWithErrors'] = count($update_errors);
 		$api_response['message'] = "success";
@@ -712,54 +658,51 @@ class acc_user_importer_Admin {
 		 * What I see: after the first batch of 100 members is done, the
 		 * script is done and the static variables are reset.
 		 */
-		if( is_plugin_active( 'acc-periodic-sync/index.php' ) ) {
-			//If it's a new run of the script, evaluate which log file to use
-			//and cache it for next time around for efficiency.
-			if ($new_run) {
-				$log_directory  = KFG_BASE_DIR . '/logs/acc/';
-				$log_date = date_i18n("Y-m-d-H-i-s");
-				$log_mode = "wb";
-				$log_filename = $log_directory . "log_auto_". $log_date . ".txt";
+		//If it's a new run of the script, evaluate which log file to use
+		//and cache it for next time around for efficiency.
+		if ($new_run) {
+			$log_directory = ACC_BASE_DIR . '/logs/';
+			$log_date = date_i18n("Y-m-d-H-i-s");
+			$log_mode = "wb";
+			$log_filename = $log_directory . "log_auto_". $log_date . ".txt";
 
-				//Get list of files, sorted so the lastest is on top
-				$files2 = scandir($log_directory, SCANDIR_SORT_DESCENDING);
+			//Get list of files, sorted so the latest is on top
+			$files2 = scandir($log_directory, SCANDIR_SORT_DESCENDING);
 
-				foreach ($files2 as $filename) {
-					if (strpos($filename, "log_auto_") === false) {
-						//Not a log file, skip
+			foreach ($files2 as $filename) {
+				if (strpos($filename, "log_auto_") === false) {
+					//Not a log file, skip
+				} else {
+					//Found the latest log file.
+					//From filename, extract timestamp and see how long it's been.
+					sscanf($filename, "log_auto_%u-%u-%u-%u-%u-%u.txt", $year,$month,$day,$hour,$min,$sec);
+					$log_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
+					sscanf($log_date, "%u-%u-%u-%u-%u-%u", $year,$month,$day,$hour,$min,$sec);
+					$current_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
+					$elapsed = $current_ts - $log_ts;
+					if ($elapsed < 60) {		//less than 60 seconds old
+						//The log file is very recent, so append to it.
+						$log_mode = "a";
+						$log_filename = $log_directory . $filename;
 					} else {
-						//Found the latest log file.
-						//From filename, extract timestamp and see how long it's been.
-						sscanf($filename, "log_auto_%u-%u-%u-%u-%u-%u.txt", $year,$month,$day,$hour,$min,$sec);
-						$log_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
-						sscanf($log_date, "%u-%u-%u-%u-%u-%u", $year,$month,$day,$hour,$min,$sec);
-						$current_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
-						$elapsed = $current_ts - $log_ts;
-						if ($elapsed < 60) {		//less than 60 seconds old
-							//The log file is very recent, so append to it.
-							$log_mode = "a";
-							$log_filename = $log_directory . $filename;
-						} else {
-							//It's been more than 60s since creation of log file.
-							//We must be in a new run of importation. Create a new file.
-						}
-						break;
+						//It's been more than 60s since creation of log file.
+						//We must be in a new run of importation. Create a new file.
 					}
+					break;
 				}
-				$new_run = false;
-				$cached_filename = $log_filename;
-			} else {
-				//Same run, use the cached filename
-				$log_filename = $cached_filename;
-				$log_mode = "a";
 			}
+			$new_run = false;
+			$cached_filename = $log_filename;
+		} else {
+			//Same run, use the cached filename
+			$log_filename = $cached_filename;
+			$log_mode = "a";
+		}
 
-			$log_content = "\n" . $v;
-			$log = fopen($log_filename, $log_mode);
-			fwrite( $log, $log_content );
-			fclose( $log );
-			
-		}  
+		$log_content = "\n" . $v;
+		$log = fopen($log_filename, $log_mode);
+		fwrite( $log, $log_content );
+		fclose( $log );
 
 	}
 

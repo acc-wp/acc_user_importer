@@ -1,0 +1,20 @@
+
+#menu-plugins li a[href*="acc_admin_page"] {
+  display: none !important;
+}
+
+
+
+ul.log_files strong {
+  display: inline-block;
+  width: 75px;
+}
+ul.log_files {
+  list-style: disc;
+  padding-left: 2em;
+}
+ul.log_files em, ul.log_files a {
+  font-style: normal;
+  display: inline-block;
+  padding: 0 8px;
+}
