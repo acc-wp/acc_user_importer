@@ -326,10 +326,10 @@ class acc_user_importer_Admin {
 				case 'ContactId':
 					$loginName = $userContactId;
 					break;
-				case 'firstname-lastname':
-					$loginName = "$userFirstName-$userLastName";
+				case 'Firstname Lastname':
+					$loginName = "$userFirstName $userLastName";
 					break;
-				case 'ImisId':
+				case 'imis_id':
 				default:
 					$loginName = $userImisId;
 					break;
@@ -463,7 +463,7 @@ class acc_user_importer_Admin {
 
 			//--------CREATE NEW USER-----
 			$this->log_dual(" > email not found on any other users");
-			$new_users[] = $loginName;
+			$new_users[] = $accUserData['display_name'];
 			$new_users_email[] = $userEmail ;
 			$accUserData["user_pass"] = null;
 			$accUserData["role"] = $default_role;

@@ -115,7 +115,7 @@
 			'accUM_user_section',			//Section
 			array(
 				'name' => 'accUM_login_name_mapping',
-				'values' => ['ContactId', 'ImisId', 'firstname-lastname']
+				'values' => ['ContactId', 'imis_id', 'Firstname Lastname']
 			)
 		);
 		
