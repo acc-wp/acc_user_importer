@@ -56,11 +56,7 @@ function acc_validate_user_login($user, $password) {
 
 	$expiry= get_user_meta( $userID, 'expiry', 'true' );
 
-	if(($expiry=='')){
-			return $user;
-		}
-
-	elseif($expiry < date("Y-m-d")){
+	if(empty($expiry) || $expiry < date("Y-m-d")){
 		$error = new WP_Error();
 		$error->add( 403, 'Oops. Your membership has expired, please renew your membership at <a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>.' );
 		return $error;

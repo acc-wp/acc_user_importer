@@ -103,8 +103,19 @@
 			array(
 				'type' => 'text',
 				'name' => 'accUM_memberURI',
-				'html_tags' => 'required',
-				'default' => 'Asi.Scheduler_DEV/api/IQA?QueryName=$/ACC/Queries/REST/ACC_VA'
+				'html_tags' => 'required'
+			)
+		);
+
+		add_settings_field(
+			'accUM_login_name_mapping',		//ID
+			'Member Login Name Mapping',	//Title
+			'accUM_select_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_login_name_mapping',
+				'values' => ['ContactId', 'ImisId', 'firstname-lastname']
 			)
 		);
 		

@@ -265,6 +265,9 @@ class acc_user_importer_Admin {
 	private function proccess_user_data ( $users ) {
 		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 
+		$options = get_option('accUM_data');
+		$loginNameMapping = $options['accUM_login_name_mapping'];
+
 		//create response object
 		$api_response = Array();
 		$this->log_dual("Start processing batch of " . count($users) . " users");
@@ -319,6 +322,19 @@ class acc_user_importer_Admin {
 				continue;
 			}
 
+			switch($loginNameMapping) {
+				case 'ContactId':
+					$loginName = $userContactId;
+					break;
+				case 'firstname-lastname':
+					$loginName = "$userFirstName-$userLastName";
+					break;
+				case 'ImisId':
+				default:
+					$loginName = $userImisId;
+					break;
+			}
+
 			// Create an array for the core wordpress user information.
 			// Note: once created, a user nicename should not change otherwise the
 			// author and post Permalinks would be affected. This is why we dont create
@@ -329,7 +345,7 @@ class acc_user_importer_Admin {
 				'first_name'	=>	$userFirstName,
 				'last_name'		=>	$userLastName,
 				'display_name'	=>	$userFirstName . " " . $userLastName,
-				'user_login'	=>	$userContactId,
+				'user_login'	=>	$loginName,
 				'user_email'	=>	$userEmail,
 			];
 
@@ -343,8 +359,7 @@ class acc_user_importer_Admin {
 			];
 			
 			// Check if ID or email already exist. Both should be unique 
-			//$existingUser = get_user_by('login', $userContactId) ?: get_user_by('email', $userEmail);
-			$existingUser = get_user_by('login', $userContactId);
+			$existingUser = get_user_by('login', $loginName);
 			if( !is_a( $existingUser, WP_User::class ) ) {
 				$this->log_dual(" > not found by login");
 				//Not found by login, search by email
@@ -448,7 +463,7 @@ class acc_user_importer_Admin {
 
 			//--------CREATE NEW USER-----
 			$this->log_dual(" > email not found on any other users");
-			$new_users[] = $userContactId;
+			$new_users[] = $loginName;
 			$new_users_email[] = $userEmail ;
 			$accUserData["user_pass"] = null;
 			$accUserData["role"] = $default_role;
