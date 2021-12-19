@@ -319,12 +319,16 @@ class acc_user_importer_Admin {
 				continue;
 			}
 
-			//Create an array for the core wordpress user information
+			// Create an array for the core wordpress user information.
+			// Note: once created, a user nicename should not change otherwise the
+			// author and post Permalinks would be affected. This is why we dont create
+			// a user_nicename field here; we dont want to generate our version and
+			// compare with what is in DB and trigger a user update, even if the user
+			// changed slightly the spelling of his name.
 			$accUserData = [
 				'first_name'	=>	$userFirstName,
 				'last_name'		=>	$userLastName,
 				'display_name'	=>	$userFirstName . " " . $userLastName,
-				'user_nicename'	=>	strtolower(remove_accents($userFirstName . "-" . $userLastName)),
 				'user_login'	=>	$userContactId,
 				'user_email'	=>	$userEmail,
 			];
@@ -379,7 +383,7 @@ class acc_user_importer_Admin {
 				}
 
 
-				// Update all changed core & metadata fields on the user object
+				// Check which fields might have changed. On purpose we dont want to check nicename.
 				foreach (array_merge($accUserData, $accUserMetaData) as $field => $value) {
 					if ($value != $existingUser->$field) {
 						$this->log_dual(" > $field changed from " . $existingUser->$field . " to " . $value);
@@ -388,22 +392,21 @@ class acc_user_importer_Admin {
 					}
 				}
 
-				// Update the user in the database if fields were updated.
+				// If fields changed, then update the user in the database.
 				if (!empty($updatedFields)) {
-					// Passing in the $existingUser object with the updated values will persist everything to the database.
+					// Passing in the $existingUser object with the updated values will persist to the database.
 					$updateResp = wp_update_user($existingUser);
 					if ( is_wp_error($updateResp) ) {
 						$this->log_dual(" > failed to update user");
 						$this->log_dual(" > WP:" . $updateResp->get_error_message());
 						continue;
 					}
-					$this->log_dual(" > updated user");
+					$this->log_dual(" > updated user #" . $updateResp);
 
-					//Update meta fields (update_user_meta will not always do it)
+					//Update meta fields
 					foreach ($accUserMetaData as $field => $value) {
 						if (in_array($field, $updatedFields)) {
 							update_user_meta($existingUser->ID, $field, $value);
-							$this->log_dual(" > updated " . $field . " to " . $value);
 						}
 					}
 
@@ -447,18 +450,23 @@ class acc_user_importer_Admin {
 			$this->log_dual(" > email not found on any other users");
 			$new_users[] = $userContactId;
 			$new_users_email[] = $userEmail ;
+			$accUserData["user_pass"] = null;
 			$accUserData["role"] = $default_role;
-			$this->log_dual(" > Creating new user account");
+			$accUserData["user_nicename"] = $accUserData['display_name'];  //WP will sanitize
 
-			// Assign custom meta data
-			$accUserData["meta_input"] = $accUserMetaData;
-	
 			// Insert new user
 			$userID = wp_insert_user( $accUserData );
 			if ( is_wp_error($userID) ) {
 				$this->log_dual(" > failed to create user");
 				$this->log_dual(" > WP:" . $userID->get_error_message());
 				continue;
+			}
+
+			$this->log_dual(" > Created new user #" . $userID);
+
+			//Insert meta fields
+			foreach ($accUserMetaData as $field => $value) {
+				update_user_meta($userID, $field, $value);
 			}
 
 			// Execute hooks for new membership
