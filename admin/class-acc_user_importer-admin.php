@@ -267,6 +267,7 @@ class acc_user_importer_Admin {
 
 		$options = get_option('accUM_data');
 		$loginNameMapping = $options['accUM_login_name_mapping'];
+		$this->log_dual("Using $loginNameMapping as login name.");
 
 		//create response object
 		$api_response = Array();

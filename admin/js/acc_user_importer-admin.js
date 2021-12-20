@@ -94,7 +94,6 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 						logLocalOutput("&nbsp;");
 						logLocalOutput("<b><u>Membership update complete.</u>");
 						logLocalOutput("--Parsed data for " + usersInData + " people total.");
-						logLocalOutput("--Refreshed roles for " + roleRefreshed + " people total.");
 						logLocalOutput("--Created accounts for " + newUsers + " people total.");
 						logLocalOutput("--Updated data for " + updatedUsers + " people total.");
 						logLocalOutput("--Errors updating " + usersWithErrors + " accounts total.</b>");

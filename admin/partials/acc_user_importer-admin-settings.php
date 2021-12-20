@@ -109,13 +109,13 @@
 
 		add_settings_field(
 			'accUM_login_name_mapping',		//ID
-			'Member Login Name Mapping',	//Title
+			'When creating a new user, set login name to',	//Title
 			'accUM_select_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
 				'name' => 'accUM_login_name_mapping',
-				'values' => ['ContactId', 'imis_id', 'Firstname Lastname']
+				'values' => ['ContactId' => 'ContactId', 'imis_id' => 'imis_id', 'Firstname Lastname' => 'Firstname Lastname']
 			)
 		);
 		
