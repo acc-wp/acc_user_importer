@@ -265,9 +265,35 @@ class acc_user_importer_Admin {
 	private function proccess_user_data ( $users ) {
 		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 
+		// Get user-configurable option values
 		$options = get_option('accUM_data');
-		$loginNameMapping = $options['accUM_login_name_mapping'];
+
+		// Get the loginNameMapping setting
+		if (!isset($options['accUM_login_name_mapping'])) {
+			$loginNameMapping = accUM_get_login_name_mapping_default();
+		} else {
+			$loginNameMapping = $options['accUM_login_name_mapping'];
+		}
 		$this->log_dual("Using $loginNameMapping as login name.");
+
+		// Get the update_user_login setting
+		if (!isset($options['accUM_update_user_login'])) {
+			$this->log_dual("accUM_update_user_login is empty");
+			$update_user_login = accUM_get_update_user_login_default();
+		} else {
+			$update_user_login = $options['accUM_update_user_login'];
+		}
+		$this->log_dual("Update existing user logins? $update_user_login");
+
+		// Get the default_role setting
+		if (!isset($options['accUM_default_role'])) {
+			$this->log_dual("accUM_default_role is empty");
+			$default_role = accUM_get_default_role_default();
+		} else {
+			$default_role = $options['accUM_default_role'];
+		}
+		$this->log_dual("Using $default_role as default role for new users");
+
 
 		//create response object
 		$api_response = Array();
@@ -287,10 +313,6 @@ class acc_user_importer_Admin {
 		$new_users_email = [];
 		$updated_users = [];
 		$updated_users_email = [];
-
-		// Get the configured default role for new users
-		$default_role = get_option( "acc_role_editor", "subscriber" );
-		$this->log_dual("For new users, default role=" . $default_role);
 
 		foreach ( $users as $id => $user ) {
 			//Avoid PHP warnings in case some fields are unpopulated
@@ -337,16 +359,17 @@ class acc_user_importer_Admin {
 			}
 
 			// Create an array for the core wordpress user information.
-			// Note: once created, a user nicename should not change otherwise the
-			// author and post Permalinks would be affected. This is why we dont create
-			// a user_nicename field here; we dont want to generate our version and
-			// compare with what is in DB and trigger a user update, even if the user
-			// changed slightly the spelling of his name.
+			// accUserData lists all fields that will be checked for existing users.
+			// Note: once a user is created, its nicename should not be changed otherwise the
+			// author and post Permalinks would be affected. This is why user_nicename
+			// is not part of the next array. Similarly the user_login is not part
+			// of the arrray because for existing users, wordpress does not allow
+			// to change it, and also because if we try to change it, there is a bug
+			// where WP will post-fix the existing user_nicename with "-2".
 			$accUserData = [
 				'first_name'	=>	$userFirstName,
 				'last_name'		=>	$userLastName,
 				'display_name'	=>	$userFirstName . " " . $userLastName,
-				'user_login'	=>	$loginName,
 				'user_email'	=>	$userEmail,
 			];
 
@@ -382,7 +405,7 @@ class acc_user_importer_Admin {
 			// Existing user, check if any fields were updated
 			if( is_a( $existingUser, WP_User::class ) ) {
 				//---------USER WAS FOUND IN DATABASE------------
-				$this->log_dual(" > found " . $existingUser->display_name . " (user #" . $existingUser->ID . ")");
+				$this->log_dual(" > checking " . $existingUser->display_name . " (user #" . $existingUser->ID . ")");
 
 				//Introduce a special rule to NOT update a user if the incoming data has
 				//a expiry date earlier than the one in the local DB. This is because
@@ -428,19 +451,21 @@ class acc_user_importer_Admin {
 
 					$updated_users[] = $accUserData['display_name'];
 					$updated_users_email[] = $userEmail;
+				}
 
-					//user_login is a special case, not updated by wp_update_user.
-					//If this field changed, use a SQL command to update it.
-					//See https://wordpress.stackexchange.com/questions/103504/how-to-programatically-change-username-user-login
-					//This is disabled right now because it seems a bit dangerous to change username.
-					//There is probably a good reason why Wordpress does not allow changing usernames.
-					// if (in_array('user_login', $updatedFields)) {
-					// 	$this->log_dual(" > Need to update user_login using SQL");
-					// 	global $wpdb;
-					// 	$wpdb->update($wpdb->users,
-					// 				  ['user_login' => $existingUser->user_login],
-					// 				  ['ID' => $existingUser->ID]);
-					// }
+				// User_login is a special case, not updated by wp_update_user.
+				// There is probably a good reason why Wordpress does not allow changing usernames.
+				// So normally, don't do it. But the plugin allows to do it if needed,
+				// this way you can migrate the database from one type of login to another.
+				// See https://wordpress.stackexchange.com/questions/103504/how-to-programatically-change-username-user-login
+				if ($update_user_login == "Yes" &&
+					$loginName != $existingUser->user_login) {
+					$this->log_dual(" > changing user login from $existingUser->user_login to $loginName using SQL");
+					$existingUser->user_login = $loginName;
+					global $wpdb;
+					$wpdb->update($wpdb->users,
+								  ['user_login' => $existingUser->user_login],
+								  ['ID' => $existingUser->ID]);
 				}
 
 
@@ -469,6 +494,7 @@ class acc_user_importer_Admin {
 			$accUserData["user_pass"] = null;
 			$accUserData["role"] = $default_role;
 			$accUserData["user_nicename"] = $accUserData['display_name'];  //WP will sanitize
+			$accUserData["user_login"] = $loginName;
 
 			// Insert new user
 			$userID = wp_insert_user( $accUserData );
