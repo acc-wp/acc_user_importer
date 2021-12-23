@@ -1,7 +1,7 @@
 === ACC User Importer ===
 Contributors: Raz Peel, Karine Frenette-G, Francois Bessette, Claude Vessaz
 Tags: 
-Stable tag: 1.0.7
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Repository: https://github.com/acc-wp/acc_user_importer
@@ -44,4 +44,10 @@ https://github.com/cloetzi
 == Acknowledgements ==
 
 == Changelog ==
-
+1.2.0 Francois Bessette and Claude Vessaz, 2020-12-23
+    -Fix major bug where only the first 100 users would be imported when triggered by timer
+    -added setting to control mapping of user_login (username).
+    -added setting to control whether the user_login is updated for users already in DB.
+    -simplified the settings page, move CRON settings on same page
+    -fixed bug where the log 'Delete' button was not working
+    -removed obsolete settings related to changing the role during update
