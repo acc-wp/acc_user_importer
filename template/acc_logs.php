@@ -12,7 +12,9 @@
 	}
  ?>
 
+
 <div class="wrap">
+	<h2>Recent log files</h2>
 	<ul class="log_files">
 
 <?php 

@@ -22,13 +22,6 @@
 			'accUM_render_options_pages'	//Callback
 		);
 		add_options_page(
-			'ACC Cron Jobs',			//Title
-			'ACC Cron Jobs',			//Menu Title
-			'edit_users',				//Capability
-			'acc_cron_list',			//Slug
-			'acc_cron_settings_lite'	//Callback
-		);
-		add_options_page(
 			'ACC Email Templates',		//Title
 			'ACC Email Templates',		//Menu Title
 			'edit_users',				//Capability
@@ -37,8 +30,13 @@
 		);
 	}
 
-	function acc_cron_settings_lite() {
+	/*
+	 * Render theme options pages.
+	 */
+	function accUM_render_options_pages () {
+		require plugin_dir_path( __FILE__ ) . '/acc_user_importer-admin-display.php';
 		require_once (ACC_BASE_DIR . '/template/cron_settings.php');
+		require_once (ACC_BASE_DIR . '/template/acc_logs.php');
 	}
 
 	function acc_email_settings() {
@@ -163,14 +161,6 @@
 		register_setting( 'acc_admin_page', 'accUM_data', 'accUM_sanitize_data' );
 	}
 	
-	/*
-	 * Render theme options pages.
-	 */
-	function accUM_render_options_pages () {
-		require plugin_dir_path( __FILE__ ) . '/acc_user_importer-admin-display.php';
-		require_once (ACC_BASE_DIR . '/template/acc_logs.php');
-	}
-
 	/*
 	 * Render the textbox fields.
 	 */	
