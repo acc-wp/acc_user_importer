@@ -20,7 +20,7 @@ class acc_user_importer_Admin {
 	}
 	
 	/**
-	 * The journey of 1000 miles begins with a single footstep.
+	 * This is the user import loop (when triggered by a timer)
 	 */
 	public function begin_automatic_update() {
 
@@ -30,7 +30,6 @@ class acc_user_importer_Admin {
 		$this->log_local_output("Automatic member update starting");
 		$timestamp_start = date_i18n("Y-m-d-H-i-s");
 
-		
 		//request token
 		$this->log_local_output("Requesting access token from national office.");
 		$access_token_request = $this->request_API_token();
@@ -46,13 +45,7 @@ class acc_user_importer_Admin {
 			
 			//get data until no more data exists
 			while ( ($has_next === true) && ($get_attempts_remaining > 0) ) {
-		    
-				$this->log_local_output("A new door has opened.");
-				$this->log_local_output('There are ' . $get_attempts_remaining . " API attempts remaining to get membership data.");
-				$this->log_local_output('Starting at position: ' . $data_offset);
-				
-				$has_next = false; //default to not having more data
-				
+
 				//request next dataset with token
 				$this->log_local_output("Requesting membership data using token: " . substr($access_token_request['accessToken'], 0, 10) . ".");
 				$member_data_request = $this->getMemberData( $access_token_request['accessToken'], $data_offset );
@@ -60,49 +53,26 @@ class acc_user_importer_Admin {
 				//did we get data?
 				if ( $member_data_request['message'] == "success") {
 
-					$this->log_local_output("Membership data received.");
-
-					//FLAG: éditions par KFG en juin 2020 => ajouter les conditions pour rawdata
-					if(!empty($member_data_request['rawData'])){
-						$this->log_local_output("--" . $member_data_request['rawData']->Count . " records expected.");
-						$this->log_local_output("--" . count($member_data_request['rawData']->Items->Values) . " valid records provided.");
-						$this->log_local_output("--" . $member_data_request['rawData']->TotalCount . " total records available.");
-					} else {
-						$this->log_local_output("Somehow the data requested was empty. Contact an administrator for further information. (Check added by Karine F.G.)");
-						
-					}
-					
-					//parse data
-					$this->log_local_output("Trying to update user database with new dataset.");
 					$proccess_request = $this->proccess_user_data( $member_data_request['dataset'] );
-					$this->log_local_output("Membership data processed.");
 					
-					//move offset ahead if there is more data
-					//FLAG: éditions par KFG en juin 2020 => ajouter les conditions pour rawdata
-					if(!empty($member_data_request['rawData'])){
-						if ($member_data_request['rawData']->HasNext == 1) {
-							$this->log_local_output("More membership data found, restarting data loop.");
-							$has_next = true;
-							$data_offset = $member_data_request['rawData']->NextOffset;
-							$this->log_local_output("Next offset: " . $member_data_request['rawData']->NextOffset . ".");
-						}
-						else {
-							$this->log_local_output("No more membership data indicated, ending data loop.");
-						}
-					} 
-					
-				}
-				//failed to get data - if attempts remain, try again
-				else {
+					//If there is more data, move offset and prepare for one more loop
+					if ($member_data_request['HasNext']) {
+						$has_next = true;
+						$data_offset = $member_data_request['NextOffset'];
+						$this->log_local_output("More members to process, next offset=$data_offset");
+					} else {
+						$has_next = false; //default to not having more data
+						$this->log_local_output("No more members, ending data loop.");
+					}
+
+				} else {
+					//failed to get data - if attempts remain, try again
 					$this->log_local_output("Error: " . ($member_data_request['errorMessage'] ? $member_data_request['errorMessage'] : 'Unknown.'));
-					$this->log_local_output("Error: " . $get_attempts_remaining . " attempts remaining to get API data.");
 					$has_next = true;
 					$get_attempts_remaining = $get_attempts_remaining - 1;
+					$this->log_local_output("Error: " . $get_attempts_remaining . " attempts remaining to get API data.");
 				}
-				
-				$this->log_local_output("The door on this data loop has closed.");
 			}
-			
 		} //end: if token granted
 		
 		else {
@@ -648,12 +618,16 @@ class acc_user_importer_Admin {
 			$api_response['NextOffset'] = $auth_data->NextOffset;
 			$api_response['Offset'] = $auth_data->Offset + 1;
 			$api_response['dataset'] = $this->parse_user_data( $auth_data );
-		}
-		else {
+			$first_user_index = $auth_data->Offset + 1;
+			$last_user_index = $auth_data->Offset + $auth_data->Count;
+			$more_to_come = $auth_data->HasNext ? ", more to come" : ", final batch";
+			$this->log_local_output("Received users $first_user_index to $last_user_index of $auth_data->TotalCount $more_to_come");
+			
+		} else {
 			$api_response['message'] = "error";
 			$api_response['errorMessage'] = $auth_data->Message;
 		}
-		
+
 		return $api_response;
 	}
 
