@@ -14,19 +14,12 @@
 	 */
 	add_action( 'admin_menu', 'accUM_add_menu_page' );
 	function accUM_add_menu_page () {
-		add_options_page(
+		add_users_page(
 			'ACC Administration',			//Title
 			'ACC Admin',					//Menu Title
 			'edit_users',					//Capability
 			'acc_admin_page',				//Slug
 			'accUM_render_options_pages'	//Callback
-		);
-		add_options_page(
-			'ACC Cron Jobs',			//Title
-			'ACC Cron Jobs',			//Menu Title
-			'edit_users',				//Capability
-			'acc_cron_list',			//Slug
-			'acc_cron_settings_lite'	//Callback
 		);
 		add_options_page(
 			'ACC Email Templates',		//Title
@@ -37,13 +30,23 @@
 		);
 	}
 
-	function acc_cron_settings_lite() {
+	/*
+	 * Render theme options pages.
+	 */
+	function accUM_render_options_pages () {
+		require plugin_dir_path( __FILE__ ) . '/acc_user_importer-admin-display.php';
 		require_once (ACC_BASE_DIR . '/template/cron_settings.php');
+		require_once (ACC_BASE_DIR . '/template/acc_logs.php');
 	}
 
 	function acc_email_settings() {
 		require_once (ACC_BASE_DIR . '/template/email_settings.php');
 	}
+
+	// Define functions to get default values from different files.
+	function accUM_get_login_name_mapping_default() {return 'Firstname Lastname';}
+	function accUM_get_update_user_login_default() {return 'No';}
+	function accUM_get_default_role_default() {return 'Subscriber';}
 
 	/*
 	 * Register user settings for options page.
@@ -103,23 +106,61 @@
 			array(
 				'type' => 'text',
 				'name' => 'accUM_memberURI',
-				'html_tags' => 'required',
-				'default' => 'Asi.Scheduler_DEV/api/IQA?QueryName=$/ACC/Queries/REST/ACC_VA'
+				'html_tags' => 'required'
 			)
 		);
-		
+
+		add_settings_field(
+			'accUM_login_name_mapping',		//ID
+			'When creating a new user, set login name to',	//Title
+			'accUM_select_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_login_name_mapping',
+				'values' => ['ContactId' => 'ContactId', 'imis_id' => 'imis_id', 'Firstname Lastname' => 'Firstname Lastname'],
+				'default' => accUM_get_login_name_mapping_default(),
+			)
+		);
+
+		add_settings_field(
+			'accUM_update_user_login',		//ID
+			'Should we update login names for existing users? (normally no)',  //Title
+			'accUM_select_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_update_user_login',
+				'values' => ['Yes' => 'Yes', 'No' => 'No'],
+				'default' => accUM_get_update_user_login_default(),
+			)
+		);
+
+		//FIXME Can this be used instead of hardcoding role values a few lines below??
+		//$roles = get_editable_roles();
+
+		add_settings_field(
+				'accUM_default_role',			//ID
+				'When creating a new user, set role to',	//Title
+				'accUM_select_render',			//Callback
+				'acc_admin_page',				//Page
+				'accUM_user_section',			//Section
+				array(
+					'name' => 'accUM_default_role',
+					'values' => ['Editor' => 'Editor',
+					             'Author' => 'Author',
+								 'Contributor' => 'Contributor',
+								 'Subscriber' => 'Subscriber',
+								 'Translator' => 'Translator',
+								 'Organisateur-trice' => 'Organisateur-trice'],
+				'default' => accUM_get_default_role_default(),
+			)
+		);
+
 		//Register the array that will store all plugin data
 		register_setting( 'acc_admin_page', 'accUM_data', 'accUM_sanitize_data' );
 	}
 	
-	/*
-	 * Render theme options pages.
-	 */
-	function accUM_render_options_pages () {
-		require plugin_dir_path( __FILE__ ) . '/acc_user_importer-admin-display.php';
-		require_once (ACC_BASE_DIR . '/template/acc_logs.php');
-	}
-
 	/*
 	 * Render the textbox fields.
 	 */	
@@ -152,8 +193,12 @@
 			  
 		$options = get_option('accUM_data');
 		$input_name = $args['name'];
-		$select_value = $options[$input_name];
-		
+		if (empty($options[$input_name])) {
+			$select_value = $args['default'];
+		} else {
+			$select_value = $options[$input_name];
+		}
+
 		$html = "<select id=\"$input_name\" name=\"accUM_data[$input_name]\">";
 		
 		//Fill columns
@@ -167,7 +212,7 @@
 		}
 		echo $html . "</select>";
 	}
-	
+
 	/*
 	 * WIP: Sanitize and update post data after submit.
 	 */

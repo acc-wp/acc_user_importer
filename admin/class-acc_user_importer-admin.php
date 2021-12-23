@@ -20,7 +20,7 @@ class acc_user_importer_Admin {
 	}
 	
 	/**
-	 * The journey of 1000 miles begins with a single footstep.
+	 * This is the user import loop (when triggered by a timer)
 	 */
 	public function begin_automatic_update() {
 
@@ -30,7 +30,6 @@ class acc_user_importer_Admin {
 		$this->log_local_output("Automatic member update starting");
 		$timestamp_start = date_i18n("Y-m-d-H-i-s");
 
-		
 		//request token
 		$this->log_local_output("Requesting access token from national office.");
 		$access_token_request = $this->request_API_token();
@@ -46,13 +45,7 @@ class acc_user_importer_Admin {
 			
 			//get data until no more data exists
 			while ( ($has_next === true) && ($get_attempts_remaining > 0) ) {
-		    
-				$this->log_local_output("A new door has opened.");
-				$this->log_local_output('There are ' . $get_attempts_remaining . " API attempts remaining to get membership data.");
-				$this->log_local_output('Starting at position: ' . $data_offset);
-				
-				$has_next = false; //default to not having more data
-				
+
 				//request next dataset with token
 				$this->log_local_output("Requesting membership data using token: " . substr($access_token_request['accessToken'], 0, 10) . ".");
 				$member_data_request = $this->getMemberData( $access_token_request['accessToken'], $data_offset );
@@ -60,49 +53,26 @@ class acc_user_importer_Admin {
 				//did we get data?
 				if ( $member_data_request['message'] == "success") {
 
-					$this->log_local_output("Membership data received.");
-
-					//FLAG: éditions par KFG en juin 2020 => ajouter les conditions pour rawdata
-					if(!empty($member_data_request['rawData'])){
-						$this->log_local_output("--" . $member_data_request['rawData']->Count . " records expected.");
-						$this->log_local_output("--" . count($member_data_request['rawData']->Items->Values) . " valid records provided.");
-						$this->log_local_output("--" . $member_data_request['rawData']->TotalCount . " total records available.");
-					} else {
-						$this->log_local_output("Somehow the data requested was empty. Contact an administrator for further information. (Check added by Karine F.G.)");
-						
-					}
-					
-					//parse data
-					$this->log_local_output("Trying to update user database with new dataset.");
 					$proccess_request = $this->proccess_user_data( $member_data_request['dataset'] );
-					$this->log_local_output("Membership data processed.");
 					
-					//move offset ahead if there is more data
-					//FLAG: éditions par KFG en juin 2020 => ajouter les conditions pour rawdata
-					if(!empty($member_data_request['rawData'])){
-						if ($member_data_request['rawData']->HasNext == 1) {
-							$this->log_local_output("More membership data found, restarting data loop.");
-							$has_next = true;
-							$data_offset = $member_data_request['rawData']->NextOffset;
-							$this->log_local_output("Next offset: " . $member_data_request['rawData']->NextOffset . ".");
-						}
-						else {
-							$this->log_local_output("No more membership data indicated, ending data loop.");
-						}
-					} 
-					
-				}
-				//failed to get data - if attempts remain, try again
-				else {
+					//If there is more data, move offset and prepare for one more loop
+					if ($member_data_request['HasNext']) {
+						$has_next = true;
+						$data_offset = $member_data_request['NextOffset'];
+						$this->log_local_output("More members to process, next offset=$data_offset");
+					} else {
+						$has_next = false; //default to not having more data
+						$this->log_local_output("No more members, ending data loop.");
+					}
+
+				} else {
+					//failed to get data - if attempts remain, try again
 					$this->log_local_output("Error: " . ($member_data_request['errorMessage'] ? $member_data_request['errorMessage'] : 'Unknown.'));
-					$this->log_local_output("Error: " . $get_attempts_remaining . " attempts remaining to get API data.");
 					$has_next = true;
 					$get_attempts_remaining = $get_attempts_remaining - 1;
+					$this->log_local_output("Error: " . $get_attempts_remaining . " attempts remaining to get API data.");
 				}
-				
-				$this->log_local_output("The door on this data loop has closed.");
 			}
-			
 		} //end: if token granted
 		
 		else {
@@ -265,6 +235,36 @@ class acc_user_importer_Admin {
 	private function proccess_user_data ( $users ) {
 		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 
+		// Get user-configurable option values
+		$options = get_option('accUM_data');
+
+		// Get the loginNameMapping setting
+		if (!isset($options['accUM_login_name_mapping'])) {
+			$loginNameMapping = accUM_get_login_name_mapping_default();
+		} else {
+			$loginNameMapping = $options['accUM_login_name_mapping'];
+		}
+		$this->log_dual("Using $loginNameMapping as login name.");
+
+		// Get the update_user_login setting
+		if (!isset($options['accUM_update_user_login'])) {
+			$this->log_dual("accUM_update_user_login is empty");
+			$update_user_login = accUM_get_update_user_login_default();
+		} else {
+			$update_user_login = $options['accUM_update_user_login'];
+		}
+		$this->log_dual("Update existing user logins? $update_user_login");
+
+		// Get the default_role setting
+		if (!isset($options['accUM_default_role'])) {
+			$this->log_dual("accUM_default_role is empty");
+			$default_role = accUM_get_default_role_default();
+		} else {
+			$default_role = $options['accUM_default_role'];
+		}
+		$this->log_dual("Using $default_role as default role for new users");
+
+
 		//create response object
 		$api_response = Array();
 		$this->log_dual("Start processing batch of " . count($users) . " users");
@@ -283,10 +283,6 @@ class acc_user_importer_Admin {
 		$new_users_email = [];
 		$updated_users = [];
 		$updated_users_email = [];
-
-		// Get the configured default role for new users
-		$default_role = get_option( "acc_role_editor", "subscriber" );
-		$this->log_dual("For new users, default role=" . $default_role);
 
 		foreach ( $users as $id => $user ) {
 			//Avoid PHP warnings in case some fields are unpopulated
@@ -319,17 +315,31 @@ class acc_user_importer_Admin {
 				continue;
 			}
 
+			switch($loginNameMapping) {
+				case 'ContactId':
+					$loginName = $userContactId;
+					break;
+				case 'Firstname Lastname':
+					$loginName = "$userFirstName $userLastName";
+					break;
+				case 'imis_id':
+				default:
+					$loginName = $userImisId;
+					break;
+			}
+
 			// Create an array for the core wordpress user information.
-			// Note: once created, a user nicename should not change otherwise the
-			// author and post Permalinks would be affected. This is why we dont create
-			// a user_nicename field here; we dont want to generate our version and
-			// compare with what is in DB and trigger a user update, even if the user
-			// changed slightly the spelling of his name.
+			// accUserData lists all fields that will be checked for existing users.
+			// Note: once a user is created, its nicename should not be changed otherwise the
+			// author and post Permalinks would be affected. This is why user_nicename
+			// is not part of the next array. Similarly the user_login is not part
+			// of the arrray because for existing users, wordpress does not allow
+			// to change it, and also because if we try to change it, there is a bug
+			// where WP will post-fix the existing user_nicename with "-2".
 			$accUserData = [
 				'first_name'	=>	$userFirstName,
 				'last_name'		=>	$userLastName,
 				'display_name'	=>	$userFirstName . " " . $userLastName,
-				'user_login'	=>	$userContactId,
 				'user_email'	=>	$userEmail,
 			];
 
@@ -343,8 +353,7 @@ class acc_user_importer_Admin {
 			];
 			
 			// Check if ID or email already exist. Both should be unique 
-			//$existingUser = get_user_by('login', $userContactId) ?: get_user_by('email', $userEmail);
-			$existingUser = get_user_by('login', $userContactId);
+			$existingUser = get_user_by('login', $loginName);
 			if( !is_a( $existingUser, WP_User::class ) ) {
 				$this->log_dual(" > not found by login");
 				//Not found by login, search by email
@@ -366,7 +375,7 @@ class acc_user_importer_Admin {
 			// Existing user, check if any fields were updated
 			if( is_a( $existingUser, WP_User::class ) ) {
 				//---------USER WAS FOUND IN DATABASE------------
-				$this->log_dual(" > found " . $existingUser->display_name . " (user #" . $existingUser->ID . ")");
+				$this->log_dual(" > checking " . $existingUser->display_name . " (user #" . $existingUser->ID . ")");
 
 				//Introduce a special rule to NOT update a user if the incoming data has
 				//a expiry date earlier than the one in the local DB. This is because
@@ -412,19 +421,21 @@ class acc_user_importer_Admin {
 
 					$updated_users[] = $accUserData['display_name'];
 					$updated_users_email[] = $userEmail;
+				}
 
-					//user_login is a special case, not updated by wp_update_user.
-					//If this field changed, use a SQL command to update it.
-					//See https://wordpress.stackexchange.com/questions/103504/how-to-programatically-change-username-user-login
-					//This is disabled right now because it seems a bit dangerous to change username.
-					//There is probably a good reason why Wordpress does not allow changing usernames.
-					// if (in_array('user_login', $updatedFields)) {
-					// 	$this->log_dual(" > Need to update user_login using SQL");
-					// 	global $wpdb;
-					// 	$wpdb->update($wpdb->users,
-					// 				  ['user_login' => $existingUser->user_login],
-					// 				  ['ID' => $existingUser->ID]);
-					// }
+				// User_login is a special case, not updated by wp_update_user.
+				// There is probably a good reason why Wordpress does not allow changing usernames.
+				// So normally, don't do it. But the plugin allows to do it if needed,
+				// this way you can migrate the database from one type of login to another.
+				// See https://wordpress.stackexchange.com/questions/103504/how-to-programatically-change-username-user-login
+				if ($update_user_login == "Yes" &&
+					$loginName != $existingUser->user_login) {
+					$this->log_dual(" > changing user login from $existingUser->user_login to $loginName using SQL");
+					$existingUser->user_login = $loginName;
+					global $wpdb;
+					$wpdb->update($wpdb->users,
+								  ['user_login' => $existingUser->user_login],
+								  ['ID' => $existingUser->ID]);
 				}
 
 
@@ -448,11 +459,12 @@ class acc_user_importer_Admin {
 
 			//--------CREATE NEW USER-----
 			$this->log_dual(" > email not found on any other users");
-			$new_users[] = $userContactId;
+			$new_users[] = $accUserData['display_name'];
 			$new_users_email[] = $userEmail ;
 			$accUserData["user_pass"] = null;
 			$accUserData["role"] = $default_role;
 			$accUserData["user_nicename"] = $accUserData['display_name'];  //WP will sanitize
+			$accUserData["user_login"] = $loginName;
 
 			// Insert new user
 			$userID = wp_insert_user( $accUserData );
@@ -606,12 +618,16 @@ class acc_user_importer_Admin {
 			$api_response['NextOffset'] = $auth_data->NextOffset;
 			$api_response['Offset'] = $auth_data->Offset + 1;
 			$api_response['dataset'] = $this->parse_user_data( $auth_data );
-		}
-		else {
+			$first_user_index = $auth_data->Offset + 1;
+			$last_user_index = $auth_data->Offset + $auth_data->Count;
+			$more_to_come = $auth_data->HasNext ? ", more to come" : ", final batch";
+			$this->log_local_output("Received users $first_user_index to $last_user_index of $auth_data->TotalCount $more_to_come");
+			
+		} else {
 			$api_response['message'] = "error";
 			$api_response['errorMessage'] = $auth_data->Message;
 		}
-		
+
 		return $api_response;
 	}
 

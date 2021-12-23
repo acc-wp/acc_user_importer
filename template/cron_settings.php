@@ -118,35 +118,11 @@
 		<input type="hidden" id="_acc_cron_nonce" name="_acc_cron_nonce" value="796c7766b1">
 		<input type="hidden" name="_wp_http_referer" value="<?php echo $page_url; ?>">
 
-		<ul style="list-style:disc; padding-left:2em;">
-			<li>
-			    <p> <strong>kfg_acc_update_users</strong> &mdash; 
-				Cette tâche importe la liste de membres du site National et ajuste
-				la liste de membres locale en conséquence.  Les champs suivant
-				sont mis à jour selon les renseignements du National: 
-				prénom, nom, ville, no de téléphone, no de cellulaire, courriel, 
-				date de fin d'abonnement, numéro de membre.
-				<ul>
-				<li>Si un membre n'est pas trouvé dans la liste locale, il est
-				créé dans la base de données.</li>
-				<li>Si un membre avait un des rôles expirés dans la liste locale
-				et qu'il est présent sur la liste Nationale, cela veut dire qu'il
-				a renouvelé en retard. Son rôle est ré-initialisé au rôle par
-				défaut des nouveaux membres.</li>
-				<li>La tâche ne fait rien pour le cas où un membre est dans la
-				liste locale mais pas Nationale (abonnement échu). Voir l'autre
-				tâche.</li>
-				</ul>
-			    </p>
-			</li>
-			<li>
-				<p> <strong>kfg_acc_expiry_check</strong> &mdash; 
-				Cette tâche examine la liste de membres locale et vérifie si l'abonnement est échu.
-				Si c'est le cas, le rôle est modifié selon la configuration. Lorsque l'abonnement
-				est échu depuis plus d'un mois, le rôle est modifié selon la deuxième configuration.
-			    </p>
-			</li>
-		</ul>
+		<p>Here is the list of ACC functions triggered by a timer. acc_automatic_import
+			is a function which contacts the ACC head office, downloads the list
+			of members, and updates the local user database accordinly. You may change
+			the running interval.
+		</p>
 
 			<table class="form-table" role="presentation">
 				<tbody>
