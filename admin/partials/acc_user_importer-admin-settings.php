@@ -136,9 +136,7 @@
 			)
 		);
 
-		//FIXME Can this be used instead of hardcoding role values a few lines below??
-		//$roles = get_editable_roles();
-
+		$roles = wp_roles()->get_names();
 		add_settings_field(
 				'accUM_default_role',			//ID
 				'When creating a new user, set role to',	//Title
@@ -147,13 +145,8 @@
 				'accUM_user_section',			//Section
 				array(
 					'name' => 'accUM_default_role',
-					'values' => ['Editor' => 'Editor',
-					             'Author' => 'Author',
-								 'Contributor' => 'Contributor',
-								 'Subscriber' => 'Subscriber',
-								 'Translator' => 'Translator',
-								 'Organisateur-trice' => 'Organisateur-trice'],
-				'default' => accUM_get_default_role_default(),
+					'values' => $roles,
+					'default' => accUM_get_default_role_default(),
 			)
 		);
 
