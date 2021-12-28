@@ -66,9 +66,9 @@
 				<tbody>
 
 					<tr>
-						<th>Activé?</th>
-						<th>Nom du courriel</th>
-						<th>Contenu</th>					
+						<th>Active?</th>
+						<th>Email type</th>
+						<th>Content</th>					
 						<th></th>					
 						<th></th>					
 						<th></th>					
@@ -84,10 +84,10 @@
 							</div>
 						</th>
 						<th colspan="1" scope="row">
-							Courriel de bienvenue
+							Welcome email
 						</th>
 						<td colspan="6">
-							Sujet: <input name="welcome_email_title" id="welcome_email_title" type="text" style="width:100%;max-width:400px;" value="<?php echo $welcome_title ?>"> <br> <br>
+							Subject: <input name="welcome_email_title" id="welcome_email_title" type="text" style="width:100%;max-width:400px;" value="<?php echo $welcome_title ?>"> <br> <br>
 							<?php wp_editor($welcome_email, "welcome_email"); ?>
 						</td>
 					</tr>
@@ -99,10 +99,10 @@
 							</div>
 						</th>
 						<th colspan="1" scope="row">
-							Courriel pour membres Ex-membres<br> (après 1 mois d'expiration)
+							Goodbye email
 						</th>
 						<td colspan="6">
-							Sujet: <input name="expired_email_title" id="expired_email_title" type="text" style="width:100%;max-width:400px;" value="<?php echo $expired_title ?>"> <br> <br>
+							Subject: <input name="expired_email_title" id="expired_email_title" type="text" style="width:100%;max-width:400px;" value="<?php echo $expired_title ?>"> <br> <br>
 							<?php wp_editor($expired_email, "expired_email"); ?>
 						</td>
 					</tr>

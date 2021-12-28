@@ -44,6 +44,7 @@ class acc_user_importer_Public {
 		$fields[ 'membership' ] = __( 'Membership' );
 		$fields[ 'expiry' ] = __( 'Expiry' );
 		$fields[ 'city' ] = __( 'City' );
+		$fields[ 'acc_status' ] = __( 'ACC Status' );
 		
 		//remove useless fields
 		unset($fields['aim']);

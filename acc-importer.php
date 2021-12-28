@@ -8,7 +8,7 @@
  * Plugin Name:       ACC User Importer
  * Plugin URI:        https://github.com/acc-wp/acc_user_importer
  * Description:       A plugin for synchronizing users from the <a href="http://alpineclubofcanada.ca">Alpine Club of Canada</a> national office.
- * Version:           1.2.1
+ * Version:           1.2.2
  * Author:            Raz Peel, Karine Frenette Gaufre, Francois Bessette, Claude Vessaz
  * Author URI:        https://www.facebook.com/razpeel
  * License:           GPL-2.0+
@@ -28,7 +28,7 @@ define('ACC_PLUGIN_DIR', plugins_url() . "/acc_user_importer/");
 /**
  * Current plugin version.
  */
-define( 'ACC_USER_IMPORTER_VERSION', '1.2.1' );
+define( 'ACC_USER_IMPORTER_VERSION', '1.2.2' );
 
 /**
  * Plugin activation.
@@ -51,11 +51,9 @@ function deactivate_acc_user_importer() {
 register_activation_hook( __FILE__, 'activate_acc_user_importer' );
 register_deactivation_hook( __FILE__, 'deactivate_acc_user_importer' );
 
-//FIXME ----this comes from other plugin, anything to cleanup? is this in the right order?--------
 include_once( ABSPATH . 'wp-admin/includes/plugin.php' );
 include_once( ACC_BASE_DIR . '/admin/queues.php' );
 include_once( ACC_BASE_DIR . '/admin/acc-user-manager.php' );
-//---------------------------------------------------------------------
 
 /**
  * Core plugin class.

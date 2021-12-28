@@ -90,7 +90,10 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 			
 					//Enable Buttons At End
 					else {
-						
+
+						//Now that we have updated all members, check for expiry
+						wpProccessExpiry();
+
 						logLocalOutput("&nbsp;");
 						logLocalOutput("<b><u>Membership update complete.</u>");
 						logLocalOutput("--Parsed data for " + usersInData + " people total.");
@@ -249,7 +252,7 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		logLocalOutput("..");
 		
 		var apiData = {'action': 'accUserAPI','request': 'processMemberData','security': ajax_object.nonce, 'dataset': JSON.stringify(accDataset)};
-		
+
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
 			
@@ -266,6 +269,28 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		});
 	}
 	
+	/**
+	 * Ask Wordpress to update database with parsed membership info.
+	 */
+	 function wpProccessExpiry () {
+
+		logLocalOutput("Now asking to process member expiry");
+		logLocalOutput("..");
+
+		var apiData = {'action': 'accUserAPI','request': 'processExpiry','security': ajax_object.nonce, 'dataset': JSON.stringify('')};
+
+		jQuery.post(ajax_object.url, apiData, function(response) {
+			var responseObject = JSON.parse(response);
+
+			if (responseObject.message == "success") {
+				logLocalOutput(responseObject.log);
+				logLocalOutput("Finished expiry processing.");
+			} else {
+				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
+			}
+		});
+	}
+
 	/**
 	 * Unused - Test Mode -> Run the journey, while we are watching.
 	 */

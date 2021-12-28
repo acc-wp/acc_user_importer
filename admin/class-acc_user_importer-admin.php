@@ -73,6 +73,12 @@ class acc_user_importer_Admin {
 					$this->log_local_output("Error: " . $get_attempts_remaining . " attempts remaining to get API data.");
 				}
 			}
+
+			if ($has_next == false) {
+				// All members have been successfully updated, now look for expired members
+				$expiryResult = $this->proccess_expiry();
+			}
+
 		} //end: if token granted
 		
 		else {
@@ -130,6 +136,11 @@ class acc_user_importer_Admin {
 				//$this->log_local_output( print_r($arrayData, true) );
 				$api_response = $this->proccess_user_data( $arrayData );
 				break;
+
+			case "processExpiry":
+				$api_response = $this->proccess_expiry();
+				break;
+
 		}
 
 		//respond to ajax request and terminate
@@ -310,8 +321,10 @@ class acc_user_importer_Admin {
 
 
 			// Skip users without membership number
-			if (!is_numeric($userMembership) || !is_numeric($userContactId)) {
-				$this->log_dual("User is missing membership number or contact ID, skipping.");
+			if (!is_numeric($userMembership) ||
+			    !is_numeric($userContactId)  ||
+				!is_numeric($userImisId)) {
+				$this->log_dual(" > error, no membership#, contactID or imis_id; skip");
 				continue;
 			}
 
@@ -364,7 +377,7 @@ class acc_user_importer_Admin {
 					//sharing the same email, so abort, let the current user be.
 					$this->log_dual(" > found by email, name is " . $existingUser->display_name);
 					if ($accUserData['display_name'] != $existingUser->display_name) {
-						$this->log_dual(" > email already used by someone else, skip");
+						$this->log_dual(" > error, email already used by someone else, skip");
 						continue;
 					}
 				}
@@ -387,7 +400,7 @@ class acc_user_importer_Admin {
 				//to by the user.
 				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
 				if ($userExpiry < $existingUser->expiry) {
-					$this->log_dual(" > Received expiry is earlier than expected. Reject update");
+					$this->log_dual(" > error, received expiry is earlier than local one; skip");
 					continue;
 				}
 
@@ -406,7 +419,7 @@ class acc_user_importer_Admin {
 					// Passing in the $existingUser object with the updated values will persist to the database.
 					$updateResp = wp_update_user($existingUser);
 					if ( is_wp_error($updateResp) ) {
-						$this->log_dual(" > failed to update user");
+						$this->log_dual(" > error, failed to update user");
 						$this->log_dual(" > WP:" . $updateResp->get_error_message());
 						continue;
 					}
@@ -452,7 +465,7 @@ class acc_user_importer_Admin {
 			// But before creating a new record, make sure email is valid.
 			if (!is_email($userEmail)) {
 				//User has no email field, skip it
-				$this->log_dual(" > error: no valid email given, cannot create new user account.");
+				$this->log_dual(" > error: invalid email, cannot create new user account.");
 				$update_errors[] = $user;
 				continue;
 			}
@@ -469,14 +482,16 @@ class acc_user_importer_Admin {
 			// Insert new user
 			$userID = wp_insert_user( $accUserData );
 			if ( is_wp_error($userID) ) {
-				$this->log_dual(" > failed to create user");
+				$this->log_dual(" > error, failed to create user");
 				$this->log_dual(" > WP:" . $userID->get_error_message());
 				continue;
 			}
 
 			$this->log_dual(" > Created new user #" . $userID);
 
-			//Insert meta fields
+			//Insert meta fields.
+			//Indicate this user was inactive. Will transition to active in proccess_expiry.
+			$accUserMetaData['acc_status'] = 'inactive';
 			foreach ($accUserMetaData as $field => $value) {
 				update_user_meta($userID, $field, $value);
 			}
@@ -510,7 +525,92 @@ class acc_user_importer_Admin {
 		
 		return $api_response;
 	}
+
+
+	/**
+	 * Returns True if the user is expired.
+	 * If the user has no 'expiry' field, it must be a stale entry in the database.
+	 * So it is considered expired.
+	 */
+	private function is_user_expired ($user) {
+		if (empty($user->expiry)) {
+			$this->log_dual("user $user->ID $user->display_name has no expiry, consider expired");
+			return true;
+		}
+
+		if ($user->expiry < date("Y-m-d")) {
+			//$this->log_dual("user $user->ID $user->display_name expiry=$user->expiry is expired");
+			return true;
+		}
+		//$this->log_dual("user $user->ID $user->display_name expiry=$user->expiry is valid");
+		return false;
+	}
 	
+
+	/**
+	 * Go over our local user database and see who has an expired membership.
+	 */
+	private function proccess_expiry () {
+		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
+
+		// Get user-configurable option values
+		$options = get_option('accUM_data');
+
+		$this->log_dual("Now looking for expired members.");
+
+		//create response object
+		$api_response = Array();
+		$db_users = get_users("all_with_meta");
+		$num_active = 0;
+		$num_inactive = 0;
+
+		foreach ( $db_users as $key => $user ) {
+
+			if ($this->is_user_expired($user)) {
+				$num_inactive++;
+				if (isset($user->acc_status)) {
+					if ($user->acc_status == 'active') {
+						// User was active, now expired.
+						update_user_meta($user->ID, 'acc_status', 'inactive');
+						$this->log_dual("user $user->ID $user->display_name transitioned to " .
+							            "inactive, send goodbye email if enabled");
+						acc_send_goodbye_email($user->ID);
+						do_action("acc_member_goodbye", $user->ID);		//action hook
+					}
+				} else {
+					// User did not have a acc_status field. Must be the first time this
+					// new plugin executes. Set the field but do not send email.
+					update_user_meta($user->ID, 'acc_status', 'inactive');
+					$this->log_dual("Initial update of user $user->ID $user->display_name to inactive");
+				}
+
+			} else {
+				$num_active++;
+				if (isset($user->acc_status)) {
+					if ($user->acc_status == 'inactive') {
+						// User was inactive, now active.
+						update_user_meta($user->ID, 'acc_status', 'active');
+						$this->log_dual("user $user->ID $user->display_name transitioned to " .
+							            "active, send welcome email if enabled");
+						acc_send_welcome_email($user->ID);
+						do_action("acc_member_welcome", $user->ID);		//action hook
+					}
+				} else {
+					// User did not have a acc_status field. Must be the first time this
+					// new plugin executes. Set the field but do not send email.
+					update_user_meta($user->ID, 'acc_status', 'active');
+					$this->log_dual("Initial update of user $user->ID $user->display_name to active");
+				}
+			}
+		}
+
+		$this->log_dual("Active members=$num_active, inactive members=$num_inactive");
+
+		$api_response['message'] = "success";
+		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+
+		return $api_response;
+	}
 
 	/**
 	 * Request an authentication token from the national office API.

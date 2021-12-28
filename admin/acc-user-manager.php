@@ -8,9 +8,6 @@ function acc_adapt_acc_adminpage(){
 	add_action('wp_authenticate_user', 'acc_validate_user_login', 10, 2);
 }
 
-add_action( 'user_register', 'acc_send_welcome_email', 10, 1);
-
-
 
 /**
  * On plugin activation, schedule CRON job.
@@ -102,44 +99,12 @@ function acc_send_welcome_email($user_id) {
 	$test = acc_send_email( $user_email, 0 );
 }
 
-/**
- * Check user membership expiry and if past, send goodbye email.
- * FIXME FIXME FIXME!  We used to send an email on role change.
- * And send only 1 email.  Now this code will not change role,
- * and will send email each time expiry is checked!  Need to find a fix.
- *
- * TODO: add a new user meta called account_status and set to value
- * Approved or Rejected.
- */
-function acc_check_if_user_expired($user) {
-    $userID = $user->ID;
-
-    $wp_caps = get_user_meta( $userID, 'wp_capabilities', 'true' );
-    $role = array_keys((array)$wp_caps);
-    if($role[0] == "administrator") {
-    	return;
-    }
-
-    $expiry = get_user_meta( $userID, 'expiry', 'true' );
-	//FIXME why KFG wrote the next line and left it unused??
-    //$expiry_formatted = date("Y-m-d", strtotime($expiry));
-    if (empty($expiry)) {
-    	return;
-    }
-
-	//If user membership expiry is before today, he is expired
-	if ($expiry < date("Y-m-d")) { 
-
-    	// Send goodbye email
-		//FIXME Why did KFG create a new user variable here??
-    	$u = new WP_User( $userID );
-		if(!empty($u->user_email)) {
-			//FIXME Re-enable once we know how to send only 1 email.
-			//$email = acc_send_email( $u->user_email, 1 );
-		}
-    }
-
-    return $user;
+function acc_send_goodbye_email($user_id) {
+	$user = get_userdata($user_id);
+	$user_email = $user->user_email;
+	$test = acc_send_email( $user_email, 1 );
 }
+
+
 
 
