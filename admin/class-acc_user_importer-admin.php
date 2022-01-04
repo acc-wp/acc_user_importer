@@ -97,7 +97,7 @@ class acc_user_importer_Admin {
 	public function accUserAPI() {
 	
 		//create response object
-		$api_response = Array();
+		$api_response = [];
 		
 		//kill script if current user lacks permission to edit other users
 		if ( current_user_can( "edit_users" ) == false ) {
@@ -277,7 +277,7 @@ class acc_user_importer_Admin {
 
 
 		//create response object
-		$api_response = Array();
+		$api_response = [];
 		$this->log_dual("Start processing batch of " . count($users) . " users");
 		
 		//fail gracefully is dataset is empty
@@ -559,8 +559,8 @@ class acc_user_importer_Admin {
 		$this->log_dual("Now looking for expired members.");
 
 		//create response object
-		$api_response = Array();
-		$db_users = get_users("all_with_meta");
+		$api_response = [];
+		$db_users = get_users(['fields' => 'all_with_meta']);
 		$num_active = 0;
 		$num_inactive = 0;
 
@@ -632,7 +632,7 @@ class acc_user_importer_Admin {
 		$auth_request = wp_remote_post( $acc_token_uri , $post_args );
 		
 		//create response object for local api
-		$api_response = Array();
+		$api_response = [];
 		
 		//check response and return data using local api
 		if ( is_wp_error( $auth_request ) ) {
@@ -696,7 +696,7 @@ class acc_user_importer_Admin {
 		*/
 		
 		//create response object
-		$api_response = Array();
+		$api_response = [];
 			
 		//if the post request fails
 		if ( is_wp_error( $auth_request ) ) {
