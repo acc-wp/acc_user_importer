@@ -90,7 +90,7 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 			
 					//Enable Buttons At End
 					else {
-						
+
 						logLocalOutput("&nbsp;");
 						logLocalOutput("<b><u>Membership update complete.</u>");
 						logLocalOutput("--Parsed data for " + usersInData + " people total.");
@@ -98,14 +98,8 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 						logLocalOutput("--Updated data for " + updatedUsers + " people total.");
 						logLocalOutput("--Errors updating " + usersWithErrors + " accounts total.</b>");
 						
-						$("#update_status_submit, #debug_status_submit").removeAttr("disabled");
-						logLocalOutput("&nbsp;");
-						logLocalOutput("This journey has come to an end.");
-						var accSyncEndTime = new Date();
-						var duration = (accSyncEndTime.getTime() - accSyncStartTime.getTime()) / 1000;
-						logLocalOutput("Start time: " + accSyncStartTime);
-						logLocalOutput("End time: " + accSyncEndTime);
-						logLocalOutput("Duration: " + duration + "seconds");
+						//Now that we have updated all members, check for expiry
+						wpProccessExpiry();
 					}
 			
 				}, onPostRequestFailure);	
@@ -249,7 +243,7 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		logLocalOutput("..");
 		
 		var apiData = {'action': 'accUserAPI','request': 'processMemberData','security': ajax_object.nonce, 'dataset': JSON.stringify(accDataset)};
-		
+
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
 			
@@ -266,6 +260,36 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		});
 	}
 	
+	/**
+	 * Ask Wordpress to scan user database for expired memberships
+	 */
+	 function wpProccessExpiry () {
+
+		//logLocalOutput("Requesting to process member expiry");
+
+		var apiData = {'action': 'accUserAPI','request': 'processExpiry','security': ajax_object.nonce, 'dataset': ''};
+
+		jQuery.post(ajax_object.url, apiData, function(response) {
+			var responseObject = JSON.parse(response);
+
+			if (responseObject.message == "success") {
+				logLocalOutput(responseObject.log);
+				logLocalOutput("Finished expiry processing.");
+
+				$("#update_status_submit, #debug_status_submit").removeAttr("disabled");
+				logLocalOutput("&nbsp;");
+				logLocalOutput("This journey has come to an end.");
+				var accSyncEndTime = new Date();
+				var duration = (accSyncEndTime.getTime() - accSyncStartTime.getTime()) / 1000;
+				logLocalOutput("Start time: " + accSyncStartTime);
+				logLocalOutput("End time: " + accSyncEndTime);
+				logLocalOutput("Duration: " + duration + "seconds");
+			} else {
+				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
+			}
+		});
+	}
+
 	/**
 	 * Unused - Test Mode -> Run the journey, while we are watching.
 	 */
