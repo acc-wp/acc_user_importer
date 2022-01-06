@@ -99,6 +99,9 @@ Test on a staging or development site with email transmission disabled.
 
 
 == Changelog ==
+1.2.3 Francois Bessette
+    -Fix minor review comments
+
 1.2.2 Francois Bessette
     -add a new processing loop to review membership expiry date and send
      welcome and goodbye emails. This is done after the import phase.
