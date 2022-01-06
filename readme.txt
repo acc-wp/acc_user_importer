@@ -1,7 +1,7 @@
 === ACC User Importer ===
 Contributors: Raz Peel, Karine Frenette-G, Francois Bessette, Claude Vessaz
 Tags: 
-Stable tag: 1.2.1
+Stable tag: 1.2.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Repository: https://github.com/acc-wp/acc_user_importer
@@ -11,21 +11,21 @@ Repository: https://github.com/acc-wp/acc_user_importer
 Wordpress plugin used to synchronize the membership list obtained from the
 Alpine Club of Canada (ACC) to a local section website. 
 
-A button allows to manually trigger the update process.
-Logs of the operation are written to a timestamped file.
+The plugin wakes up periodically (default 2x per day) to do the membership
+import.  A button can also manually trigger the update process.
+Logs are written to a timestamped file.
 
-The plugin provides the following 3 web pages for configuration:
+The plugin provides the following 2 web pages for configuration:
 **ACC Admin**
     -how to access to the National website
+    -what username to assign new members
+    -whether to update username for an existing user (normally set to NO)
     -What role to assign new members
-    -What role to assign to members right after their membership is expired
-    -What role to assign to members 1 month after their membership is expired
+    -periodic Cron timer interval
     -A button to maually trigger the Membership update
     -logs of the tasks
 **ACC Email Templates**
     -templates for email to send to new users or expired users
-**ACC Cron Jobs**
-    -timers intervals for the two taks to periodically run.
 
 
 == Installation ==
@@ -34,6 +34,48 @@ The plugin provides the following 3 web pages for configuration:
 1. Activate the plugin.
 
 == User Guide ==
+
+--Sending of "Welcome" and "Goodbye" emails--
+There are checkboxes to control whether a Welcome and Goodbye email
+are sent to a new or expired member.
+Sending of a Welcome email is done whenever a new user account is created,
+or whenever an expired user renews its membership.
+Sending of a Goodbye email is done whenever a member 'expiry' date
+is in the past.
+To help with expiry detection and avoid sending an email on every run 
+of the plugin, in the database each user has a meta variable called 
+acc_status. The acc_status is set according to the user 'expiry' date:
+    user expiry                           user acc_status
+    --------------------------            -----------------------------------
+    in the future                         active
+    in the past (or field not set):       inactive
+
+An email is sent whenever the acc_status state changes.
+When upgrading an existing installation, we dont want to flood all users
+with Welcome/Goodbye emails.  So when the plugin runs, it will avoid
+sending emails for existing users that do not have such variable yet
+in the database. But it will create the acc_status variable, and from then
+on will send emails on state changes. Assuming the email checkbox is set,
+of course.
+
+
+
+== Hooks ==
+do_action('acc_new_membership', $userID);
+Called each time a new user account is created during import.
+
+do_action('acc_membership_renewal', $existingUser->ID);
+Called each time an existing user 'expiry' date changes. 
+Yes, this is not perfect, there is an assumption here that the expiry 
+will only change forward because of a renewal. Could be improved. 
+
+do_action("acc_member_welcome", $user->ID);
+Called whenever a Welcome email would be sent (assuming checkbox is enabled).
+
+do_action("acc_member_goodbye", $user->ID);
+Called whenever a Goodbye email would be sent (assuming checkbox is enabled).
+
+
 
 == Road Map ==
 Here are some ideas that could be implemented, sorted by likelyhood.
