@@ -563,6 +563,8 @@ class acc_user_importer_Admin {
 		$db_users = get_users(['fields' => 'all_with_meta']);
 		$num_active = 0;
 		$num_inactive = 0;
+		$new_users = [];
+		$expired_users = [];
 
 		foreach ( $db_users as $key => $user ) {
 
@@ -576,6 +578,7 @@ class acc_user_importer_Admin {
 							            "inactive, send goodbye email if enabled");
 						acc_send_goodbye_email($user->ID);
 						do_action("acc_member_goodbye", $user->ID);		//action hook
+						$expired_users[] = "$user->display_name  ($user->user_email)";
 					}
 				} else {
 					// User did not have a acc_status field. Must be the first time this
@@ -594,6 +597,7 @@ class acc_user_importer_Admin {
 							            "active, send welcome email if enabled");
 						acc_send_welcome_email($user->ID);
 						do_action("acc_member_welcome", $user->ID);		//action hook
+						$new_users[] = "$user->display_name  ($user->user_email)";
 					}
 				} else {
 					// User did not have a acc_status field. Must be the first time this
@@ -605,6 +609,38 @@ class acc_user_importer_Admin {
 		}
 
 		$this->log_dual("Active members=$num_active, inactive members=$num_inactive");
+
+		// If option is set and there were membership changes, send email notification
+		// There is no checking done to ensure the notification email addresses are valid.
+		if (!empty($options['accUM_notification_emails']) &&
+			(!empty($new_users) || !empty($expired_users))) {
+			$email_addrs = $options['accUM_notification_emails'];
+
+			$title = "ACC membership change notification";
+			if (isset($options['accUM_notification_title'])) {
+				$title = $options['accUM_notification_title'];
+			}
+			$content = "The ACC web site has received the following membership changes:\n\n";
+			$content .= "---new members---\n";
+			foreach ( $new_users as $user ) {
+				$content .= $user . "\n";
+			}
+			$content .= "\n---expired members---\n";
+			foreach ( $expired_users as $user ) {
+				$content .= $user . "\n";
+			}
+			$this->log_dual("email to: $email_addrs");
+			$this->log_dual("email title=$title");
+			$this->log_dual("email content=$content");
+			$rc = wp_mail($email_addrs, $title, $content, 'Content-Type: text/plain; charset=UTF-8' );
+			if ($rc) {
+				$this->log_dual("Successfully sent notification email to: $email_addrs");
+			} else {
+				$this->log_dual("Failed to send notification email");
+			}
+		}
+
+
 
 		$api_response['message'] = "success";
 		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string

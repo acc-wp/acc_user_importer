@@ -150,6 +150,18 @@
 			)
 		);
 
+		add_settings_field(
+			'accUM_notification_emails',	//ID
+			'Who to notify about membership creation/expiry? List of emails, comma separated. Leave blank for no notifications',
+			'accUM_text_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'type' => 'text',
+				'name' => 'accUM_notification_emails',
+			)
+		);
+
 		//Register the array that will store all plugin data
 		register_setting( 'acc_admin_page', 'accUM_data', 'accUM_sanitize_data' );
 	}
