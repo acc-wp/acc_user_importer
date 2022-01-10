@@ -1,7 +1,7 @@
 === ACC User Importer ===
 Contributors: Raz Peel, Karine Frenette-G, Francois Bessette, Claude Vessaz
 Tags: 
-Stable tag: 1.2.3
+Stable tag: 1.2.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Repository: https://github.com/acc-wp/acc_user_importer
@@ -29,9 +29,8 @@ The plugin provides the following 2 web pages for configuration:
 
 
 == Installation ==
-1. Make sure the ACC User Importer plugin is installed and activated.
-1. install "acc_user_importer.zip".
-1. Activate the plugin.
+1. install "acc_user_importer_x_y_z.zip".
+2. Activate the plugin.
 
 == User Guide ==
 
@@ -141,6 +140,18 @@ Test on a staging or development site with email transmission disabled.
 
 
 == Changelog ==
+1.2.6 Francois Bessette
+    -Add an option to specify the title for the notification email.
+
+1.2.5 Francois Besssette
+    -Ignore error if data received from ACC server is missing Membership
+     field. Temp fix for Mtl, never pushed to Github.
+
+1.2.4 Francois Bessette
+    -The user can now configure a list of emails who will be notified whenever
+     the web site membership changes (user created/renewed, or becames expired).
+    -Leave the field blank if you want no email notifications.
+
 1.2.3 Francois Bessette
     -Fix minor review comments
 
