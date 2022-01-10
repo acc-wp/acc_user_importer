@@ -616,7 +616,7 @@ class acc_user_importer_Admin {
 			(!empty($new_users) || !empty($expired_users))) {
 			$email_addrs = $options['accUM_notification_emails'];
 
-			$title = "ACC membership change notification";
+			$title = accUM_get_default_notif_title();
 			if (isset($options['accUM_notification_title'])) {
 				$title = $options['accUM_notification_title'];
 			}
@@ -629,7 +629,7 @@ class acc_user_importer_Admin {
 			foreach ( $expired_users as $user ) {
 				$content .= $user . "\n";
 			}
-			$this->log_dual("email to: $email_addrs");
+			$this->log_dual("Sending notification email to: $email_addrs");
 			$this->log_dual("email title=$title");
 			$this->log_dual("email content=$content");
 			$rc = wp_mail($email_addrs, $title, $content, 'Content-Type: text/plain; charset=UTF-8' );

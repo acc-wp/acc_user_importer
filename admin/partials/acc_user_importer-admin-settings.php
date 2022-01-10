@@ -47,7 +47,8 @@
 	function accUM_get_login_name_mapping_default() {return 'Firstname Lastname';}
 	function accUM_get_update_user_login_default() {return 'No';}
 	function accUM_get_default_role_default() {return 'Subscriber';}
-
+	function accUM_get_default_notif_title() {return 'ACC membership change notification';}
+	
 	/*
 	 * Register user settings for options page.
 	 */
@@ -160,6 +161,19 @@
 				'type' => 'text',
 				'name' => 'accUM_notification_emails',
 			)
+		);
+
+		add_settings_field(
+			'accUM_notification_title',	//ID
+			'Title of notification email',
+			'accUM_text_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'type' => 'text',
+				'name' => 'accUM_notification_title',
+				'default' => accUM_get_default_notif_title(),
+				)
 		);
 
 		//Register the array that will store all plugin data
