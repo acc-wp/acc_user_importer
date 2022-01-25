@@ -46,8 +46,10 @@
 	// Define functions to get default values from different files.
 	function accUM_get_login_name_mapping_default() {return 'Firstname Lastname';}
 	function accUM_get_update_user_login_default() {return 'No';}
-	function accUM_get_default_role_default() {return 'Subscriber';}
+	function accUM_get_default_role_default() {return 'subscriber';}
 	function accUM_get_default_notif_title() {return 'ACC membership change notification';}
+	function accUM_get_do_expire_role_default() {return 'off';}
+	function accUM_get_expired_role_default() {return 'subscriber';}
 	
 	/*
 	 * Register user settings for options page.
@@ -139,15 +141,40 @@
 
 		$roles = wp_roles()->get_names();
 		add_settings_field(
-				'accUM_default_role',			//ID
-				'When creating a new user, set role to',	//Title
-				'accUM_select_render',			//Callback
-				'acc_admin_page',				//Page
-				'accUM_user_section',			//Section
-				array(
-					'name' => 'accUM_default_role',
-					'values' => $roles,
-					'default' => accUM_get_default_role_default(),
+			'accUM_default_role',			//ID
+			'When creating a new user, set role to',	//Title
+			'accUM_select_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_default_role',
+				'values' => $roles,
+				'default' => accUM_get_default_role_default(),
+			)
+		);
+
+		add_settings_field(
+			'accUM_do_expire_role',			//ID
+			'Should plugin modify the role when a member becomes expired?',	//Title
+			'accUM_chkbox_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_do_expire_role',
+				'default' => accUM_get_do_expire_role_default(),
+			)
+		);
+
+		add_settings_field(
+			'accUM_expired_role',			//ID
+			'Set role of expired members to',	//Title
+			'accUM_select_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_expired_role',
+				'values' => $roles,
+				'default' => accUM_get_expired_role_default(),
 			)
 		);
 
@@ -180,6 +207,7 @@
 		register_setting( 'acc_admin_page', 'accUM_data', 'accUM_sanitize_data' );
 	}
 	
+
 	/*
 	 * Render the textbox fields.
 	 */	
@@ -188,7 +216,11 @@
 		$options = get_option('accUM_data');
 		$input_name = $args['name'];
 		$input_type = $args['type'];
-		$input_value = $options[$input_name];
+		if (empty($options[$input_name])) {
+			$input_value = $args['default'];
+		} else {
+			$input_value = $options[$input_name];
+		}
 			
 		$html = "<input type=\"$input_type\"";
 		$html .= " id=\"$input_name\"";
@@ -200,7 +232,7 @@
 		}
 		
 		//add extra html tags if any are given
-		if ( $args['html_tags'] ) { $html .= ' ' . $args['html_tags']; }
+		if ( !empty($args['html_tags'] )) { $html .= ' ' . $args['html_tags']; }
 		
 		$html .= " value=\"$input_value\"";
 		$html .= "/>";
@@ -230,6 +262,27 @@
 			}	
 		}
 		echo $html . "</select>";
+	}
+
+	/*
+	 * Render for a single on/off checkbox.
+	 * If checked, the WP database stores 'on'.
+	 * If not checked, the WP database has no data for that option.
+	 */
+	function accUM_chkbox_render($args) {
+		$options = get_option('accUM_data');
+		$input_name = $args['name'];
+		if (empty($options[$input_name])) {
+			$select_value = $args['default'];
+		} else {
+			$select_value = $options[$input_name];
+		}
+
+		$html = "<input type=\"checkbox\"";
+		$html .= " id=\"$input_name\"";
+		$html .= " name=\"accUM_data[$input_name]\"";
+		$html .= checked( 'on', $select_value, FALSE ) . ' />';
+		echo $html;
 	}
 
 	/*
