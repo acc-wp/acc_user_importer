@@ -616,9 +616,11 @@ class acc_user_importer_Admin {
 					$this->log_dual("Initial update of user $user->ID $user->display_name to inactive");
 				}
 
-				// If needed, change the user role to the expired role
+				// If needed, change the user role to the expired role.
+				// Do not change roles of administrators to prevent lockout.
 				$user_roles = $user->roles;
 				if ($do_expire_role == 'on' &&
+					!in_array('administrator', $user_roles, true) &&
 					!in_array($expired_role, $user_roles, true)) {
 					$this->log_dual("Changing user $user->ID $user->display_name role to $expired_role");
 					$expired_role_users[] = "$user->display_name  ($user->user_email)";
