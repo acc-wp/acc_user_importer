@@ -1,7 +1,7 @@
 === ACC User Importer ===
 Contributors: Raz Peel, Karine Frenette-G, Francois Bessette, Claude Vessaz
 Tags: 
-Stable tag: 1.2.6
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Repository: https://github.com/acc-wp/acc_user_importer
@@ -140,6 +140,10 @@ Test on a staging or development site with email transmission disabled.
 
 
 == Changelog ==
+1.3.0 Francois Bessette
+    -Add options to change role when member becomes expired, and 
+     restore previous role when member renews.
+
 1.2.6 Francois Bessette
     -Add an option to specify the title for the notification email.
 
