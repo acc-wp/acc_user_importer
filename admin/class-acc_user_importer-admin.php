@@ -556,7 +556,33 @@ class acc_user_importer_Admin {
 		// Get user-configurable option values
 		$options = get_option('accUM_data');
 
+		// Get the default_role setting
+		if (!isset($options['accUM_default_role'])) {
+			$this->log_dual("accUM_default_role is empty");
+			$default_role = accUM_get_default_role_default();
+		} else {
+			$default_role = $options['accUM_default_role'];
+		}
+
+		// Get the accUM_do_expire_role setting
+		if (!isset($options['accUM_do_expire_role'])) {
+			$do_expire_role = accUM_get_do_expire_role_default();
+		} else {
+			$do_expire_role = $options['accUM_do_expire_role'];
+		}
+
+		// Get the accUM_expired_role setting
+		if (!isset($options['accUM_expired_role'])) {
+			$this->log_dual("accUM_expired_role is empty");
+			$expired_role = accUM_get_expired_role_default();
+		} else {
+			$expired_role = $options['accUM_expired_role'];
+		}
+
 		$this->log_dual("Now looking for expired members.");
+		if ($do_expire_role == 'on') {
+			$this->log_dual("and will update their roles to $expired_role");
+		}
 
 		//create response object
 		$api_response = [];
@@ -565,10 +591,13 @@ class acc_user_importer_Admin {
 		$num_inactive = 0;
 		$new_users = [];
 		$expired_users = [];
+		$expired_role_users = [];
+		$restored_role_users = [];
 
 		foreach ( $db_users as $key => $user ) {
 
 			if ($this->is_user_expired($user)) {
+				// User is expired
 				$num_inactive++;
 				if (isset($user->acc_status)) {
 					if ($user->acc_status == 'active') {
@@ -587,7 +616,22 @@ class acc_user_importer_Admin {
 					$this->log_dual("Initial update of user $user->ID $user->display_name to inactive");
 				}
 
+				// If needed, change the user role to the expired role.
+				// Do not change roles of administrators to prevent lockout.
+				$user_roles = $user->roles;
+				if ($do_expire_role == 'on' &&
+					!in_array('administrator', $user_roles, true) &&
+					!in_array($expired_role, $user_roles, true)) {
+					$this->log_dual("Changing user $user->ID $user->display_name role to $expired_role");
+					$expired_role_users[] = "$user->display_name  ($user->user_email)";
+					// Save previous user roles (a user may have many roles)
+					update_user_meta($user->ID, 'previous_roles', $user_roles);
+					// Set role to expired role
+					$user->set_role($expired_role);
+				}
+
 			} else {
+				// User has a valid membership
 				$num_active++;
 				if (isset($user->acc_status)) {
 					if ($user->acc_status == 'inactive') {
@@ -604,6 +648,33 @@ class acc_user_importer_Admin {
 					// new plugin executes. Set the field but do not send email.
 					update_user_meta($user->ID, 'acc_status', 'active');
 					$this->log_dual("Initial update of user $user->ID $user->display_name to active");
+				}
+
+				// If needed, restore the previously saved member role. If we dont have a saved
+				// previous role, pick the default role for a new member.
+				if ($do_expire_role == 'on' &&
+					in_array($expired_role, $user->roles, true)) {
+					$restored_role_users[] = "$user->display_name  ($user->user_email)";
+
+					if (empty($user->previous_roles)) {
+						$previous_roles = [$default_role];
+						$this->log_dual("Restoring user $user->ID $user->display_name role from $expired_role to default");
+					} else {
+						$previous_roles = $user->previous_roles;
+						$this->log_dual("Restoring user $user->ID $user->display_name role from $expired_role to previous");
+					}
+
+					$first_role = true;
+					foreach ($previous_roles as $role) {
+						if ($first_role) {
+							$user->set_role($role);
+							$first_role = false;
+							$this->log_dual("Restored role $role");
+						} else {
+							$user->add_role($role);
+							$this->log_dual("Restored role $role");
+						}
+					}
 				}
 			}
 		}
@@ -629,6 +700,14 @@ class acc_user_importer_Admin {
 			foreach ( $expired_users as $user ) {
 				$content .= $user . "\n";
 			}
+			$content .= "\n---members which had their roles changed to expired role---\n";
+			foreach ( $expired_role_users as $user ) {
+				$content .= $user . "\n";
+			}
+			$content .= "\n---members which had their roles restored because they renewed---\n";
+			foreach ( $restored_role_users as $user ) {
+				$content .= $user . "\n";
+			}
 			$this->log_dual("Sending notification email to: $email_addrs");
 			$this->log_dual("email title=$title");
 			$this->log_dual("email content=$content");
@@ -639,8 +718,6 @@ class acc_user_importer_Admin {
 				$this->log_dual("Failed to send notification email");
 			}
 		}
-
-
 
 		$api_response['message'] = "success";
 		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
