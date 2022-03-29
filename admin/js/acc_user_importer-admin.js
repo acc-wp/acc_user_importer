@@ -149,7 +149,10 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
-			
+
+			var sectionName = String(responseObject.section);
+			logLocalOutput('Section: ' + sectionName);
+
 			if (responseObject.message == "success") {
 				var accToken = String(responseObject.accessToken);
 				logLocalOutput('Received token: ' + accToken.substr(0, 10) + '...');

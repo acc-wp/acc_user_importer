@@ -140,6 +140,11 @@ Test on a staging or development site with email transmission disabled.
 
 
 == Changelog ==
+1.3.1 Francois Bessette
+    Fixes for Mtl section:
+    -Make imis_id optional
+    -users with no expiry date are now considered active
+
 1.3.0 Francois Bessette
     -Add options to change role when member becomes expired, and 
      restore previous role when member renews.

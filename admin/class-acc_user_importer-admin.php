@@ -26,8 +26,10 @@ class acc_user_importer_Admin {
 
 		//force certificate validation - i.e. speed up authentication process
 		add_filter( 'https_local_ssl_verify', '__return_true' );
-		
-		$this->log_local_output("Automatic member update starting");
+
+		$options = get_option('accUM_data');
+		$acc_user = $options['accUM_username'];
+		$this->log_local_output("Automatic member update starting for section $acc_user");
 		$timestamp_start = date_i18n("Y-m-d-H-i-s");
 
 		//request token
@@ -317,15 +319,21 @@ class acc_user_importer_Admin {
 			$userInfoString .= " home:" . $userHomePhone;
 			$userInfoString .= " cell:" . $userCellPhone;
 			$userInfoString .= " expiry:" . $userExpiry;
+			$userInfoString .= " section:" . $user["PRODUCT_CODE"];
 			$this->log_dual("Received " . $userInfoString);
 
+			// Skip users if ContactID is missing and needed.
+			if (!is_numeric($userContactId) &&
+				$loginNameMapping == 'ContactId') {
+					$this->log_dual(" > error, no contactID; skip");
+					continue;
+			}
 
-			// Skip users without membership number
-			if (!is_numeric($userMembership) ||
-			    !is_numeric($userContactId)  ||
-				!is_numeric($userImisId)) {
-				$this->log_dual(" > error, no membership#, contactID or imis_id; skip");
-				continue;
+			// Skip users if userImisId is missing and needed.
+			if (!is_numeric($userImisId) &&
+				$loginNameMapping == 'imis_id') {
+					$this->log_dual(" > error, no imis_id; skip");
+					continue;
 			}
 
 			switch($loginNameMapping) {
@@ -529,13 +537,13 @@ class acc_user_importer_Admin {
 
 	/**
 	 * Returns True if the user is expired.
-	 * If the user has no 'expiry' field, it must be a stale entry in the database.
-	 * So it is considered expired.
+	 * If the user has no 'expiry' field, it is considered as active. 
+	 * Most likely an admin.
 	 */
 	private function is_user_expired ($user) {
 		if (empty($user->expiry)) {
-			$this->log_dual("user $user->ID $user->display_name has no expiry, consider expired");
-			return true;
+			$this->log_dual("user $user->ID $user->display_name has no expiry, consider active");
+			return false;
 		}
 
 		if ($user->expiry < date("Y-m-d")) {
@@ -746,6 +754,7 @@ class acc_user_importer_Admin {
 		
 		//create response object for local api
 		$api_response = [];
+		$api_response['section'] = $acc_user;
 		
 		//check response and return data using local api
 		if ( is_wp_error( $auth_request ) ) {
