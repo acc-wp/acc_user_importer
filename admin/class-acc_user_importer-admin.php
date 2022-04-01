@@ -556,6 +556,23 @@ class acc_user_importer_Admin {
 	
 
 	/**
+	 * Return true if user is member of Montreal section.
+	 * FIXME This is really a temporary hack (2022-04-01)
+	 */
+	private function acc_is_member_of_mtl ($user) {
+
+		foreach ( $user->roles as $role ) {
+			$this->log_dual("Checking $user->display_name role $role");
+			if (strpos($role, "acc-mo") !== false) {
+				//Member is part of Montreal section
+				$this->log_dual("$user->display_name is from Montreal");
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Go over our local user database and see who has an expired membership.
 	 */
 	private function proccess_expiry () {
@@ -563,6 +580,7 @@ class acc_user_importer_Admin {
 
 		// Get user-configurable option values
 		$options = get_option('accUM_data');
+		$acc_section = $options['accUM_username'];
 
 		// Get the default_role setting
 		if (!isset($options['accUM_default_role'])) {
@@ -611,9 +629,16 @@ class acc_user_importer_Admin {
 					if ($user->acc_status == 'active') {
 						// User was active, now expired.
 						update_user_meta($user->ID, 'acc_status', 'inactive');
-						$this->log_dual("user $user->ID $user->display_name transitioned to " .
-							            "inactive, send goodbye email if enabled");
-						acc_send_goodbye_email($user->ID);
+
+						//FIXME temp hack for Mtl to avoid sending goodbye emails to other sections
+						if ($this->acc_is_member_of_mtl($user)) {
+							$this->log_dual("user $user->ID $user->display_name transitioned to " .
+							"inactive, send goodbye email if enabled");
+							acc_send_goodbye_email($user->ID);
+						} else {
+							$this->log_dual("user $user->ID $user->display_name transitioned to " .
+							"inactive, not member of Mtl, so no email");
+						}
 						do_action("acc_member_goodbye", $user->ID);		//action hook
 						$expired_users[] = "$user->display_name  ($user->user_email)";
 					}
@@ -645,9 +670,16 @@ class acc_user_importer_Admin {
 					if ($user->acc_status == 'inactive') {
 						// User was inactive, now active.
 						update_user_meta($user->ID, 'acc_status', 'active');
-						$this->log_dual("user $user->ID $user->display_name transitioned to " .
-							            "active, send welcome email if enabled");
-						acc_send_welcome_email($user->ID);
+
+						//FIXME temp hack for Mtl to avoid sending goodbye emails to other sections
+						if ($this->acc_is_member_of_mtl($user)) {
+							$this->log_dual("user $user->ID $user->display_name transitioned to " .
+							"active, send welcome email if enabled");
+							acc_send_welcome_email($user->ID);
+						} else {
+							$this->log_dual("user $user->ID $user->display_name transitioned to " .
+							"active, not member of Mtl, so no email");
+						}
 						do_action("acc_member_welcome", $user->ID);		//action hook
 						$new_users[] = "$user->display_name  ($user->user_email)";
 					}
@@ -699,6 +731,8 @@ class acc_user_importer_Admin {
 			if (isset($options['accUM_notification_title'])) {
 				$title = $options['accUM_notification_title'];
 			}
+			$title .= " for section $acc_section";
+
 			$content = "The ACC web site has received the following membership changes:\n\n";
 			$content .= "---new members---\n";
 			foreach ( $new_users as $user ) {

@@ -1,7 +1,7 @@
 === ACC User Importer ===
 Contributors: Raz Peel, Karine Frenette-G, Francois Bessette, Claude Vessaz
 Tags: 
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Repository: https://github.com/acc-wp/acc_user_importer
@@ -140,6 +140,12 @@ Test on a staging or development site with email transmission disabled.
 
 
 == Changelog ==
+1.3.2 Francois Bessette
+    Fixes for Mtl section: a hack, not to commit to main branch!
+    -Only send welcome and goodbye email for Montreal members,
+     which is implemented by looking for "acc-mo" in the role.
+    -Print section name in email title sent to webmaster
+
 1.3.1 Francois Bessette
     Fixes for Mtl section:
     -Make imis_id optional
