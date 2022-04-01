@@ -562,10 +562,7 @@ class acc_user_importer_Admin {
 	private function acc_is_member_of_mtl ($user) {
 
 		foreach ( $user->roles as $role ) {
-			$this->log_dual("Checking $user->display_name role $role");
 			if (strpos($role, "acc-mo") !== false) {
-				//Member is part of Montreal section
-				$this->log_dual("$user->display_name is from Montreal");
 				return true;
 			}
 		}
@@ -651,16 +648,21 @@ class acc_user_importer_Admin {
 
 				// If needed, change the user role to the expired role.
 				// Do not change roles of administrators to prevent lockout.
+				// FIXME temp hack for Mtl: only change role if user had MTL membership
 				$user_roles = $user->roles;
 				if ($do_expire_role == 'on' &&
 					!in_array('administrator', $user_roles, true) &&
 					!in_array($expired_role, $user_roles, true)) {
-					$this->log_dual("Changing user $user->ID $user->display_name role to $expired_role");
-					$expired_role_users[] = "$user->display_name  ($user->user_email)";
-					// Save previous user roles (a user may have many roles)
-					update_user_meta($user->ID, 'previous_roles', $user_roles);
-					// Set role to expired role
-					$user->set_role($expired_role);
+					if ($this->acc_is_member_of_mtl($user)) {
+						$this->log_dual("Changing user $user->ID $user->display_name role to $expired_role");
+						$expired_role_users[] = "$user->display_name  ($user->user_email)";
+						// Save previous user roles (a user may have many roles)
+						update_user_meta($user->ID, 'previous_roles', $user_roles);
+						// Set role to expired role
+						$user->set_role($expired_role);
+					} else {
+						$this->log_dual("User $user->ID $user->display_name not from Mtl, not changing role");
+					}
 				}
 
 			} else {

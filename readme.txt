@@ -140,6 +140,10 @@ Test on a staging or development site with email transmission disabled.
 
 
 == Changelog ==
+1.3.3 Francois Bessette
+    Fix for Mtl section: a hack, not to commit to main branch!
+    -On expiry, only change user role if he is from Mtl
+
 1.3.2 Francois Bessette
     Fixes for Mtl section: a hack, not to commit to main branch!
     -Only send welcome and goodbye email for Montreal members,
