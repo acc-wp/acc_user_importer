@@ -1,15 +1,16 @@
-=== ACC User Importer ===
+# ACC User Importer
+
 Contributors: Raz Peel, Karine Frenette-G, Francois Bessette, Claude Vessaz
-Tags: 
+Tags:
 Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Repository: https://github.com/acc-wp/acc_user_importer
 
 
-== Description ==
+## Description
 Wordpress plugin used to synchronize the membership list obtained from the
-Alpine Club of Canada (ACC) to a local section website. 
+Alpine Club of Canada (ACC) to a local section website.
 
 The plugin wakes up periodically (default 2x per day) to do the membership
 import.  A button can also manually trigger the update process.
@@ -28,11 +29,11 @@ The plugin provides the following 2 web pages for configuration:
     -templates for email to send to new users or expired users
 
 
-== Installation ==
+## Installation
 1. install "acc_user_importer_x_y_z.zip".
 2. Activate the plugin.
 
-== User Guide ==
+## User Guide
 
 --Sending of "Welcome" and "Goodbye" emails--
 There are checkboxes to control whether a Welcome and Goodbye email
@@ -41,8 +42,8 @@ Sending of a Welcome email is done whenever a new user account is created,
 or whenever an expired user renews its membership.
 Sending of a Goodbye email is done whenever a member 'expiry' date
 is in the past.
-To help with expiry detection and avoid sending an email on every run 
-of the plugin, in the database each user has a meta variable called 
+To help with expiry detection and avoid sending an email on every run
+of the plugin, in the database each user has a meta variable called
 acc_status. The acc_status is set according to the user 'expiry' date:
     user expiry                           user acc_status
     --------------------------            -----------------------------------
@@ -50,7 +51,7 @@ acc_status. The acc_status is set according to the user 'expiry' date:
     in the past (or field not set):       inactive
 
 An email is sent whenever the acc_status state changes.
-When upgrading an existing installation, we dont want to flood all users
+When upgrading an existing installation, we don't want to flood all users
 with Welcome/Goodbye emails.  So when the plugin runs, it will avoid
 sending emails for existing users that do not have such variable yet
 in the database. But it will create the acc_status variable, and from then
@@ -59,14 +60,14 @@ of course.
 
 
 
-== Hooks ==
+## Hooks
 do_action('acc_new_membership', $userID);
 Called each time a new user account is created during import.
 
 do_action('acc_membership_renewal', $existingUser->ID);
-Called each time an existing user 'expiry' date changes. 
-Yes, this is not perfect, there is an assumption here that the expiry 
-will only change forward because of a renewal. Could be improved. 
+Called each time an existing user 'expiry' date changes.
+Yes, this is not perfect, there is an assumption here that the expiry
+will only change forward because of a renewal. Could be improved.
 
 do_action("acc_member_welcome", $user->ID);
 Called whenever a Welcome email would be sent (assuming checkbox is enabled).
@@ -76,8 +77,8 @@ Called whenever a Goodbye email would be sent (assuming checkbox is enabled).
 
 
 
-== Road Map ==
-Here are some ideas that could be implemented, sorted by likelyhood.
+## Road Map
+Here are some ideas that could be implemented, sorted by likelihood.
 -setting: email addresses to notify about new and expired members
 -setting: email addresses to notify about plugin operation
 -setting: disable access for expired members
@@ -93,22 +94,22 @@ Here are some ideas that could be implemented, sorted by likelyhood.
 -there is already a Wordpress setting (see General) for default role when creating
  a user. Use this setting and get rid of default_role ACC setting.
 -keep only N most recent log files
--add a action and filter hook when receiving new users. This way someone could 
+-add a action and filter hook when receiving new users. This way someone could
  decide to filter out some people, or reformat phone numbers, etc.
--give warning about weird cases. Example: a member that is no longer part of 
+-give warning about weird cases. Example: a member that is no longer part of
  	the imported list, but still have an expiry date in the future.
 -option to automatically delete inactive members
--option to provide a grace period (keep member access for N days 
+-option to provide a grace period (keep member access for N days
  after its membership is expired)
 
 
-== Contact ==
+## Contact
 https://github.com/francoisbessette
 https://github.com/cloetzi
 
-== Acknowledgements ==
+## Acknowledgements
 
-== Test Cases ==
+## Test Cases ==
 After making changes, here are tests to perform to verify proper operation.
 Test on a staging or development site with email transmission disabled.
 -Trigger plugin manually using Update button
@@ -125,7 +126,7 @@ Test on a staging or development site with email transmission disabled.
     -delete an existing user in the local database
     -trigger the plugin to import membership
     -verify user is re-created
-    -verify all fields associated to newly created user. 
+    -verify all fields associated to newly created user.
     -verify user_login (username) is set according to the configured setting.
     -verify user has the right default role.
     -verify that a welcome email is sent (if option is enabled).
@@ -137,49 +138,3 @@ Test on a staging or development site with email transmission disabled.
     -the plugin should notice that the expiry date is in the past
      and change acc_status to inactive.
     -verify goodbye email is sent (if option is enabled).
-
-
-== Changelog ==
-1.3.1 Francois Bessette
-    Fixes for Mtl section:
-    -Make imis_id optional
-    -users with no expiry date are now considered active
-
-1.3.0 Francois Bessette
-    -Add options to change role when member becomes expired, and 
-     restore previous role when member renews.
-
-1.2.6 Francois Bessette
-    -Add an option to specify the title for the notification email.
-
-1.2.5 Francois Besssette
-    -Ignore error if data received from ACC server is missing Membership
-     field. Temp fix for Mtl, never pushed to Github.
-
-1.2.4 Francois Bessette
-    -The user can now configure a list of emails who will be notified whenever
-     the web site membership changes (user created/renewed, or becames expired).
-    -Leave the field blank if you want no email notifications.
-
-1.2.3 Francois Bessette
-    -Fix minor review comments
-
-1.2.2 Francois Bessette
-    -add a new processing loop to review membership expiry date and send
-     welcome and goodbye emails. This is done after the import phase.
-    -add one more user meta variable called acc_status, with value
-     either active or inactive. This is needed to detect transition
-     and only send 1 email.
-    -clean a few logs
-    -translate email settings to english. French can come later.
-
-1.2.1 Francois Bessette
-    -Fix bug when default role was set to organisateur-trice.
-
-1.2.0 Francois Bessette and Claude Vessaz, 2020-12-23
-    -Fix major bug where only the first 100 users would be imported when triggered by timer
-    -added setting to control mapping of user_login (username).
-    -added setting to control whether the user_login is updated for users already in DB.
-    -simplified the settings page, move CRON settings on same page
-    -fixed bug where the log 'Delete' button was not working
-    -removed obsolete settings related to changing the role during update
