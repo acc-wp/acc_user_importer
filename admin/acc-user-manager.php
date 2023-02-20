@@ -12,7 +12,7 @@ function acc_adapt_acc_adminpage(){
 /**
  * On plugin activation, schedule CRON job.
  * Update will happen in 1 minute, then twice a day afterward.
- */ 
+ */
 function acc_cron_activate() {
 	if (!wp_next_scheduled('acc_automatic_import')) {
 	    wp_schedule_event( time() + 60, "twicedaily", 'acc_automatic_import' );
@@ -24,18 +24,13 @@ function acc_cron_activate() {
 
 /**
  * On plugin deactivation, unschedule CRON.
- */ 
+ */
 function acc_cron_deactivate() {
     $timestamp = wp_next_scheduled( 'acc_automatic_import' );
     wp_unschedule_event( $timestamp, 'acc_automatic_import' );
 	wp_unschedule_hook("acc_automatic_import");
 	wp_clear_scheduled_hook("acc_automatic_import");
 }
-
-//register_activation_hook( __FILE__, 'acc_cron_activate' );
-//register_deactivation_hook( __FILE__, 'acc_cron_deactivate' );
-
-
 
 /**
  * User is trying to login. Check user expiry date, and if too old,
@@ -55,18 +50,18 @@ function acc_validate_user_login($user, $password) {
 
 	if(empty($expiry) || $expiry < date("Y-m-d")){
 		$error = new WP_Error();
-		$error->add( 403, 'Oops. Your membership has expired, please renew your membership at <a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>.' );
+		$error->add( 403, 'Oops. Your membership has expired, please renew your membership at <a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. Please note that it can take up to three days until the membership data is updated.' );
 		return $error;
 	}
-	
+
 	return $user;
 }
 
 
 function acc_send_email($user_email, $email_ID) {
 	// Picks up from the ACC Email contents/titles options
-	// 0 = Welcome Email 
-	// 1 = Expired Email 
+	// 0 = Welcome Email
+	// 1 = Expired Email
 	// 2 = ...
 
 	$email_contents = get_option("acc_email_contents");
@@ -84,7 +79,6 @@ function acc_send_email($user_email, $email_ID) {
 		$chosen_active = stripslashes( $email_active[$email_ID] );
 
 		if(empty($chosen_active)){
-			// return wp_mail( "flareduststudio@gmail.com", "email not sent:".$chosen_title, $chosen_email, 'Content-Type: text/html; charset=UTF-8' );
 			return false;
 		}
 

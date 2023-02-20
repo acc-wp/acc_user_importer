@@ -1,10 +1,15 @@
 # ACC User Importer
 
 Contributors: Raz Peel, Karine Frenette-G, Francois Bessette, Claude Vessaz
+
 Tags:
+
 Stable tag: 1.3.0
+
 License: GPLv2 or later
+
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
+
 Repository: https://github.com/acc-wp/acc_user_importer
 
 
@@ -24,7 +29,7 @@ The plugin provides the following 2 web pages for configuration:
 - whether to update username for an existing user (normally set to NO)
 - What role to assign new members
 - periodic Cron timer interval
-- A button to maually trigger the Membership update
+- A button to manually trigger the Membership update
 - logs of the tasks
 
 ### ACC Email Templates
@@ -44,10 +49,10 @@ Sending of a Welcome email is done whenever a new user account is created, or wh
 Sending of a Goodbye email is done whenever a member 'expiry' date is in the past. To help with expiry detection and avoid sending an email on every run
 of the plugin, in the database each user has a meta variable called `acc_status`. The `acc_status` is set according to the user `expiry` date:
 
-|user expiry                      |     user acc_status
-|--------------------------       |     -----------------------------------
-|in the future                    |     active
-|in the past (or field not set)  |     inactive
+| user expiry                    | user acc_status |
+| ------------------------------ | --------------- |
+| in the future                  | active          |
+| in the past (or field not set) | inactive        |
 
 An email is sent whenever the acc_status state changes. When upgrading an existing installation, we don't want to flood all users with Welcome/Goodbye emails.  So when the plugin runs, it will avoid sending emails for existing users that do not have such variable yet in the database. But it will create the acc_status variable, and from the non will send emails on state changes. Assuming the email checkbox is set, of course.
 
@@ -56,8 +61,8 @@ An email is sent whenever the acc_status state changes. When upgrading an existi
 ## Hooks
 - `do_action('acc_new_membership', $userID)`: Called each time a new user account is created during import.
 - `do_action('acc_membership_renewal', $existingUser->ID)`: Called each time an existing user 'expiry' date changes. Yes, this is not perfect, there is an assumption here that the expiry will only change forward because of a renewal. Could be improved.
-- `do_action("acc_member_welcome", $user->ID)`: Called whenever a Welcome email would be sent (assuming checkbox is enabled).
-- `do_action("acc_member_goodbye", $user->ID)`: Called whenever a Goodbye email would be sent (assuming checkbox is enabled).
+- `do_action("acc_member_welcome", $user->ID)`: Called whenever a user's membership is switched from inactive to active.
+- `do_action("acc_member_goodbye", $user->ID)`: Called whenever a user's membership lapsed.
 
 
 
