@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0 Claude Vessaz
+
+- Remove option to change WP login ID.
+- Change default ID to ContactId.
+- Improve expired membership error message.
+- Use local expiry date if it is later than ACC national provided date.
+- Generate secure password for new users.
+- Fix possible issue with setting initial acc_status
+
 ## 1.3.1 Francois Bessette
 
 - Make imis_id optional

@@ -582,7 +582,7 @@ class acc_user_importer_Admin {
 			if ($this->is_user_expired($user)) {
 				// User is expired
 				$num_inactive++;
-				if (isset($user->acc_status)) {
+				if (!empty($user->acc_status)) {
 					if ($user->acc_status == 'active') {
 						// User was active, now expired.
 						update_user_meta($user->ID, 'acc_status', 'inactive');
@@ -616,7 +616,7 @@ class acc_user_importer_Admin {
 			} else {
 				// User has a valid membership
 				$num_active++;
-				if (isset($user->acc_status)) {
+				if (!empty($user->acc_status)) {
 					if ($user->acc_status == 'inactive') {
 						// User was inactive, now active.
 						update_user_meta($user->ID, 'acc_status', 'active');
@@ -629,7 +629,6 @@ class acc_user_importer_Admin {
 				} else {
 					// User did not have a acc_status field. Must be the first time this
 					// new plugin executes. Set the field but do not send email.
-					// TODO: Figure out why this is not working - spoiler it is because isset returns true for empty string.
 					update_user_meta($user->ID, 'acc_status', 'active');
 					$this->log_dual("Initial update of user $user->ID $user->display_name to active");
 				}
