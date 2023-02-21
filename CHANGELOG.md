@@ -8,6 +8,8 @@
 - Use local expiry date if it is later than ACC national provided date.
 - Generate secure password for new users.
 - Fix possible issue with setting initial acc_status
+- Delay initial cron job run by 1h.
+- Delete old email templates.
 
 ## 1.3.1 Francois Bessette
 

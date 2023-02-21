@@ -11,11 +11,11 @@ function acc_adapt_acc_adminpage(){
 
 /**
  * On plugin activation, schedule CRON job.
- * Update will happen in 1 minute, then twice a day afterward.
+ * Update will happen in 1 hour, then twice a day afterward.
  */
 function acc_cron_activate() {
 	if (!wp_next_scheduled('acc_automatic_import')) {
-	    wp_schedule_event( time() + 60, "twicedaily", 'acc_automatic_import' );
+	    wp_schedule_event( time() + 3600, "twicedaily", 'acc_automatic_import' );
 	} else {
 		error_log("Error activating plugin, acc_automatic_import was already scheduled");
 	}
