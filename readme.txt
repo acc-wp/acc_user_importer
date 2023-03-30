@@ -140,6 +140,9 @@ Test on a staging or development site with email transmission disabled.
 
 
 == Changelog ==
+1.3.4 Francois Bessette
+    Fix a bug seen in Mtl section where a lapsed user is still able to login
+
 1.3.3 Francois Bessette
     Fix for Mtl section: a hack, not to commit to main branch!
     -On expiry, only change user role if he is from Mtl
