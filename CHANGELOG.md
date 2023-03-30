@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.2 Francois Bessette
+
+- Fix bug where a lapsed user would still be able to login.
+
 ## 1.4.1 Francois Bessette
 
 - Revert 2 small changes made by Claude in 1.4.0: Keep Firstname, Lastname as being the default login when creating a new account, and skip received user record if expiry seems wrong.

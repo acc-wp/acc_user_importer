@@ -1,12 +1,6 @@
 <?php
 
-
-// Move Pages above Media
-add_action( 'init', 'acc_adapt_acc_adminpage', 100 );
-
-function acc_adapt_acc_adminpage(){
-	add_action('wp_authenticate_user', 'acc_validate_user_login', 10, 2);
-}
+add_filter( 'wp_authenticate_user', 'acc_validate_user_login' );
 
 
 /**
@@ -36,18 +30,14 @@ function acc_cron_deactivate() {
  * User is trying to login. Check user expiry date, and if too old,
  * don't allow him to login.
  */
-function acc_validate_user_login($user, $password) {
-	$userID = $user->ID;
+function acc_validate_user_login(WP_User $user) {
 
-	$wp_caps = get_user_meta( $userID, 'wp_capabilities', 'true' );
-	$role = array_keys((array)$wp_caps);
-
-	if($role[0] == "administrator") {
+	//Never block an admin
+	if (in_array("administrator", $user->roles)) {
 		return $user;
 	}
 
-	$expiry= get_user_meta( $userID, 'expiry', 'true' );
-
+	$expiry= get_user_meta( $user->ID, 'expiry', 'true' );
 	if(empty($expiry) || $expiry < date("Y-m-d")){
 		$error = new WP_Error();
 		$error->add( 403, 'Oops. Your membership has expired, please renew your membership at <a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. Please note that it can take up to three days until the membership data is updated.' );
