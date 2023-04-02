@@ -399,8 +399,8 @@ class acc_user_importer_Admin {
 				//to by the user.
 				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
 				if ($userExpiry < $existingUser->expiry) {
-					$this->log_dual(" > warn, received expiry is earlier than local one; using existing expiry date");
-					$accUserMetaData['expiry'] = $existingUser->expiry;
+					$this->log_dual(" > warn, received expiry is earlier than local one; skip");
+					continue;
 				}
 
 

@@ -44,8 +44,7 @@
 	}
 
 	// Define functions to get default values from different files.
-	function accUM_get_login_name_mapping_default() {return 'ContactId';}
-	function accUM_get_update_user_login_default() {return 'No';}
+	function accUM_get_login_name_mapping_default() {return 'Firstname Lastname';}
 	function accUM_get_default_role_default() {return 'subscriber';}
 	function accUM_get_default_notif_title() {return 'ACC membership change notification';}
 	function accUM_get_do_expire_role_default() {return 'off';}
