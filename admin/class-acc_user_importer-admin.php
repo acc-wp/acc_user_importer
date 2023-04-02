@@ -9,16 +9,16 @@ class acc_user_importer_Admin {
 	private $version;
 	private $debug_mode = false;
 	private $error_logging = false;
-	
+
 	public function __construct( $plugin_name, $version ) {
 
 		$this->plugin_name = $plugin_name;
 		$this->version = $version;
-		
+
 		//load display
 		require plugin_dir_path( __FILE__ ) . '/partials/acc_user_importer-admin-settings.php';
 	}
-	
+
 	/**
 	 * This is the user import loop (when triggered by a timer)
 	 */
@@ -35,28 +35,28 @@ class acc_user_importer_Admin {
 		//request token
 		$this->log_local_output("Requesting access token from national office.");
 		$access_token_request = $this->request_API_token();
-			
+
 		//did we get token?
 		if ( $access_token_request['message'] == "success") {
-			
+
 			$this->log_local_output('Received token: ' . substr($access_token_request['accessToken'], 0, 10) . ".");
-			
+
 			$has_next = true;
 			$get_attempts_remaining = 3;
 			$data_offset = 0;
-			
+
 			//get data until no more data exists
 			while ( ($has_next === true) && ($get_attempts_remaining > 0) ) {
 
 				//request next dataset with token
 				$this->log_local_output("Requesting membership data using token: " . substr($access_token_request['accessToken'], 0, 10) . ".");
 				$member_data_request = $this->getMemberData( $access_token_request['accessToken'], $data_offset );
-				
+
 				//did we get data?
 				if ( $member_data_request['message'] == "success") {
 
 					$proccess_request = $this->proccess_user_data( $member_data_request['dataset'] );
-					
+
 					//If there is more data, move offset and prepare for one more loop
 					if ($member_data_request['HasNext']) {
 						$has_next = true;
@@ -82,54 +82,54 @@ class acc_user_importer_Admin {
 			}
 
 		} //end: if token granted
-		
+
 		else {
 			$this->log_local_output("Error: Token was not granted.");
 		}
-		
+
 		$timestamp_end = date_i18n("Y-m-d-H-i-s");
 		$this->log_local_output("This journey has come to an end.");
 		$this->log_local_output("Start time: " . $timestamp_start);
 		$this->log_local_output("End time: " . $timestamp_end);
 	}
-	
+
 	/**
 	 * Controller for the WP-API requests.
 	 */
 	public function accUserAPI() {
-	
+
 		//create response object
 		$api_response = [];
-		
+
 		//kill script if current user lacks permission to edit other users
 		if ( current_user_can( "edit_users" ) == false ) {
 			$api_response['message'] = "user permission error";
 			echo json_encode( $api_response );
 			wp_die();
 		}
-		
+
 		//kill script if nonce doesn't match up
 		if ( check_ajax_referer( 'accUserAPI', 'security', false) == false ) {
 			$api_response['message'] = "security error";
 			echo json_encode( $api_response );
 			wp_die();
 		}
-		
+
 		//iterate through requests
 		switch ( $_POST['request'] ) {
-			
+
 			case "establish":
 				$api_response['message'] = "established";
 				break;
-				
+
 			case "getAccessToken":
 				$api_response = $this->request_API_token();
 				break;
-			
+
 			case "getMemberData":
 				$api_response = $this->getMemberData( $_POST['token'], $_POST['offset'] );
 				break;
-								
+
 			case "processMemberData":
 				$postedData = $_POST['dataset'];
 				$postedData = str_replace("\\", "", $postedData);
@@ -149,65 +149,65 @@ class acc_user_importer_Admin {
 		echo json_encode( $api_response );
 		wp_die();
 	}
-	
+
 	/**
 	 * Extract members from within the dataset.
 	 */
 	private function parse_user_data( $user_data ) {
-		
+
 		//array($obj, 'myCallbackMethod'))
-		
+
 		//turn data into usable array with valid keys (the imis keys are painful to work with)
 		$user_data = $this->object_to_array( $user_data->Items );
 		$user_list = $this->extract_members_from_dataset($user_data);
 		return $user_list;
 	}
-	
+
 	/**
 	 * Helper - Map objects to array for easier block iteration.
 	 */
 	public function object_to_array ( $object ) {
-		
+
 		if(!is_object($object) && !is_array($object))
 			return $object;
 
 		return array_map(array($this, 'object_to_array'), (array) $object);
 	}
-	
+
 	/**
 	 * Extract members from within the dataset.
 	 */
 	private function extract_members_from_dataset( $members_dataset ) {
-		
+
 		$new_dataset = [];
 		if ( array_key_exists('Values', $members_dataset) ) {
-			
+
 			//iterate through members in dataset
 			foreach ( $members_dataset["Values"] as $index => $value ) {
 				$new_dataset[] = $this->extract_unique_member_properties($value);
 			}
 		}
-		
+
 		return $new_dataset;
 	}
-	
+
 	/**
 	 * Extract membership data from each member record.
 	 */
 	private function extract_unique_member_properties( $member_dataset ) {
-		
+
 		if ( array_key_exists('Properties', $member_dataset) ) {
-			
+
 			$member_list = []; //container
-			
+
 			//iterate through members in data
 			foreach ( $member_dataset["Properties"] as $index => $value ) {
 				$member_record = [];
-				
+
 				//loop through data for each member
 				if ( is_array( $value ) ) {
 				foreach ( $value as $key => $member_data) {
-					
+
 					//store data only if there is a name/value pairing
 					if (
 					 array_key_exists('Name', $member_data) &&
@@ -215,18 +215,18 @@ class acc_user_importer_Admin {
 					 !is_array( $member_data['Value'] ) &&
 					 strlen($member_data['Value']) > 0 //don't include empty elements into dataset
 					 ) {
-					
+
 						$value_name = $member_data['Name'];
 						$value_record =  $member_data['Value'];
 						$new_record = [$value_name => $value_record];
 						$member_record = array_merge( array($value_name => $value_record), $member_record);
 					}
 				}}
-				
+
 				$member_list[] = $member_record;
 			}
 		}
-		
+
 		return $member_list[0];
 	}
 
@@ -259,15 +259,6 @@ class acc_user_importer_Admin {
 		}
 		$this->log_dual("Using $loginNameMapping as login name.");
 
-		// Get the update_user_login setting
-		if (!isset($options['accUM_update_user_login'])) {
-			$this->log_dual("accUM_update_user_login is empty");
-			$update_user_login = accUM_get_update_user_login_default();
-		} else {
-			$update_user_login = $options['accUM_update_user_login'];
-		}
-		$this->log_dual("Update existing user logins? $update_user_login");
-
 		// Get the default_role setting
 		if (!isset($options['accUM_default_role'])) {
 			$this->log_dual("accUM_default_role is empty");
@@ -281,7 +272,7 @@ class acc_user_importer_Admin {
 		//create response object
 		$api_response = [];
 		$this->log_dual("Start processing batch of " . count($users) . " users");
-		
+
 		//fail gracefully is dataset is empty
 		if (! ( count($users) > 0 ) ) {
 			$api_response['message'] = "error";
@@ -289,7 +280,7 @@ class acc_user_importer_Admin {
 			$this->log_local_output("Error, nothing to process");
 			return $api_response;
 		}
-		
+
 		//loop through data and create users
 		$update_errors = [];
 		$new_users = [];
@@ -309,7 +300,7 @@ class acc_user_importer_Admin {
 			$userMembership = $user["MEMBERSHIP_N"] ?? '';
 			$userExpiry = $user["Membership Expiry Date"] ?? '';
 			$userCity = $user["City"] ?? '';
-			
+
 			//Log the info we received for this user
 			$userInfoString = $userFirstName . " " . $userLastName;
 			$userInfoString .= " " . $userEmail;
@@ -372,8 +363,8 @@ class acc_user_importer_Admin {
 				'imis_id' => $userImisId,
 				'city' => $userCity
 			];
-			
-			// Check if ID or email already exist. Both should be unique 
+
+			// Check if ID or email already exist. Both should be unique
 			$existingUser = get_user_by('login', $loginName);
 			if( !is_a( $existingUser, WP_User::class ) ) {
 				$this->log_dual(" > not found by login");
@@ -408,8 +399,8 @@ class acc_user_importer_Admin {
 				//to by the user.
 				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
 				if ($userExpiry < $existingUser->expiry) {
-					$this->log_dual(" > error, received expiry is earlier than local one; skip");
-					continue;
+					$this->log_dual(" > warn, received expiry is earlier than local one; using existing expiry date");
+					$accUserMetaData['expiry'] = $existingUser->expiry;
 				}
 
 
@@ -444,22 +435,6 @@ class acc_user_importer_Admin {
 					$updated_users_email[] = $userEmail;
 				}
 
-				// User_login is a special case, not updated by wp_update_user.
-				// There is probably a good reason why Wordpress does not allow changing usernames.
-				// So normally, don't do it. But the plugin allows to do it if needed,
-				// this way you can migrate the database from one type of login to another.
-				// See https://wordpress.stackexchange.com/questions/103504/how-to-programatically-change-username-user-login
-				if ($update_user_login == "Yes" &&
-					$loginName != $existingUser->user_login) {
-					$this->log_dual(" > changing user login from $existingUser->user_login to $loginName using SQL");
-					$existingUser->user_login = $loginName;
-					global $wpdb;
-					$wpdb->update($wpdb->users,
-								  ['user_login' => $existingUser->user_login],
-								  ['ID' => $existingUser->ID]);
-				}
-
-
 				// Trigger hook if expiry date changed (updated membership)
 				if (in_array('expiry', $updatedFields)) {
 					do_action('acc_membership_renewal', $existingUser->ID);
@@ -482,7 +457,7 @@ class acc_user_importer_Admin {
 			$this->log_dual(" > email not found on any other users");
 			$new_users[] = $accUserData['display_name'];
 			$new_users_email[] = $userEmail ;
-			$accUserData["user_pass"] = null;
+			$accUserData["user_pass"] = wp_generate_password(20);
 			$accUserData["role"] = $default_role;
 			$accUserData["user_nicename"] = $accUserData['display_name'];  //WP will sanitize
 			$accUserData["user_login"] = $loginName;
@@ -507,7 +482,7 @@ class acc_user_importer_Admin {
 			// Execute hooks for new membership
 			do_action('acc_new_membership', $userID);
 		} //end user loop
-		
+
 		//Outcome summary
 		$this->log_dual("");
 		$this->log_dual("Processing complete for this batch of " . count($users) . " people.");
@@ -523,21 +498,21 @@ class acc_user_importer_Admin {
 		foreach ( $update_errors as $id => $user ) {
 			$this->log_dual(" [" . $id . "] " . var_export($user, true));
 		}
-		
+
 		$api_response['usersInData'] = count($users);
 		$api_response['newUsers'] = count($new_users);
 		$api_response['updatedUsers'] = (count($users) - count($update_errors));
 		$api_response['usersWithErrors'] = count($update_errors);
 		$api_response['message'] = "success";
 		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
-		
+
 		return $api_response;
 	}
 
 
 	/**
 	 * Returns True if the user is expired.
-	 * If the user has no 'expiry' field, it is considered as active. 
+	 * If the user has no 'expiry' field, it is considered as active.
 	 * Most likely an admin.
 	 */
 	private function is_user_expired ($user) {
@@ -553,7 +528,7 @@ class acc_user_importer_Admin {
 		//$this->log_dual("user $user->ID $user->display_name expiry=$user->expiry is valid");
 		return false;
 	}
-	
+
 
 	/**
 	 * Go over our local user database and see who has an expired membership.
@@ -607,7 +582,7 @@ class acc_user_importer_Admin {
 			if ($this->is_user_expired($user)) {
 				// User is expired
 				$num_inactive++;
-				if (isset($user->acc_status)) {
+				if (!empty($user->acc_status)) {
 					if ($user->acc_status == 'active') {
 						// User was active, now expired.
 						update_user_meta($user->ID, 'acc_status', 'inactive');
@@ -641,7 +616,7 @@ class acc_user_importer_Admin {
 			} else {
 				// User has a valid membership
 				$num_active++;
-				if (isset($user->acc_status)) {
+				if (!empty($user->acc_status)) {
 					if ($user->acc_status == 'inactive') {
 						// User was inactive, now active.
 						update_user_meta($user->ID, 'acc_status', 'active');
@@ -737,25 +712,25 @@ class acc_user_importer_Admin {
 	 * Request an authentication token from the national office API.
 	 */
 	private function request_API_token() {
-		
+
 		$options = get_option('accUM_data');
 		$acc_user = $options['accUM_username'];
 		$acc_pass = $options['accUM_password'];
 		$acc_token_uri = 'https://www.alpineclubofcanada.ca/' . $options['accUM_tokenURI'];
-		
+
 		$post_args = array(
 			'headers' => array('content-type' => 'application/x-www-form-urlencoded'),
 			'body' => array('grant_type' => 'password', 'username' => $acc_user, 'password' => $acc_pass ),
 			'timeout' => 10
 		);
-		
+
 		//request token
 		$auth_request = wp_remote_post( $acc_token_uri , $post_args );
-		
+
 		//create response object for local api
 		$api_response = [];
 		$api_response['section'] = $acc_user;
-		
+
 		//check response and return data using local api
 		if ( is_wp_error( $auth_request ) ) {
 			$api_response['message'] = "error";
@@ -764,9 +739,9 @@ class acc_user_importer_Admin {
 		else {
 			$auth_request_data = wp_remote_retrieve_body ( $auth_request );
 			$auth_data = json_decode($auth_request_data);
-			
+
 			if ( array_key_exists('access_token', (array) $auth_data ) ) {
-				$api_response['message'] = "success";	
+				$api_response['message'] = "success";
 				$api_response['accessToken'] = $auth_data->access_token;
 			}
 			else {
@@ -774,22 +749,22 @@ class acc_user_importer_Admin {
 				$api_response['errorMessage'] = $auth_data;
 			}
 		}
-		
+
 		return $api_response;
 	}
-	
+
 	/**
 	 * Request a dataset from the national office API.
 	 */
 	private function getMemberData( $access_token, $offset = 0 ) {
-		
+
 		if ( !$offset ) { $offset = 0; }
 		$options = get_option('accUM_data');
 		$acc_member_uri = 'https://www.alpineclubofcanada.ca/' . $options['accUM_memberURI'];
 		if ($offset > 0) {
 			$acc_member_uri .= "&offset=" . $offset;
 		}
-		
+
 		$get_args = array(
 			'timeout' => 10,
 			'sslverify' => false,
@@ -798,10 +773,10 @@ class acc_user_importer_Admin {
 				'Authorization' => "Bearer " . $access_token
 			)
 		);
-		
+
 		//request data
 		$auth_request = wp_remote_get( $acc_member_uri, $get_args );
-		
+
 		/*
 		Returned Data Example
 		JSON [
@@ -816,22 +791,22 @@ class acc_user_importer_Admin {
 					Name : Name
 					Value: Value
 		*/
-		
+
 		//create response object
 		$api_response = [];
-			
+
 		//if the post request fails
 		if ( is_wp_error( $auth_request ) ) {
 			$api_response['message'] = "error";
 			$api_response['errorMessage'] = $auth_request->get_error_message();
 			return $api_response;
 		}
-		
+
 		$auth_request_data = wp_remote_retrieve_body ( $auth_request );
 		$auth_request_data = str_replace( ["\t", '$values'], ["", 'Values'], $auth_request_data );
 		$auth_request_data = preg_replace( '/"\$type"\:".*",/U', "", $auth_request_data );
 		$auth_data = json_decode($auth_request_data);
-		
+
 		if ( array_key_exists('Items', (array) $auth_data ) ) {
 			$api_response['message'] = "success";
 			$api_response['Count'] = $auth_data->Count;
@@ -844,7 +819,7 @@ class acc_user_importer_Admin {
 			$last_user_index = $auth_data->Offset + $auth_data->Count;
 			$more_to_come = $auth_data->HasNext ? ", more to come" : ", final batch";
 			$this->log_local_output("Received users $first_user_index to $last_user_index of $auth_data->TotalCount $more_to_come");
-			
+
 		} else {
 			$api_response['message'] = "error";
 			$api_response['errorMessage'] = $auth_data->Message;
@@ -865,13 +840,13 @@ class acc_user_importer_Admin {
 	 * Register the JavaScript for the admin area.
 	 */
 	public function enqueue_scripts() {
-		
+
 		wp_enqueue_script( $this->plugin_name, plugin_dir_url( __FILE__ ) . 'js/acc_user_importer-admin.js', array( 'jquery' ), $this->version, false );
-		wp_localize_script( $this->plugin_name, 'ajax_object', 
+		wp_localize_script( $this->plugin_name, 'ajax_object',
 			array('url' => admin_url( 'admin-ajax.php' ), 'nonce' =>  wp_create_nonce( "accUserAPI" ))
 		);
 	}
-	
+
 	public function log_local_output( $v ) {
 		static $new_run = true;
 		static $cached_filename = "";
@@ -880,7 +855,7 @@ class acc_user_importer_Admin {
 			print_r($v);
 			print_r("<br>");
 		}
-		
+
 		if ( $this->error_logging === true ) {
 			error_log(strval($v));
 		}
