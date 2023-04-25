@@ -18,19 +18,19 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 
 (function( $ ) {
 	'use strict';
-	
+
 	$(function() {
-		
+
 		//Capture Update Request
 		$("#update_status_submit").on('click keydown', function(e) {
 			if (e.type === 'keydown' && 13 !== e.which) { return; }
 			e.preventDefault();
 			jQuery(this).attr("disabled", "disabled");
 			jQuery("#debug_status_submit").attr("disabled", "disabled");
-			
+
 			wpStartMembershipUpdate();
 		});
-		
+
 	});
 
 	/**
@@ -39,7 +39,7 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 	 * who itself contacts the ACC server API.
 	 */
 	function wpStartMembershipUpdate () {
-		
+
 		usersInData = 0;
 		roleRefreshed = 0;
 		newUsers = 0;
@@ -49,20 +49,20 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		logLocalOutput("Manual member update starting.");
 		accSyncStartTime = new Date();
 		logLocalOutput("Start time: " + accSyncStartTime);
-		
+
 		//Establish API
 		wpEstablishLocalAPI(function (apiResponse) {
-			
+
 			//Get list of changed users
 			wpRequestChangedMembers(function (changeList) {
 
 				// Get membership data (recursive)
 				getNextDataset(changeList, 0, 3);
-							
+
 			}, onPostRequestFailure);
 		}, onPostRequestFailure);
 	}
-	
+
 	/**
 	 * Run an API call to make sure that it passes security.
 	 */
@@ -132,7 +132,7 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 	 * then dataOffset will take the successive values of 0, 100, 200...
 	 */
 	function getNextDataset (changeList, dataOffset, apiAttemptsRemaining) {
-		
+
 		//Exit If Limits Exceeded
 		if (apiAttemptsRemaining <= 0) {
 			return onPostRequestFailure();
@@ -149,7 +149,7 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 
 		//Get Data
 		wpRequestACCData(changeList, dataOffset,
-			
+
 			function (changeList, dataOffset, memberData) {
 
 				//Parse Data
@@ -157,7 +157,7 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 					// logLocalOutput("callback from wpProccessMembershipData");
 					// logLocalOutput(changeList);
 					// logLocalOutput("dataOffset=" + dataOffset);
-						
+
 					//Loop Through Again
 					if (dataOffset < changeList.length) {
 						//logLocalOutput("dataOffset " + dataOffset + " is smaller than changelist " + changeList.length);
@@ -166,7 +166,7 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 						// logLocalOutput("&nbsp;");
 						getNextDataset(changeList, dataOffset, 3);
 				 	}
-			
+
 					//Enable Buttons At End
 					else {
 
@@ -176,13 +176,13 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 						logLocalOutput("--Created accounts for " + newUsers + " people total.");
 						logLocalOutput("--Updated data for " + updatedUsers + " people total.");
 						logLocalOutput("--Errors updating " + usersWithErrors + " accounts total.</b>");
-						
+
 						//Now that we have updated all members, check for expiry
 						wpProccessExpiry();
 					}
-			
-				}, onPostRequestFailure);	
-				
+
+				}, onPostRequestFailure);
+
 			},
 			//API Request Failed
 			function () {
@@ -190,15 +190,15 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 				getNextDataset (changeList, dataOffset, apiAttemptsRemaining - 1);
 			});
 	}
-	
-	
+
+
 	/**
 	 * Gathers and returns membership data.
 	 */
 	function wpRequestACCData (changeList, dataOffset, successFn, failureFn) {
-		
+
 		var apiData = {'action': 'accUserAPI','request': 'getMemberData','security': ajax_object.nonce, 'changeList': changeList, 'offset': dataOffset};
-		
+
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
 
@@ -209,29 +209,29 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 			if (responseObject.message == "success") {
 				var memberCount = responseObject.results.length;
 				var nextOffset = responseObject.nextDataOffset;
-				
+
 				logLocalOutput(`Success receiving data for ${memberCount} members, nextOffset=${nextOffset}`);
 				if (successFn) successFn.call(this, changeList, nextOffset, responseObject.results);
 			} else {
 				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
 				if (failureFn) failureFn.call(this, responseObject);
 			}
-			
+
 		});
 	}
-	
+
 	/**
 	 * Ask Wordpress to update database with parsed membership info.
 	 */
 	function wpProccessMembershipData (changeList, dataOffset, memberData, successFn, failureFn) {
-		
+
 		logLocalOutput("Will now update the Wordpress database");
-		
+
 		var apiData = {'action': 'accUserAPI','request': 'processMemberData','security': ajax_object.nonce, 'dataset': memberData};
 
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
-			
+
 			if (responseObject.message == "success") {
 				logLocalOutput("Success updating the Wordpress database, here is the log:");
 				logLocalOutput("-----start of log------");
@@ -243,10 +243,10 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
 				if (failureFn) failureFn.call(this, responseObject);
 			}
-			
+
 		});
 	}
-	
+
 	/**
 	 * Ask Wordpress to scan user database for expired memberships
 	 */
@@ -277,21 +277,21 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		});
 	}
 
-	
+
 	/**
 	 * Log local output to 'Update Status Window' on the plugin page.
 	 */
 	function logLocalOutput (val) {
-		
+
 		if (!val) return;
 		var l = jQuery("#update_log");
 		var logText = l.html();
-		
+
 		//remove '..' from end of textbox if one exists.
 		if(logText.endsWith('..')) {
 			l.html(logText.substr(0, logText.length - 6));
 		}
-			
+
 		if ( logText.length >= 29) {
 			l.append("<br/>").append(val.toString()); //include a new line
 		}
@@ -299,16 +299,16 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 			l.append(val.toString()); //doesn't need a new line
 		}
 	}
-	
+
 	function onPostRequestFailure () {
-		
+
 		//enable buttons after proccess has stopped
 		$("#update_status_submit").attr("disabled", "");
 		$("#debug_status_submit").attr("disabled", "");
-		
+
 		logLocalOutput('FAILED: Process Stopped...');
 	}
-	
+
 
 })( jQuery );
 
