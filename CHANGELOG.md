@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.0 Francois Bessette
+
+- Adapted code to the new Interpedia-based ACC IT platform
+
 ## 1.4.2 Francois Bessette
 
 - Fix bug where a lapsed user would still be able to login.

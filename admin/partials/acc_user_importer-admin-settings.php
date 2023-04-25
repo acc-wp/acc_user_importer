@@ -60,42 +60,41 @@
 		add_settings_section( 'accUM_user_section', 'User Settings', '', 'acc_admin_page' );
 
 		add_settings_field(
-			'accUM_username',				//ID
-			'Username', 					//Title
+			'accUM_section_api_id',			//ID
+			'Section API Identifier',		//Title
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
 				'type' => 'text',
-				'name' => 'accUM_username',
+				'name' => 'accUM_section_api_id',
 				'html_tags' => 'required'
 			)
 		);
 
 		add_settings_field(
-			'accUM_password',				//ID
-			'Password', 					//Title
+			'accUM_token',				//ID
+			'Authentication Token', 		//Title
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
 				'type' => 'password',
-				'name' => 'accUM_password',
+				'name' => 'accUM_token',
 				'html_tags' => 'required'
 			)
 		);
 
 		add_settings_field(
-			'accUM_token_URI',				//ID
-			'API Token Endpoint',			//Title
+			'accUM_since_date',				//ID
+			'Sync changes since when? Leave empty to import changes since last run, otherwise enter date in a format such as 2020-11-23T15:05:00',
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
 				'type' => 'text',
-				'name' => 'accUM_tokenURI',
+				'name' => 'accUM_since_date',
 				'html_tags' => 'required',
-				'default' => '/Asi.Scheduler_DEV/token'
 			)
 		);
 

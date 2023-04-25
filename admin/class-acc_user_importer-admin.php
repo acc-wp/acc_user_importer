@@ -1,5 +1,6 @@
 <?php
 
+define("MEMBER_API_MAX_USERS", "10");
 
 $acc_logstr = "";		//handy global to store log string
 
@@ -28,13 +29,14 @@ class acc_user_importer_Admin {
 		add_filter( 'https_local_ssl_verify', '__return_true' );
 
 		$options = get_option('accUM_data');
-		$acc_user = $options['accUM_username'];
+		$acc_user = $options['accUM_section_api_id'];		//FIXME this field is not used the same way
 		$this->log_local_output("Automatic member update starting for section $acc_user");
 		$timestamp_start = date_i18n("Y-m-d-H-i-s");
 
+		//FIXME this is no longer required
 		//request token
 		$this->log_local_output("Requesting access token from national office.");
-		$access_token_request = $this->request_API_token();
+		$access_token_request = ""; 	//FIXME delete line
 
 		//did we get token?
 		if ( $access_token_request['message'] == "success") {
@@ -122,21 +124,25 @@ class acc_user_importer_Admin {
 				$api_response['message'] = "established";
 				break;
 
-			case "getAccessToken":
-				$api_response = $this->request_API_token();
+			case "getChangedMembers":
+				$api_response = $this->getChangedMembers();
 				break;
 
 			case "getMemberData":
-				$api_response = $this->getMemberData( $_POST['token'], $_POST['offset'] );
+				$api_response = $this->getMemberData( $_POST['changeList'], $_POST['offset'] );
 				break;
 
 			case "processMemberData":
 				$postedData = $_POST['dataset'];
-				$postedData = str_replace("\\", "", $postedData);
+				//$postedData = str_replace("\\", "", $postedData);
 				$cleanData = json_decode($postedData);
-				$arrayData = $this->object_to_array( $cleanData );
+				$this->log_local_output("received processMemberData cmd, postedData={$postedData}");
+				//$arrayData = $this->object_to_array( $cleanData );
 				//$this->log_local_output( print_r($arrayData, true) );
-				$api_response = $this->proccess_user_data( $arrayData );
+				//$api_response = $this->proccess_user_data( $arrayData );
+				$api_response = [];
+				$api_response['log'] = "bla bla bla";
+				$api_response['message'] = "success";
 				break;
 
 			case "processExpiry":
@@ -247,6 +253,13 @@ class acc_user_importer_Admin {
 	 */
 	private function proccess_user_data ( $users ) {
 		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
+
+		//FIXME not ready yet to do full processing
+		$api_response['message'] = "error";
+		$api_response['errorMessage'] = "Not ready to process user data yet";
+		$this->log_local_output("Error, Not ready to process user data yet");
+		return $api_response;
+
 
 		// Get user-configurable option values
 		$options = get_option('accUM_data');
@@ -708,123 +721,179 @@ class acc_user_importer_Admin {
 		return $api_response;
 	}
 
+
 	/**
-	 * Request an authentication token from the national office API.
+	 * Request the list of changed members from the national office API.
+	 * It calls the Changed Member API until it has the full list of members
+	 * with changed memberships.
 	 */
-	private function request_API_token() {
+	private function getChangedMembers() {
+		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 
 		$options = get_option('accUM_data');
-		$acc_user = $options['accUM_username'];
-		$acc_pass = $options['accUM_password'];
-		$acc_token_uri = 'https://www.alpineclubofcanada.ca/' . $options['accUM_tokenURI'];
+		$sectionApiId = $options['accUM_section_api_id'];
 
-		$post_args = array(
-			'headers' => array('content-type' => 'application/x-www-form-urlencoded'),
-			'body' => array('grant_type' => 'password', 'username' => $acc_user, 'password' => $acc_pass ),
-			'timeout' => 10
-		);
+		//Validation for token
+		$access_token = $options['accUM_token'];
+		$this->log_dual("Token=" . $access_token);
+		if (!isset($access_token) || (strlen($access_token) == 0)) {
+			$api_response['errorMessage'] = "Authentication token is not defined";
+			return $api_response;
+		}
 
-		//request token
-		$auth_request = wp_remote_post( $acc_token_uri , $post_args );
+		$sinceDate = $options['accUM_since_date'];
+		if (!isset($sinceDate)) {
+			// FIXME, need to retrieve last execution date. Just use an arbitrary number for now
+			$sinceDate = "2020-01-01T15:05:00";
+			$this->log_dual("No sinceDate specified, using last run date (" . $sinceDate . ")");
+		}
 
 		//create response object for local api
 		$api_response = [];
-		$api_response['section'] = $acc_user;
+		$ii = 0;				//FIXME, delete eventually
+		$count = 0;
+		$changeList = [];
+		$changed_members_uri = 'https://2mev.com/rest/v2/member-apis/' . $sectionApiId .
+		                       '/changed_members/?changed_since=' . $sinceDate;
 
-		//check response and return data using local api
-		if ( is_wp_error( $auth_request ) ) {
-			$api_response['message'] = "error";
-			$api_response['errorMessage'] = $auth_request->get_error_message();
-		}
-		else {
-			$auth_request_data = wp_remote_retrieve_body ( $auth_request );
-			$auth_data = json_decode($auth_request_data);
+		do {
+			$this->log_dual("changed_members_uri=" . $changed_members_uri);
+			$acc_response = wp_remote_get($changed_members_uri, array(
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $access_token
+			),));
 
-			if ( array_key_exists('access_token', (array) $auth_data ) ) {
-				$api_response['message'] = "success";
-				$api_response['accessToken'] = $auth_data->access_token;
-			}
-			else {
+			if (is_wp_error($acc_response)) {
 				$api_response['message'] = "error";
-				$api_response['errorMessage'] = $auth_data;
+				$api_response['errorMessage'] = $acc_response->get_error_message();
+				return $api_response;
 			}
-		}
 
+			$acc_response_data = wp_remote_retrieve_body ( $acc_response );
+			$acc_response_data = json_decode($acc_response_data);
+			if ( !array_key_exists('count', (array) $acc_response_data ) ) {
+				$api_response['message'] = "error";
+				$api_response['errorMessage'] = "No count in Changed Members API response";
+				return $api_response;
+			}
+
+			$this->log_dual("count=" . $acc_response_data->count);
+			$this->log_dual("next=" . $acc_response_data->next);
+			$this->log_dual("previous=" . $acc_response_data->previous);
+			$this->log_dual("results=" . json_encode($acc_response_data->results));
+			$count += $acc_response_data->count;
+			$changeList = array_merge($changeList, $acc_response_data->results);
+			$this->log_dual("total count=" . $count);
+			$this->log_dual("total change list=" . json_encode($changeList));
+
+		} while ($acc_response_data->next != null);
+		//} while (++$ii < 2);
+
+		$api_response['count'] = $count;
+		$api_response['results'] = $changeList;
+		$api_response['message'] = "success";
 		return $api_response;
+	}
+
+	/*
+	 * Select the next N entries from the list of changed members.
+	 */
+	private function getChangeListSubset( $changeList, $offset, $numToDo ) {
+		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
+		$changeSubset = array_slice($changeList, $offset, $numToDo);
+		$this->log_dual("changeSubset=" . json_encode($changeSubset));
+		$subsetString = implode(",", $changeSubset);
+		$this->log_dual("subsetString={$subsetString}");
+		return $subsetString;
 	}
 
 	/**
 	 * Request a dataset from the national office API.
+	 * Here is an example of the response from the Interpodia Member API
+	 *    [
+	 *        {
+	 *            "id": 240835,
+	 *            "first_name": "John",
+	 *            "last_name": "Doe",
+	 *            "email": "johndoe@hotmail.com",
+	 *            "date_of_birth": "1980-08-20",
+	 *            "member_number": "12345",
+	 *            "memberships": [
+	 *                {
+	 *                    "membership_group": {
+	 *                        "id": 1573,
+	 *                        "name": "Squamish Individual Membership (Adult) - Annual",
+	 *                        "group_group": {
+	 *                            "id": 546,
+	 *                            "name": "SQUAMISH SECTION - INDIVIDUAL MEMBERSHIP"
+	 *                        }
+	 *                    },
+	 *                    "valid_from": "2023-04-06",
+	 *                    "valid_to": "2024-04-04"
+	 *                }
+	 *            ],
+	 *            "identity_attribute_values": []
+	 *        }
+	 *    ]
 	 */
-	private function getMemberData( $access_token, $offset = 0 ) {
+	private function getMemberData( $changeList, $offset = 0 ) {
+		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 
 		if ( !$offset ) { $offset = 0; }
 		$options = get_option('accUM_data');
-		$acc_member_uri = 'https://www.alpineclubofcanada.ca/' . $options['accUM_memberURI'];
-		if ($offset > 0) {
-			$acc_member_uri .= "&offset=" . $offset;
-		}
+		$access_token = $options['accUM_token'];
+		$this->log_dual("Token=" . $access_token);
+
+		//Compute how many members we want to process
+		$remaining = sizeof($changeList)-$offset;
+		$numToDo = min ($remaining, MEMBER_API_MAX_USERS);
+		$this->log_dual("remaining=" . $remaining);
+		$this->log_dual("numToDo=" . $numToDo);
+		$subsetString = $this->getChangeListSubset($changeList, $offset, $numToDo);
+
+		$member_uri = 'https://2mev.com/rest/v2/member-apis/1/fetch/?member_number=' . $subsetString;
+		$this->log_dual("member_uri=" . $member_uri);
 
 		$get_args = array(
-			'timeout' => 10,
-			'sslverify' => false,
 			'headers' => array(
 				'content-type' => 'application/json',
 				'Authorization' => "Bearer " . $access_token
 			)
 		);
-
-		//request data
-		$auth_request = wp_remote_get( $acc_member_uri, $get_args );
-
-		/*
-		Returned Data Example
-		JSON [
-			Offset : 0
-			Limit : 100
-			Count : 100
-			TotalCount : nMembers
-			HasNext : true
-			NextOffset : 100
-			Items, $values, [i]
-				Properties, $values, [i]
-					Name : Name
-					Value: Value
-		*/
+		$acc_response = wp_remote_get( $member_uri, $get_args );
 
 		//create response object
 		$api_response = [];
 
 		//if the post request fails
-		if ( is_wp_error( $auth_request ) ) {
+		if ( is_wp_error( $acc_response ) ) {
 			$api_response['message'] = "error";
-			$api_response['errorMessage'] = $auth_request->get_error_message();
+			$api_response['errorMessage'] = $acc_response->get_error_message();
+			$this->log_dual("Error, " . $api_response['errorMessage']);
 			return $api_response;
 		}
 
-		$auth_request_data = wp_remote_retrieve_body ( $auth_request );
-		$auth_request_data = str_replace( ["\t", '$values'], ["", 'Values'], $auth_request_data );
-		$auth_request_data = preg_replace( '/"\$type"\:".*",/U', "", $auth_request_data );
-		$auth_data = json_decode($auth_request_data);
+		$acc_response_data = wp_remote_retrieve_body ( $acc_response );
+		//$acc_response_data = str_replace( ["\t", '$values'], ["", 'Values'], $acc_response_data );
+		//$acc_response_data = preg_replace( '/"\$type"\:".*",/U', "", $acc_response_data );
+		$this->log_local_output($acc_response_data);
+		$memberData = json_decode($acc_response_data);
+		$count = sizeof ($memberData);
+		$this->log_local_output("count={$count}");
 
-		if ( array_key_exists('Items', (array) $auth_data ) ) {
-			$api_response['message'] = "success";
-			$api_response['Count'] = $auth_data->Count;
-			$api_response['TotalCount'] = $auth_data->TotalCount;
-			$api_response['HasNext'] = $auth_data->HasNext;
-			$api_response['NextOffset'] = $auth_data->NextOffset;
-			$api_response['Offset'] = $auth_data->Offset + 1;
-			$api_response['dataset'] = $this->parse_user_data( $auth_data );
-			$first_user_index = $auth_data->Offset + 1;
-			$last_user_index = $auth_data->Offset + $auth_data->Count;
-			$more_to_come = $auth_data->HasNext ? ", more to come" : ", final batch";
-			$this->log_local_output("Received users $first_user_index to $last_user_index of $auth_data->TotalCount $more_to_come");
-
-		} else {
+		if ($count != $numToDo) {
+			$this->log_dual("Error, member API returned " . $count . " members instead of " . $numToDo);
 			$api_response['message'] = "error";
-			$api_response['errorMessage'] = $auth_data->Message;
+			$api_response['errorMessage'] = "Member API returned " . $count . " members instead of " . $numToDo;
+			return $api_response;
 		}
 
+		$lastUser = $offset + $numToDo -1;
+		$this->log_local_output("Received users $offset to $lastUser");
+
+		$api_response['nextDataOffset'] = $offset + $numToDo;
+		$api_response['results'] = $memberData;
+		$api_response['message'] = "success";
 		return $api_response;
 	}
 

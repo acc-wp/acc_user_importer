@@ -1,3 +1,19 @@
+/*
+ * This javascript code gets executed when the user presses the "Update" button.
+ * It initiates a membership update by sending requests to the local Wordpress
+ * PHP code.
+ *       -Request the list of changed members since a certain date.
+ *        This is done in a single request to the Wordpress PHP code (WP).
+ * 	     -For those members, get membership information and update the database.
+ *        This is done by repetitively sending requests to WP, until all
+ *        members with changes have been processed.
+ *       -A log window shows the progress.
+ *
+ * Note: this code was originally used as a test bed and had functions
+ * to test directly the ACC APIs. But it has evolved and it is now mainly
+ * used as a way to trigger the PHP code.
+ */
+
 var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 
 (function( $ ) {
@@ -12,24 +28,17 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 			jQuery(this).attr("disabled", "disabled");
 			jQuery("#debug_status_submit").attr("disabled", "disabled");
 			
-			startMembershipUpdate();
+			wpStartMembershipUpdate();
 		});
 		
-		//Capture Debug Request
-		$("#debug_status_submit").on('click keydown', function(e) {
-			if (e.type === 'keydown' && 13 !== e.which) { return; }
-			e.preventDefault();
-			jQuery("#update_status_submit").attr("disabled", "disabled");
-			jQuery(this).attr("disabled", "disabled");
-			
-			startLocalMembershipUpdate();
-		});
 	});
-	
+
 	/**
-	 * The journey of 1000 miles begins with a single footstep.
+	 * Start the membership update.
+	 * In this version, the client code sends request to the Wordpress server
+	 * who itself contacts the ACC server API.
 	 */
-	function startMembershipUpdate () {
+	function wpStartMembershipUpdate () {
 		
 		usersInData = 0;
 		roleRefreshed = 0;
@@ -44,48 +53,118 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		//Establish API
 		wpEstablishLocalAPI(function (apiResponse) {
 			
-			//Get Token
-			wpRequestACCToken(function (tokenResponse) {
-			
-				//Get First Data
-				getNextDataset(tokenResponse.accessToken, 0, 3);
+			//Get list of changed users
+			wpRequestChangedMembers(function (changeList) {
+
+				// Get membership data (recursive)
+				getNextDataset(changeList, 0, 3);
 							
 			}, onPostRequestFailure);
 		}, onPostRequestFailure);
 	}
 	
 	/**
-	 * Iterate through datasets until we run out.
+	 * Run an API call to make sure that it passes security.
 	 */
-	function getNextDataset (accessToken, dataOffset, apiAttemptsRemaining) {
+	function wpEstablishLocalAPI (successFn, failureFn) {
+
+		logLocalOutput("Establishing local API connection.");
+
+		var apiData = {'action': 'accUserAPI', 'request': 'establish', 'security': ajax_object.nonce};
+
+		jQuery.post(ajax_object.url, apiData, function(response) {
+			var responseObject = JSON.parse(response);
+
+			if (responseObject.message == "established") {
+				logLocalOutput("Local API connection established.");
+				if (successFn) successFn.call(this, responseObject);
+			}
+			else {
+				logLocalOutput("Error: A local API connection could not be established.");
+				if (failureFn) failureFn.call(this, responseObject);
+			}
+		});
+	}
+
+	/**
+	 * Gets a list of membership changes.
+	 */
+	function wpRequestChangedMembers (successFn, failureFn) {
+
+		logLocalOutput("Getting list of members with recent changes");
+		//This is just for information only (print to the log)
+		var accessToken = jQuery("#accUM_token").val();
+		logLocalOutput("accessToken: " + accessToken);
+		var sinceDate = jQuery("#accUM_since_date").val();
+		logLocalOutput("since_date:  " + sinceDate);
+
+		//Validation for token
+		if (accessToken === undefined || String(accessToken).length == 0) {
+			logLocalOutput("Error: Invalid access token provided.");
+			if (failureFn) failureFn.call(this, responseObject);
+			return;
+		}
+
+		var apiData = {'action': 'accUserAPI','request': 'getChangedMembers', 'security': ajax_object.nonce};
+		jQuery.post(ajax_object.url, apiData, function(response) {
+			var responseObject = JSON.parse(response);
+			//logLocalOutput(response);
+
+			if (responseObject.message == "success") {
+				logLocalOutput("Number of members with changes: " + responseObject.count);
+				if (successFn) successFn.call(this, responseObject.results);
+			}
+			else {
+				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
+				if (failureFn) failureFn.call(this, responseObject);
+			}
+
+		});
+	}
+
+
+	/**
+	 * Iterate through the change list until we run out. Recursive function.
+	 * Each iteration, take N members, request for their latest info,
+	 * and update the database. The changeList remains the same along the way.
+	 * However, dataOffset increases on each iteration by the number of
+	 * members we processed.  For example if we process 100 members at a time,
+	 * then dataOffset will take the successive values of 0, 100, 200...
+	 */
+	function getNextDataset (changeList, dataOffset, apiAttemptsRemaining) {
 		
 		//Exit If Limits Exceeded
 		if (apiAttemptsRemaining <= 0) {
 			return onPostRequestFailure();
 		}
-		
+
+		logLocalOutput("&nbsp;");
+		logLocalOutput("Getting data for member " + dataOffset + " and on");
+		//logLocalOutput(changeList);
+
+		if (dataOffset >= changeList.length) {
+			logLocalOutput("Error: attempt to getNextDataset with the changeList fully processed");
+			return onPostRequestFailure();
+		}
+
 		//Get Data
-		wpRequestACCData(accessToken, dataOffset,
+		wpRequestACCData(changeList, dataOffset,
 			
-			function (dataResponse) {
-				
+			function (changeList, dataOffset, memberData) {
+
 				//Parse Data
-				wpProccessMembershipData(dataResponse.dataset, function (results) {
-					
-					//Add Totals
-					usersInData += results.usersInData;
-					roleRefreshed += results.roleRefreshed;
-					newUsers += results.newUsers;
-					updatedUsers += results.updatedUsers;
-					usersWithErrors += results.usersWithErrors;
-					
-					//Loop Through Again
-				 	if (dataResponse.HasNext == 1) {
+				wpProccessMembershipData(changeList, dataOffset, memberData, function (changeList, dataOffset) {
+					// logLocalOutput("callback from wpProccessMembershipData");
+					// logLocalOutput(changeList);
+					// logLocalOutput("dataOffset=" + dataOffset);
 						
-						logLocalOutput("&nbsp;");
-						logLocalOutput("More data found; the journey will continue.");
-						logLocalOutput("&nbsp;");
-						getNextDataset(accessToken, dataResponse.NextOffset, 3);
+					//Loop Through Again
+					if (dataOffset < changeList.length) {
+						//logLocalOutput("dataOffset " + dataOffset + " is smaller than changelist " + changeList.length);
+						// logLocalOutput("&nbsp;");
+						// logLocalOutput("More data found; the journey will continue.");
+						// logLocalOutput("&nbsp;");
+						getNextDataset(changeList, dataOffset, 3);
 				 	}
 			
 					//Enable Buttons At End
@@ -107,129 +186,33 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 			},
 			//API Request Failed
 			function () {
-				
 				//Try Again
-				getNextDataset (accessToken, dataOffset, apiAttemptsRemaining - 1);
-				
+				getNextDataset (changeList, dataOffset, apiAttemptsRemaining - 1);
 			});
 	}
 	
-	/**
-	 * Run an API call to make sure that it passes security.
-	 */
-	function wpEstablishLocalAPI (successFn, failureFn) {
-		
-		logLocalOutput("Establishing local API connection.");
-		
-		var apiData = {'action': 'accUserAPI', 'request': 'establish', 'security': ajax_object.nonce};
-		
-		jQuery.post(ajax_object.url, apiData, function(response) {
-			var responseObject = JSON.parse(response);
-			
-			if (responseObject.message == "established") {
-				logLocalOutput("Local API connection established.");
-				if (successFn) successFn.call(this, responseObject);
-			}
-			else {
-				logLocalOutput("Error: A local API connection could not be established.");
-				if (failureFn) failureFn.call(this, responseObject);
-			}
-		});	
-	}
-	
-	/**
-	 * Establish a connection with the ACC Database.
-	 */
-	function wpRequestACCToken (successFn, failureFn) {
-		
-		logLocalOutput("Requesting access token from national office.");
-		logLocalOutput("..");
-		
-		var apiData = {'action': 'accUserAPI','request': 'getAccessToken','security': ajax_object.nonce};
-		
-		jQuery.post(ajax_object.url, apiData, function(response) {
-			var responseObject = JSON.parse(response);
-
-			var sectionName = String(responseObject.section);
-			logLocalOutput('Section: ' + sectionName);
-
-			if (responseObject.message == "success") {
-				var accToken = String(responseObject.accessToken);
-				logLocalOutput('Received token: ' + accToken.substr(0, 10) + '...');
-				if (successFn) successFn.call(this, responseObject);
-			}
-			else {
-				logLocalOutput("Error: Token was not granted.");
-				if (failureFn) failureFn.call(this, responseObject);
-			}
-		});
-	}
 	
 	/**
 	 * Gathers and returns membership data.
 	 */
-	function wpRequestACCData (accessToken, dataOffset, successFn, failureFn) {
+	function wpRequestACCData (changeList, dataOffset, successFn, failureFn) {
 		
-		//data validation for token
-		if (accessToken === undefined || String(accessToken).length == 0) {
-			logLocalOutput("Error: Invalid access token provided.");
-			return;
-		}
-		
-		logLocalOutput("Requesting membership data using token: " + String(accessToken).substr(0, 7));
-		var apiData = {'action': 'accUserAPI','request': 'getMemberData','security': ajax_object.nonce, 'token': accessToken, 'offset': dataOffset};
+		var apiData = {'action': 'accUserAPI','request': 'getMemberData','security': ajax_object.nonce, 'changeList': changeList, 'offset': dataOffset};
 		
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
-			
+
+			//FIXME remove debugs
+			// logLocalOutput("Back from WP");
+			logLocalOutput(`Results from Members API=${response}`);
+
 			if (responseObject.message == "success") {
-				var accDataset = responseObject.dataset;
+				var memberCount = responseObject.results.length;
+				var nextOffset = responseObject.nextDataOffset;
 				
-				logLocalOutput("Membership data received.");
-				logLocalOutput("--" + responseObject.Count + " records expected.");
-				logLocalOutput("--" + accDataset.length + " valid records provided.");
-				logLocalOutput("--" + responseObject.TotalCount + " total records available.");
-				logLocalOutput("Retrieving records from position [" + responseObject.Offset + "]");
-				
-				//check for duplicate emails
-				var emailList = [];
-				var duplicateList = [];
-				for (var i = 0; i < accDataset.length; i++) {
-					var userEmail = accDataset[i].Email;
-					if (userEmail == undefined) break;
-					if (emailList.indexOf(userEmail) != -1) {
-						duplicateList.push(accDataset[i]);
-					} else {
-						emailList.push(userEmail);
-					}
-				}
-				if (duplicateList.length > 0) {
-					logLocalOutput("--" + duplicateList.length + " users with duplicate emails.");
-					for (i = 0; i < duplicateList.length; i++) {
-						logLocalOutput("&nbsp; [" + i + "]: " + duplicateList[i].FirstName + " " + duplicateList[i].LastName);
-					}
-					logLocalOutput("----------------");
-				}
-				
-				//gather keys into array
-				/*
-				var uniqueKeys, availableKeys, i;
-				uniqueKeys = [];
-				for (i = 0; i < accDataset.length; i++) {
-					availableKeys = Object.keys(accDataset[i]);
-					uniqueKeys = uniqueKeys.concat(availableKeys.filter((item) => uniqueKeys.indexOf(item) < 0));
-				}
-				uniqueKeys.sort();
-				logLocalOutput("--" + uniqueKeys.length + " unique values available.");
-				for (i = 0; i < uniqueKeys.length; i++) {
-					logLocalOutput("&nbsp; [" + i + "]: " + uniqueKeys[i]);
-				}
-				logLocalOutput("----------------");
-				*/
-				
-				if (successFn) successFn.call(this, responseObject);
-			}
-			else {
+				logLocalOutput(`Success receiving data for ${memberCount} members, nextOffset=${nextOffset}`);
+				if (successFn) successFn.call(this, changeList, nextOffset, responseObject.results);
+			} else {
 				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
 				if (failureFn) failureFn.call(this, responseObject);
 			}
@@ -240,20 +223,21 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 	/**
 	 * Ask Wordpress to update database with parsed membership info.
 	 */
-	function wpProccessMembershipData (accDataset, successFn, failureFn) {
+	function wpProccessMembershipData (changeList, dataOffset, memberData, successFn, failureFn) {
 		
-		logLocalOutput("Waiting for dataset processing to complete.");
-		logLocalOutput("..");
+		logLocalOutput("Will now update the Wordpress database");
 		
-		var apiData = {'action': 'accUserAPI','request': 'processMemberData','security': ajax_object.nonce, 'dataset': JSON.stringify(accDataset)};
+		var apiData = {'action': 'accUserAPI','request': 'processMemberData','security': ajax_object.nonce, 'dataset': memberData};
 
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
 			
 			if (responseObject.message == "success") {
+				logLocalOutput("Success updating the Wordpress database, here is the log:");
+				logLocalOutput("-----start of log------");
 				logLocalOutput(responseObject.log);
-				logLocalOutput("Membership data processed.");
-				if (successFn) successFn.call(this, responseObject);
+				logLocalOutput("-----end of log------");
+				if (successFn) successFn.call(this, changeList, dataOffset);
 			}
 			else {
 				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
@@ -293,92 +277,6 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		});
 	}
 
-	/**
-	 * Unused - Test Mode -> Run the journey, while we are watching.
-	 */
-	function startLocalMembershipUpdate () {
-		
-		logLocalOutput("Test Mode >> Member update requested started.");
-		
-		requestACCToken(function (token) {
-			
-			$("#update_status_submit, #debug_status_submit").removeAttr("disabled");
-			
-			requestACCData(token.access_token, function (data) {
-				
-				logLocalOutput("</br>-Test Mode >> Update complete.");
-				
-				//Reable Update Buttons
-				$("#update_status_submit, #debug_status_submit").removeAttr("disabled");
-			});	
-		});
-		
-	}
-	
-	/**
-	 * Unused - Requests access token from national office. Runs locally for debug purposes.
-	 *
-	 * Used mostly for testing during development, but left in project for future use.
-	 * i.e. We may decide to expand on this via Javascript in the future.
-	 */
-	function requestACCToken (successFn, failureFn) {
-		
-		logLocalOutput("Test Mode >> Requesting access token from national office.");
-		logLocalOutput("..");
-		
-		jQuery.ajax("https://www.alpineclubofcanada.ca/" + jQuery("#accUM_tokenURI").val(), {
-			type: "POST",
-			data: {
-				"grant_type": "password",
-				"username":jQuery("#accUM_username").val(), 
-				"password":jQuery("#accUM_password").val()
-			},
-			headers: {
-				"Content-Type": "application/x-www-form-urlencoded",
-			}, 
-			success: function (responseObject) {
-				var accessToken = responseObject["accessToken"];
-				logLocalOutput('Test Mode >> Received token: ' + accessToken.substr(0, 10) + '...');
-				if (successFn) successFn.call(this, responseObject);
-			},
-			error: function (responseObject) {
-				logLocalOutput("Test Mode >> Token was not granted.");
-				if (failureFn) failureFn.call(this, responseObject);
-			}
-		});
-	}
-	
-	/**
-	 * Unused - Requests membership dataset from national office.
-	 *
-	 * Used mostly for testing during development, but left in project for future use.
-	 * i.e. We may decide to expand on this via Javascript in the future.
-	 */
-	function requestACCData (accessToken, successFn, failureFn) {
-		
-		logLocalOutput("Test Mode >> Requesting membership data using token.");
-		logLocalOutput("..");
-		
-		var memberURI = "https://www.alpineclubofcanada.ca/" + jQuery("#accUM_memberURI").val();
-		jQuery.ajax(memberURI, {
-			type: "GET",
-			contentType: "application/json",
-			headers: {
-				Authorization: "Bearer " + accessToken
-			},
-			success: function (responseObject) {
-				var accDataset = responseObject;
-				logLocalOutput('Test Mode >> Data returned: ' + accessToken.substr(0, 30) + '...');
-				logLocalOutput("--" + accDataset.Count + " records in dataset.");
-				logLocalOutput("--" + accDataset.TotalCount + " total records.");
-				if (successFn) successFn.call(this, responseObject);
-			},
-			error: function (responseObject) {
-				logLocalOutput("Test Mode >> Data not given.");
-				if (failureFn) failureFn.call(this, responseObject);
-			}
-		});
-	}
 	
 	/**
 	 * Log local output to 'Update Status Window' on the plugin page.
