@@ -26,7 +26,6 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 			if (e.type === 'keydown' && 13 !== e.which) { return; }
 			e.preventDefault();
 			jQuery(this).attr("disabled", "disabled");
-			jQuery("#debug_status_submit").attr("disabled", "disabled");
 
 			wpStartMembershipUpdate();
 		});
@@ -263,7 +262,7 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 				logLocalOutput(responseObject.log);
 				logLocalOutput("Finished expiry processing.");
 
-				$("#update_status_submit, #debug_status_submit").removeAttr("disabled");
+				$("#update_status_submit").removeAttr("disabled");
 				logLocalOutput("&nbsp;");
 				logLocalOutput("This journey has come to an end.");
 				var accSyncEndTime = new Date();
@@ -304,7 +303,6 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 
 		//enable buttons after proccess has stopped
 		$("#update_status_submit").attr("disabled", "");
-		$("#debug_status_submit").attr("disabled", "");
 
 		logLocalOutput('FAILED: Process Stopped...');
 	}
