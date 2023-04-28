@@ -149,10 +149,10 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		//Get Data
 		wpRequestACCData(changeList, dataOffset,
 
-			function (changeList, dataOffset, memberData) {
+			function (changeList, dataOffset, memberArray) {
 
 				//Parse Data
-				wpProccessMembershipData(changeList, dataOffset, memberData, function (changeList, dataOffset) {
+				wpProccessMembershipData(changeList, dataOffset, memberArray, function (changeList, dataOffset) {
 					// logLocalOutput("callback from wpProccessMembershipData");
 					// logLocalOutput(changeList);
 					// logLocalOutput("dataOffset=" + dataOffset);
@@ -202,14 +202,17 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 			var responseObject = JSON.parse(response);
 
 			//FIXME remove debugs
-			// logLocalOutput("Back from WP");
-			logLocalOutput(`Results from Members API=${response}`);
+			//logLocalOutput(`Results from Members API=${response}`);
 
 			if (responseObject.message == "success") {
 				var memberCount = responseObject.results.length;
 				var nextOffset = responseObject.nextDataOffset;
 
 				logLocalOutput(`Success receiving data for ${memberCount} members, nextOffset=${nextOffset}`);
+				logLocalOutput("-----php side log------");
+				logLocalOutput(responseObject.log);
+				logLocalOutput("-----end of log------");
+
 				if (successFn) successFn.call(this, changeList, nextOffset, responseObject.results);
 			} else {
 				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
@@ -222,18 +225,22 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 	/**
 	 * Ask Wordpress to update database with parsed membership info.
 	 */
-	function wpProccessMembershipData (changeList, dataOffset, memberData, successFn, failureFn) {
+	function wpProccessMembershipData (changeList, dataOffset, memberArray, successFn, failureFn) {
 
+		logLocalOutput("&nbsp;");
 		logLocalOutput("Will now update the Wordpress database");
 
-		var apiData = {'action': 'accUserAPI','request': 'processMemberData','security': ajax_object.nonce, 'dataset': memberData};
+		var apiData = {'action': 'accUserAPI',
+					   'request': 'processMemberData',
+		               'security': ajax_object.nonce,
+					   'dataset': memberArray};
 
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
 
 			if (responseObject.message == "success") {
-				logLocalOutput("Success updating the Wordpress database, here is the log:");
-				logLocalOutput("-----start of log------");
+				logLocalOutput("Success updating the Wordpress database");
+				logLocalOutput("-----php side log------");
 				logLocalOutput(responseObject.log);
 				logLocalOutput("-----end of log------");
 				if (successFn) successFn.call(this, changeList, dataOffset);

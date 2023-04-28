@@ -41,7 +41,8 @@ class acc_user_importer_Public {
 		// add additional fields
 		$fields[ 'home_phone' ] = __( 'Home Phone' );
 		$fields[ 'cell_phone' ] = __( 'Cell Phone' );
-		$fields[ 'membership' ] = __( 'Membership' );
+		$fields[ 'membership' ] = __( 'Member Number' );
+		$fields[ 'membership_type' ] = __( 'Membership Type' );
 		$fields[ 'expiry' ] = __( 'Expiry' );
 		$fields[ 'city' ] = __( 'City' );
 		$fields[ 'acc_status' ] = __( 'ACC Status' );

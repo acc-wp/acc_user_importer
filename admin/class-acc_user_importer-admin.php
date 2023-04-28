@@ -11,6 +11,135 @@ class acc_user_importer_Admin {
 	private $debug_mode = false;
 	private $error_logging = false;
 
+	private $membershipTable = array (
+		'1807' => ['section' => 'YUKON', 'type' => 'adult'],
+		'1809' => ['section' => 'YUKON', 'type' => 'youth'],
+		'1810' => ['section' => 'YUKON', 'type' => 'family1'],
+		'1808' => ['section' => 'YUKON', 'type' => 'family2'],
+		'1806' => ['section' => 'YUKON', 'type' => 'child'],
+		'1918' => ['section' => 'BUGABOOS', 'type' => 'adult'],
+		'1920' => ['section' => 'BUGABOOS', 'type' => 'youth'],
+		'1921' => ['section' => 'BUGABOOS', 'type' => 'family1'],
+		'1919' => ['section' => 'BUGABOOS', 'type' => 'family2'],
+		'1917' => ['section' => 'BUGABOOS', 'type' => 'child'],
+		'1812' => ['section' => 'COLUMBIA MOUNTAINS', 'type' => 'adult'],
+		'1814' => ['section' => 'COLUMBIA MOUNTAINS', 'type' => 'youth'],
+		'1815' => ['section' => 'COLUMBIA MOUNTAINS', 'type' => 'family1'],
+		'1813' => ['section' => 'COLUMBIA MOUNTAINS', 'type' => 'family2'],
+		'1811' => ['section' => 'COLUMBIA MOUNTAINS', 'type' => 'child'],
+		'1817' => ['section' => 'OKANAGAN', 'type' => 'adult'],
+		'1819' => ['section' => 'OKANAGAN', 'type' => 'youth'],
+		'1820' => ['section' => 'OKANAGAN', 'type' => 'family1'],
+		'1818' => ['section' => 'OKANAGAN', 'type' => 'family2'],
+		'1816' => ['section' => 'OKANAGAN', 'type' => 'child'],
+		'1822' => ['section' => 'PRINCE GEORGE', 'type' => 'adult'],
+		'1824' => ['section' => 'PRINCE GEORGE', 'type' => 'youth'],
+		'1825' => ['section' => 'PRINCE GEORGE', 'type' => 'family1'],
+		'1823' => ['section' => 'PRINCE GEORGE', 'type' => 'family2'],
+		'1821' => ['section' => 'PRINCE GEORGE', 'type' => 'child'],
+		'1573' => ['section' => 'SQUAMISH', 'type' => 'adult'],
+		'1575' => ['section' => 'SQUAMISH', 'type' => 'youth'],
+		'1576' => ['section' => 'SQUAMISH', 'type' => 'family1'],
+		'1579' => ['section' => 'SQUAMISH', 'type' => 'family2'],
+		'1577' => ['section' => 'SQUAMISH', 'type' => 'child'],
+		'1827' => ['section' => 'VANCOUVER', 'type' => 'adult'],
+		'1829' => ['section' => 'VANCOUVER', 'type' => 'youth'],
+		'1830' => ['section' => 'VANCOUVER', 'type' => 'family1'],
+		'1828' => ['section' => 'VANCOUVER', 'type' => 'family2'],
+		'1826' => ['section' => 'VANCOUVER', 'type' => 'child'],
+		'1784' => ['section' => 'VANCOUVER ISLAND', 'type' => 'adult'],
+		'1783' => ['section' => 'VANCOUVER ISLAND', 'type' => 'youth'],
+		'1787' => ['section' => 'VANCOUVER ISLAND', 'type' => 'family1'],
+		'1785' => ['section' => 'VANCOUVER ISLAND', 'type' => 'family2'],
+		'1786' => ['section' => 'VANCOUVER ISLAND', 'type' => 'child'],
+		'1832' => ['section' => 'WHISTLER', 'type' => 'adult'],
+		'1834' => ['section' => 'WHISTLER', 'type' => 'youth'],
+		'1835' => ['section' => 'WHISTLER', 'type' => 'family1'],
+		'1833' => ['section' => 'WHISTLER', 'type' => 'family2'],
+		'1831' => ['section' => 'WHISTLER', 'type' => 'child'],
+		'1779' => ['section' => 'CALGARY', 'type' => 'adult'],
+		'1778' => ['section' => 'CALGARY', 'type' => 'youth'],
+		'1782' => ['section' => 'CALGARY', 'type' => 'family1'],
+		'1780' => ['section' => 'CALGARY', 'type' => 'family2'],
+		'1781' => ['section' => 'CALGARY', 'type' => 'child'],
+		'1847' => ['section' => 'CENTRAL ALBERTA ', 'type' => 'adult'],
+		'1849' => ['section' => 'CENTRAL ALBERTA ', 'type' => 'youth'],
+		'1850' => ['section' => 'CENTRAL ALBERTA ', 'type' => 'family1'],
+		'1848' => ['section' => 'CENTRAL ALBERTA ', 'type' => 'family2'],
+		'1846' => ['section' => 'CENTRAL ALBERTA ', 'type' => 'child'],
+		'1852' => ['section' => 'EDMONTON', 'type' => 'adult'],
+		'1854' => ['section' => 'EDMONTON', 'type' => 'youth'],
+		'1855' => ['section' => 'EDMONTON', 'type' => 'family1'],
+		'1853' => ['section' => 'EDMONTON', 'type' => 'family2'],
+		'1851' => ['section' => 'EDMONTON', 'type' => 'child'],
+		'1857' => ['section' => 'JASPER / HINTON', 'type' => 'adult'],
+		'1859' => ['section' => 'JASPER / HINTON', 'type' => 'youth'],
+		'1860' => ['section' => 'JASPER / HINTON', 'type' => 'family1'],
+		'1858' => ['section' => 'JASPER / HINTON', 'type' => 'family2'],
+		'1856' => ['section' => 'JASPER / HINTON', 'type' => 'child'],
+		'1862' => ['section' => 'ROCKY MOUNTAIN', 'type' => 'adult'],
+		'1864' => ['section' => 'ROCKY MOUNTAIN', 'type' => 'youth'],
+		'1865' => ['section' => 'ROCKY MOUNTAIN', 'type' => 'family1'],
+		'1863' => ['section' => 'ROCKY MOUNTAIN', 'type' => 'family2'],
+		'1861' => ['section' => 'ROCKY MOUNTAIN', 'type' => 'child'],
+		'1867' => ['section' => 'SOUTHERN ALBERTA', 'type' => 'adult'],
+		'1869' => ['section' => 'SOUTHERN ALBERTA', 'type' => 'youth'],
+		'1870' => ['section' => 'SOUTHERN ALBERTA', 'type' => 'family1'],
+		'1868' => ['section' => 'SOUTHERN ALBERTA', 'type' => 'family2'],
+		'1866' => ['section' => 'SOUTHERN ALBERTA', 'type' => 'child'],
+		'1872' => ['section' => 'GREAT PLAINS', 'type' => 'adult'],
+		'1874' => ['section' => 'GREAT PLAINS', 'type' => 'youth'],
+		'1875' => ['section' => 'GREAT PLAINS', 'type' => 'family1'],
+		'1873' => ['section' => 'GREAT PLAINS', 'type' => 'family2'],
+		'1871' => ['section' => 'GREAT PLAINS', 'type' => 'child'],
+		'1877' => ['section' => 'SASKATCHEWAN', 'type' => 'adult'],
+		'1879' => ['section' => 'SASKATCHEWAN', 'type' => 'youth'],
+		'1880' => ['section' => 'SASKATCHEWAN', 'type' => 'family1'],
+		'1878' => ['section' => 'SASKATCHEWAN', 'type' => 'family2'],
+		'1876' => ['section' => 'SASKATCHEWAN', 'type' => 'child'],
+		'1882' => ['section' => 'MANITOBA', 'type' => 'adult'],
+		'1884' => ['section' => 'MANITOBA', 'type' => 'youth'],
+		'1885' => ['section' => 'MANITOBA', 'type' => 'family1'],
+		'1883' => ['section' => 'MANITOBA', 'type' => 'family2'],
+		'1881' => ['section' => 'MANITOBA', 'type' => 'child'],
+		'1887' => ['section' => 'SAINT BONIFACE', 'type' => 'adult'],
+		'1889' => ['section' => 'SAINT BONIFACE', 'type' => 'youth'],
+		'1890' => ['section' => 'SAINT BONIFACE', 'type' => 'family1'],
+		'1888' => ['section' => 'SAINT BONIFACE', 'type' => 'family2'],
+		'1886' => ['section' => 'SAINT BONIFACE', 'type' => 'child'],
+		'1892' => ['section' => 'OTTAWA', 'type' => 'adult'],
+		'1894' => ['section' => 'OTTAWA', 'type' => 'youth'],
+		'1895' => ['section' => 'OTTAWA', 'type' => 'family1'],
+		'1893' => ['section' => 'OTTAWA', 'type' => 'family2'],
+		'1881' => ['section' => 'OTTAWA', 'type' => 'child'],
+		'1897' => ['section' => 'THUNDER BAY', 'type' => 'adult'],
+		'1899' => ['section' => 'THUNDER BAY', 'type' => 'youth'],
+		'1900' => ['section' => 'THUNDER BAY', 'type' => 'family1'],
+		'1898' => ['section' => 'THUNDER BAY', 'type' => 'family2'],
+		'1896' => ['section' => 'THUNDER BAY', 'type' => 'child'],
+		'1897' => ['section' => 'TORONTO', 'type' => 'adult'],
+		'1899' => ['section' => 'TORONTO', 'type' => 'youth'],
+		'1900' => ['section' => 'TORONTO', 'type' => 'family1'],
+		'1898' => ['section' => 'TORONTO', 'type' => 'family2'],
+		'1896' => ['section' => 'TORONTO', 'type' => 'child'],
+		'1837' => ['section' => 'MONTRÉAL', 'type' => 'adult'],
+		'1839' => ['section' => 'MONTRÉAL', 'type' => 'youth'],
+		'1840' => ['section' => 'MONTRÉAL', 'type' => 'family1'],
+		'1838' => ['section' => 'MONTRÉAL', 'type' => 'family2'],
+		'1836' => ['section' => 'MONTRÉAL', 'type' => 'child'],
+		'1842' => ['section' => 'OUTAOUAIS', 'type' => 'adult'],
+		'1844' => ['section' => 'OUTAOUAIS', 'type' => 'youth'],
+		'1845' => ['section' => 'OUTAOUAIS', 'type' => 'family1'],
+		'1843' => ['section' => 'OUTAOUAIS', 'type' => 'family2'],
+		'1841' => ['section' => 'OUTAOUAIS', 'type' => 'child'],
+		'1907' => ['section' => 'NEWFOUNDLAND & LABRADOR', 'type' => 'adult'],
+		'1909' => ['section' => 'NEWFOUNDLAND & LABRADOR', 'type' => 'youth'],
+		'1910' => ['section' => 'NEWFOUNDLAND & LABRADOR', 'type' => 'family1'],
+		'1908' => ['section' => 'NEWFOUNDLAND & LABRADOR', 'type' => 'family2'],
+		'1906' => ['section' => 'NEWFOUNDLAND & LABRADOR', 'type' => 'child'],
+	);
+
+
 	public function __construct( $plugin_name, $version ) {
 
 		$this->plugin_name = $plugin_name;
@@ -99,6 +228,7 @@ class acc_user_importer_Admin {
 	 * Controller for the WP-API requests.
 	 */
 	public function accUserAPI() {
+		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 
 		//create response object
 		$api_response = [];
@@ -133,16 +263,8 @@ class acc_user_importer_Admin {
 				break;
 
 			case "processMemberData":
-				$postedData = $_POST['dataset'];
-				//$postedData = str_replace("\\", "", $postedData);
-				$cleanData = json_decode($postedData);
-				$this->log_local_output("received processMemberData cmd, postedData={$postedData}");
-				//$arrayData = $this->object_to_array( $cleanData );
-				//$this->log_local_output( print_r($arrayData, true) );
-				//$api_response = $this->proccess_user_data( $arrayData );
-				$api_response = [];
-				$api_response['log'] = "bla bla bla";
-				$api_response['message'] = "success";
+				$memberArray = $_POST['dataset'];
+				$api_response = $this->proccess_user_data( $memberArray );
 				break;
 
 			case "processExpiry":
@@ -150,6 +272,9 @@ class acc_user_importer_Admin {
 				break;
 
 		}
+
+		//Return the log of the operation
+		$api_response['log'] = $GLOBALS['acc_logstr'];
 
 		//respond to ajax request and terminate
 		echo json_encode( $api_response );
@@ -247,19 +372,36 @@ class acc_user_importer_Admin {
 	}
 
 
+	// If a member has multiple memberships, which one do we prefer?
+	private $membershipPreference = array (
+		'family1' => 5,
+		'family2' => 4,
+		'adult' => 3,
+		'child' => 2,
+		'youth' => 1);
+
+	/**
+	 * Returns true if the type2 membership is preferred over the type1.
+	 * If the member has both a family and an adult membership, is it
+	 * preferable to chose the family membership because it has more privilege.
+	 */
+	private function compareMembershipType ( $type1, $type2 ) {
+		return ($this->membershipPreference[$type2] > $this->membershipPreference[$type1]);
+	}
+
+	/**
+	 * Returns true if the 2 membership have equal priority.
+	 */
+	private function equalMembershipType ( $type1, $type2 ) {
+		return ($this->membershipPreference[$type2] == $this->membershipPreference[$type1]);
+	}
+
+
 	/**
 	 * Update Wordpress database with member information.
 	 * This is where most of the work gets done.
 	 */
 	private function proccess_user_data ( $users ) {
-		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
-
-		//FIXME not ready yet to do full processing
-		$api_response['message'] = "error";
-		$api_response['errorMessage'] = "Not ready to process user data yet";
-		$this->log_local_output("Error, Not ready to process user data yet");
-		return $api_response;
-
 
 		// Get user-configurable option values
 		$options = get_option('accUM_data');
@@ -281,6 +423,9 @@ class acc_user_importer_Admin {
 		}
 		$this->log_dual("Using $default_role as default role for new users");
 
+		//FIXME get the name of the section for which the plugin is currently running
+		//The name should match what is in the $membershipTable.
+		$sectionName = 'SQUAMISH';
 
 		//create response object
 		$api_response = [];
@@ -289,61 +434,118 @@ class acc_user_importer_Admin {
 		//fail gracefully is dataset is empty
 		if (! ( count($users) > 0 ) ) {
 			$api_response['message'] = "error";
-			$api_response['errorMessage'] = "Dataset provided has returned an error.";
-			$this->log_local_output("Error, nothing to process");
+			$api_response['errorMessage'] = "No user in dataset";
+			$this->log_dual("Error, nothing to process");
 			return $api_response;
 		}
 
-		//loop through data and create users
+		//loop through the received data and create users
 		$update_errors = [];
 		$new_users = [];
 		$new_users_email = [];
 		$updated_users = [];
 		$updated_users_email = [];
 
-		foreach ( $users as $id => $user ) {
+		foreach ( $users as $user ) {
 			//Avoid PHP warnings in case some fields are unpopulated
-			$userFirstName= $user["FirstName"] ?? '';
-			$userLastName= $user["LastName"] ?? '';
-			$userContactId = $user['Contact ID'] ?? '';
-			$userImisId = $user['imis_id'] ?? '';
-			$userEmail = strtolower($user["Email"] ?? '');
-			$userHomePhone = $user["HomePhone"] ?? '';
-			$userCellPhone = $user["Cell Phone"] ?? '';
-			$userMembership = $user["MEMBERSHIP_N"] ?? '';
-			$userExpiry = $user["Membership Expiry Date"] ?? '';
-			$userCity = $user["City"] ?? '';
+			$userFirstName= $user["first_name"] ?? '';
+			$userLastName= $user["last_name"] ?? '';
+			//$userContactId = $user['member_number'] ?? '';
+			//FIXME what should we do with the new system 'id'?
+			//Should we overwrite imis_id with this new field?
+			//For now we just ignore it.
+			//$userImisId = $user['imis_id'] ?? '';
+			$userEmail = strtolower($user["email"] ?? '');
+			//FIXME the phone is missing in Interpodia DB
+			//$userHomePhone = $user["HomePhone"] ?? '';
+			//$userCellPhone = $user["Cell Phone"] ?? '';
+			$userMemberNumber = $user["member_number"] ?? '';
+			//No longer provided by Interpodia
+			//$userCity = $user["City"] ?? '';
+			//FIXME do we want to store date of birth? Not for now
+
+			$receivedMemberships = $user['memberships'];
+			//$this->log_dual("Processing {$userFirstName} {$userLastName}");
+			$this->log_dual(json_encode($user));
+
+			// It is possible for the user to have multiple memberships.
+			// We are only interested in memberships for the section the plugin
+			// is operating for. Among those memberships, select the one with
+			// greater date (most in the future).
+			$userMembershipType = "";
+			$userMembershipSection = "";
+			$userMembershipExpiry = "";
+			foreach ( $receivedMemberships as $membership ) {
+				$mId = $membership['membership_group']['id'];
+				$mSection = $this->membershipTable[$mId]['section'];
+				$mType = $this->membershipTable[$mId]['type'];
+				$mExpiry = $membership['valid_to'];
+				$this->log_dual("detected membership: {$mId} {$mSection} {$mType} {$mExpiry}");
+				if ($mSection == $sectionName) {
+					if (empty($userMembershipType)) {
+						//Found a first membershio
+						$userMembershipType = $mType;
+						$userMembershipSection = $mSection;
+						$userMembershipExpiry = $mExpiry;
+					} else if ($mExpiry > $userMembershipExpiry) {
+						//Found a membership with a later expiry, take note of it.
+						$userMembershipType = $mType;
+						$userMembershipSection = $mSection;
+						$userMembershipExpiry = $mExpiry;
+						$this->log_dual("Better expiry date");
+					} else if ($mExpiry == $userMembershipExpiry &&
+					    $this->compareMembershipType($userMembershipType, $mType)) {
+						//Same expiry date, but found a better membership type.
+						$userMembershipType = $mType;
+						$userMembershipSection = $mSection;
+						$userMembershipExpiry = $mExpiry;
+						$this->log_dual("Same expiry date but better type");
+					}
+				}
+			}
 
 			//Log the info we received for this user
 			$userInfoString = $userFirstName . " " . $userLastName;
 			$userInfoString .= " " . $userEmail;
-			$userInfoString .= " ContactID:" . $userContactId;
-			$userInfoString .= " imis_id:" . $userImisId;
-			$userInfoString .= " membership#:" . $userMembership;
-			$userInfoString .= " home:" . $userHomePhone;
-			$userInfoString .= " cell:" . $userCellPhone;
-			$userInfoString .= " expiry:" . $userExpiry;
-			$userInfoString .= " section:" . $user["PRODUCT_CODE"];
+			//$userInfoString .= " ContactID:" . $userContactId;
+			//$userInfoString .= " imis_id:" . $userImisId;
+			$userInfoString .= " membership#:" . $userMemberNumber;
+			//$userInfoString .= " home:" . $userHomePhone;
+			//$userInfoString .= " cell:" . $userCellPhone;
+			$userInfoString .= " type:" . $userMembershipType;
+			$userInfoString .= " section:" . $userMembershipSection;
+			$userInfoString .= " expiry:" . $userMembershipExpiry;
 			$this->log_dual("Received " . $userInfoString);
 
+			//TODO:
+			//add $userMembershipType to database [DONE]
+			//Display $userMembershipType in profile page [DONE]
+			//upon collision, compare membership type to decide whether
+			//to overwrite or not.
+			//In Profile page, something used to translate "Membership" to "Inscription".
+			//it would be nice to see where this is done and translate to french
+			//member number and membership type
+
+			//TODO: change settings which controls username.
+
 			// Skip users if ContactID is missing and needed.
-			if (!is_numeric($userContactId) &&
-				$loginNameMapping == 'ContactId') {
-					$this->log_dual(" > error, no contactID; skip");
-					continue;
-			}
+			// if (!is_numeric($userContactId) &&
+			// 	$loginNameMapping == 'ContactId') {
+			// 		$this->log_dual(" > error, no contactID; skip");
+			// 		continue;
+			// }
 
 			// Skip users if userImisId is missing and needed.
-			if (!is_numeric($userImisId) &&
-				$loginNameMapping == 'imis_id') {
-					$this->log_dual(" > error, no imis_id; skip");
-					continue;
-			}
+			// if (!is_numeric($userImisId) &&
+			// 	$loginNameMapping == 'imis_id') {
+			// 		$this->log_dual(" > error, no imis_id; skip");
+			// 		continue;
+			// }
 
 			switch($loginNameMapping) {
-				case 'ContactId':
-					$loginName = $userContactId;
-					break;
+				// case 'ContactId':
+				// 	$loginName = $userContactId;
+				// 	break;
 				case 'Firstname Lastname':
 					$loginName = "$userFirstName $userLastName";
 					break;
@@ -369,12 +571,14 @@ class acc_user_importer_Admin {
 			];
 
 			$accUserMetaData = [
-				'home_phone' => $userHomePhone,
-				'cell_phone' => $userCellPhone,
-				'membership' => $userMembership,
-				'expiry' => $userExpiry,
-				'imis_id' => $userImisId,
-				'city' => $userCity
+				//'home_phone' => $userHomePhone,
+				//'cell_phone' => $userCellPhone,
+				'membership' => $userMemberNumber,
+				'membership_type' => $userMembershipType,
+				'expiry' => $userMembershipExpiry,
+				'nickname' => $userFirstName . " " . $userLastName,
+				//'imis_id' => $userImisId,
+				//'city' => $userCity
 			];
 
 			// Check if ID or email already exist. Both should be unique
@@ -385,12 +589,41 @@ class acc_user_importer_Admin {
 				$existingUser = get_user_by('email', $userEmail);
 				if( is_a( $existingUser, WP_User::class ) ) {
 					//We found a user. If the name is the same, update it.
-					//However if the name is different, it must be a family membership
-					//sharing the same email, so abort, let the current user be.
-					$this->log_dual(" > found by email, name is " . $existingUser->display_name);
+					//If the name is different, update the existing account if
+					//the incoming registration is a preferred one.
+					// In a family account, often the childs and partner have the
+					// same email address. We might have received the child record
+					// first and already created the account. If so, overwrite it
+					// with the parent (owner of email) information.
+					// If the name is different but membership type the same,
+					// do not overwrite the existing record.
+					// Note: another approach to avoid this complex code could be
+					// to reverse the processing order of the received user array.
+					// This way we would process older records first, and it
+					// seems we would receive the membership of adult1 first,
+					// then adult2, then childs. So naturally the owner of the
+					// account would be the first to be created.
 					if ($accUserData['display_name'] != $existingUser->display_name) {
-						$this->log_dual(" > error, email already used by someone else, skip");
-						continue;
+						$this->log_dual(" > found by email existing userId {$existingUser->ID} named
+									   {$existingUser->display_name}. Collision!");
+						//Collision, and names are different
+						if ($this->compareMembershipType($userMembershipType,
+											             $existingUser->membership_type)) {
+							//Existing user is better, keep it.
+							$this->log_dual(" > email already used by someone else, skip");
+							continue;
+						} else if ($this->equalMembershipType($userMembershipType,
+													          $existingUser->membership_type)) {
+							//When both users have equal membership types,
+							//prefer the one with the lower member number, it
+							//seems to be the one who created the family membership.
+							if ($existingUser->membership < $userMemberNumber) {
+								$this->log_dual(" > email already used by someone with lower member number, skip");
+								continue;
+							}
+					   }
+					} else {
+						$this->log_dual(" > found by email, userId is" . $existingUser->ID);
 					}
 				}
 			}
@@ -411,7 +644,7 @@ class acc_user_importer_Admin {
 				//latest expiry date is the best, because it is the latest one subscribed
 				//to by the user.
 				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
-				if ($userExpiry < $existingUser->expiry) {
+				if ($userMembershipExpiry < $existingUser->expiry) {
 					$this->log_dual(" > warn, received expiry is earlier than local one; skip");
 					continue;
 				}
@@ -447,6 +680,30 @@ class acc_user_importer_Admin {
 					$updated_users[] = $accUserData['display_name'];
 					$updated_users_email[] = $userEmail;
 				}
+
+				//Special code is needed to handle a login_name change. wp_update_user()
+				//does not change the login_name or the user_nicename.  This is not
+				//something we want to happen often. But it will happen in the case
+				//where a child record is received before the parent, with the same
+				//email address. Another solution to that would be a pre-processing
+				//step where we re-order the array of incoming registrations,
+				//so that the parent records are received first.
+				if ($loginName != $existingUser->user_login) {
+					$userID = $existingUser->ID;
+					$this->log_dual("> user {$userID} username changed from
+						{$existingUser->user_login} to {$loginName}, update database");
+
+					global $wpdb;
+					$wpdb->update($wpdb->users,
+								  ['user_login' => $loginName],
+								  ['ID' => $existingUser->ID]);
+					$wpdb->update($wpdb->users,
+							      ['user_nicename' => $accUserData['display_name']],
+								  ['ID' => $existingUser->ID]);
+					//update_user_meta($userID, 'nickname', $accUserData['display_name'] );
+				}
+
+
 
 				// Trigger hook if expiry date changed (updated membership)
 				if (in_array('expiry', $updatedFields)) {
@@ -547,7 +804,6 @@ class acc_user_importer_Admin {
 	 * Go over our local user database and see who has an expired membership.
 	 */
 	private function proccess_expiry () {
-		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 
 		// Get user-configurable option values
 		$options = get_option('accUM_data');
@@ -728,7 +984,6 @@ class acc_user_importer_Admin {
 	 * with changed memberships.
 	 */
 	private function getChangedMembers() {
-		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 
 		$options = get_option('accUM_data');
 		$sectionApiId = $options['accUM_section_api_id'];
@@ -799,11 +1054,10 @@ class acc_user_importer_Admin {
 	 * Select the next N entries from the list of changed members.
 	 */
 	private function getChangeListSubset( $changeList, $offset, $numToDo ) {
-		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 		$changeSubset = array_slice($changeList, $offset, $numToDo);
-		$this->log_dual("changeSubset=" . json_encode($changeSubset));
+		//$this->log_dual("changeSubset=" . json_encode($changeSubset));
 		$subsetString = implode(",", $changeSubset);
-		$this->log_dual("subsetString={$subsetString}");
+		//$this->log_dual("subsetString={$subsetString}");
 		return $subsetString;
 	}
 
@@ -837,18 +1091,17 @@ class acc_user_importer_Admin {
 	 *    ]
 	 */
 	private function getMemberData( $changeList, $offset = 0 ) {
-		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
 
 		if ( !$offset ) { $offset = 0; }
 		$options = get_option('accUM_data');
 		$access_token = $options['accUM_token'];
-		$this->log_dual("Token=" . $access_token);
+		//$this->log_dual("Token=" . $access_token);
 
 		//Compute how many members we want to process
 		$remaining = sizeof($changeList)-$offset;
 		$numToDo = min ($remaining, MEMBER_API_MAX_USERS);
-		$this->log_dual("remaining=" . $remaining);
-		$this->log_dual("numToDo=" . $numToDo);
+		// $this->log_dual("remaining=" . $remaining);
+		// $this->log_dual("numToDo=" . $numToDo);
 		$subsetString = $this->getChangeListSubset($changeList, $offset, $numToDo);
 
 		$member_uri = 'https://2mev.com/rest/v2/member-apis/1/fetch/?member_number=' . $subsetString;
@@ -869,6 +1122,7 @@ class acc_user_importer_Admin {
 		if ( is_wp_error( $acc_response ) ) {
 			$api_response['message'] = "error";
 			$api_response['errorMessage'] = $acc_response->get_error_message();
+			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
 			$this->log_dual("Error, " . $api_response['errorMessage']);
 			return $api_response;
 		}
@@ -876,24 +1130,26 @@ class acc_user_importer_Admin {
 		$acc_response_data = wp_remote_retrieve_body ( $acc_response );
 		//$acc_response_data = str_replace( ["\t", '$values'], ["", 'Values'], $acc_response_data );
 		//$acc_response_data = preg_replace( '/"\$type"\:".*",/U', "", $acc_response_data );
-		$this->log_local_output($acc_response_data);
+		//$this->log_dual($acc_response_data);
 		$memberData = json_decode($acc_response_data);
 		$count = sizeof ($memberData);
-		$this->log_local_output("count={$count}");
+		//$this->log_dual("count={$count}");
 
 		if ($count != $numToDo) {
 			$this->log_dual("Error, member API returned " . $count . " members instead of " . $numToDo);
 			$api_response['message'] = "error";
 			$api_response['errorMessage'] = "Member API returned " . $count . " members instead of " . $numToDo;
+			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
 			return $api_response;
 		}
 
 		$lastUser = $offset + $numToDo -1;
-		$this->log_local_output("Received users $offset to $lastUser");
+		$this->log_dual("Received users $offset to $lastUser");
 
 		$api_response['nextDataOffset'] = $offset + $numToDo;
 		$api_response['results'] = $memberData;
 		$api_response['message'] = "success";
+		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
 		return $api_response;
 	}
 
