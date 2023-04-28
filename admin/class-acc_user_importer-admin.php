@@ -1,5 +1,9 @@
 <?php
 
+/* When requesting member data, we are limited by the size of the response.
+ * Benoit says that Microsoft Edge has a limit of 64000 bytes.
+ * Be conservative and ask for 10 members at a time.
+ */
 define("MEMBER_API_MAX_USERS", "10");
 
 $acc_logstr = "";		//handy global to store log string
@@ -11,6 +15,8 @@ class acc_user_importer_Admin {
 	private $debug_mode = false;
 	private $error_logging = false;
 
+	// List of ACC section membership types.
+	// Obtained from an Interpodia Excel spreadsheet.
 	private $membershipTable = array (
 		'1807' => ['section' => 'YUKON', 'type' => 'adult'],
 		'1809' => ['section' => 'YUKON', 'type' => 'youth'],
@@ -281,96 +287,171 @@ class acc_user_importer_Admin {
 		wp_die();
 	}
 
-	/**
-	 * Extract members from within the dataset.
-	 */
-	private function parse_user_data( $user_data ) {
-
-		//array($obj, 'myCallbackMethod'))
-
-		//turn data into usable array with valid keys (the imis keys are painful to work with)
-		$user_data = $this->object_to_array( $user_data->Items );
-		$user_list = $this->extract_members_from_dataset($user_data);
-		return $user_list;
-	}
 
 	/**
-	 * Helper - Map objects to array for easier block iteration.
+	 * Request the list of changed members from the national office API.
+	 * It calls the Changed Member API until it has the full list of members
+	 * with changed memberships.
 	 */
-	public function object_to_array ( $object ) {
+	private function getChangedMembers() {
 
-		if(!is_object($object) && !is_array($object))
-			return $object;
+		$options = get_option('accUM_data');
+		$sectionApiId = $options['accUM_section_api_id'];
 
-		return array_map(array($this, 'object_to_array'), (array) $object);
-	}
-
-	/**
-	 * Extract members from within the dataset.
-	 */
-	private function extract_members_from_dataset( $members_dataset ) {
-
-		$new_dataset = [];
-		if ( array_key_exists('Values', $members_dataset) ) {
-
-			//iterate through members in dataset
-			foreach ( $members_dataset["Values"] as $index => $value ) {
-				$new_dataset[] = $this->extract_unique_member_properties($value);
-			}
+		// Read token from user settings
+		$access_token = $options['accUM_token'];
+		$this->log_dual("Token=" . $access_token);
+		if (!isset($access_token) || (strlen($access_token) == 0)) {
+			$api_response['errorMessage'] = "Authentication token is not defined";
+			return $api_response;
 		}
 
-		return $new_dataset;
-	}
-
-	/**
-	 * Extract membership data from each member record.
-	 */
-	private function extract_unique_member_properties( $member_dataset ) {
-
-		if ( array_key_exists('Properties', $member_dataset) ) {
-
-			$member_list = []; //container
-
-			//iterate through members in data
-			foreach ( $member_dataset["Properties"] as $index => $value ) {
-				$member_record = [];
-
-				//loop through data for each member
-				if ( is_array( $value ) ) {
-				foreach ( $value as $key => $member_data) {
-
-					//store data only if there is a name/value pairing
-					if (
-					 array_key_exists('Name', $member_data) &&
-					 array_key_exists('Value', $member_data) &&
-					 !is_array( $member_data['Value'] ) &&
-					 strlen($member_data['Value']) > 0 //don't include empty elements into dataset
-					 ) {
-
-						$value_name = $member_data['Name'];
-						$value_record =  $member_data['Value'];
-						$new_record = [$value_name => $value_record];
-						$member_record = array_merge( array($value_name => $value_record), $member_record);
-					}
-				}}
-
-				$member_list[] = $member_record;
-			}
+		$sinceDate = $options['accUM_since_date'];
+		if (!isset($sinceDate)) {
+			// FIXME, need to retrieve last execution date. Just use an arbitrary number for now
+			$sinceDate = "2020-01-01T15:05:00";
+			$this->log_dual("No sinceDate specified, using last run date (" . $sinceDate . ")");
 		}
 
-		return $member_list[0];
+		// Create response object for local api
+		$api_response = [];
+		$count = 0;
+		$changeList = [];
+		$changed_members_uri = 'https://2mev.com/rest/v2/member-apis/' . $sectionApiId .
+		                       '/changed_members/?changed_since=' . $sinceDate;
+
+		do {
+			$this->log_dual("changed_members_uri=" . $changed_members_uri);
+			$acc_response = wp_remote_get($changed_members_uri, array(
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $access_token
+			),));
+
+			if (is_wp_error($acc_response)) {
+				$api_response['message'] = "error";
+				$api_response['errorMessage'] = $acc_response->get_error_message();
+				return $api_response;
+			}
+
+			$acc_response_data = wp_remote_retrieve_body ( $acc_response );
+			$acc_response_data = json_decode($acc_response_data);
+			if ( !array_key_exists('count', (array) $acc_response_data ) ) {
+				$api_response['message'] = "error";
+				$api_response['errorMessage'] = "No count in Changed Members API response";
+				return $api_response;
+			}
+
+			$this->log_dual("count=" . $acc_response_data->count);
+			$this->log_dual("next=" . $acc_response_data->next);
+			$this->log_dual("previous=" . $acc_response_data->previous);
+			$this->log_dual("results=" . json_encode($acc_response_data->results));
+			$count += $acc_response_data->count;
+			$changeList = array_merge($changeList, $acc_response_data->results);
+			$this->log_dual("total count=" . $count);
+			$this->log_dual("total change list=" . json_encode($changeList));
+
+		} while ($acc_response_data->next != null);
+
+		$api_response['count'] = $count;
+		$api_response['results'] = $changeList;
+		$api_response['message'] = "success";
+		return $api_response;
+	}
+
+	/*
+	 * Select the next N entries from the list of changed members.
+	 */
+	private function getChangeListSubset( $changeList, $offset, $numToDo ) {
+		$changeSubset = array_slice($changeList, $offset, $numToDo);
+		$subsetString = implode(",", $changeSubset);
+		return $subsetString;
 	}
 
 	/**
-	 * This function will log a string to the log file and also accumulate it
-	 * in a variable that is sent in the API response, for displaying on the
-	 * plugin Update Status window.
+	 * Request a dataset from the national office API.
+	 * Here is an example of the response from the Interpodia Member API
+	 *    [
+	 *        {
+	 *            "id": 240835,
+	 *            "first_name": "John",
+	 *            "last_name": "Doe",
+	 *            "email": "johndoe@hotmail.com",
+	 *            "date_of_birth": "1980-08-20",
+	 *            "member_number": "12345",
+	 *            "memberships": [
+	 *                {
+	 *                    "membership_group": {
+	 *                        "id": 1573,
+	 *                        "name": "Squamish Individual Membership (Adult) - Annual",
+	 *                        "group_group": {
+	 *                            "id": 546,
+	 *                            "name": "SQUAMISH SECTION - INDIVIDUAL MEMBERSHIP"
+	 *                        }
+	 *                    },
+	 *                    "valid_from": "2023-04-06",
+	 *                    "valid_to": "2024-04-04"
+	 *                }
+	 *            ],
+	 *            "identity_attribute_values": []
+	 *        }
+	 *    ]
 	 */
-	private function log_dual( $string ) {
-		$this->log_local_output($string);
-		$GLOBALS['acc_logstr'] .= "<br/>" . $string;
-	}
+	private function getMemberData( $changeList, $offset = 0 ) {
 
+		if ( !$offset ) { $offset = 0; }
+		$options = get_option('accUM_data');
+		$access_token = $options['accUM_token'];
+
+		//Compute how many members we want to process
+		$remaining = sizeof($changeList)-$offset;
+		$numToDo = min ($remaining, MEMBER_API_MAX_USERS);
+		$this->log_dual("remaining={$remaining}, will fetch {$numToDo}");
+		$subsetString = $this->getChangeListSubset($changeList, $offset, $numToDo);
+
+		$member_uri = 'https://2mev.com/rest/v2/member-apis/1/fetch/?member_number=' . $subsetString;
+		$this->log_dual("member_uri=" . $member_uri);
+
+		$get_args = array(
+			'headers' => array(
+				'content-type' => 'application/json',
+				'Authorization' => "Bearer " . $access_token
+			)
+		);
+		$acc_response = wp_remote_get( $member_uri, $get_args );
+
+		//create response object
+		$api_response = [];
+
+		//if the post request fails
+		if ( is_wp_error( $acc_response ) ) {
+			$api_response['message'] = "error";
+			$api_response['errorMessage'] = $acc_response->get_error_message();
+			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+			$this->log_dual("Error, " . $api_response['errorMessage']);
+			return $api_response;
+		}
+
+		$acc_response_data = wp_remote_retrieve_body ( $acc_response );
+		$memberData = json_decode($acc_response_data);
+		$count = sizeof ($memberData);
+
+		if ($count != $numToDo) {
+			$this->log_dual("Error, member API returned " . $count . " members instead of " . $numToDo);
+			$api_response['message'] = "error";
+			$api_response['errorMessage'] = "Member API returned " . $count . " members instead of " . $numToDo;
+			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+			return $api_response;
+		}
+
+		$lastUser = $offset + $numToDo -1;
+		$this->log_dual("Received users $offset to $lastUser");
+
+		$api_response['nextDataOffset'] = $offset + $numToDo;
+		$api_response['results'] = $memberData;
+		$api_response['message'] = "success";
+		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+		return $api_response;
+	}
 
 	// If a member has multiple memberships, which one do we prefer?
 	private $membershipPreference = array (
@@ -431,11 +512,11 @@ class acc_user_importer_Admin {
 		$api_response = [];
 		$this->log_dual("Start processing batch of " . count($users) . " users");
 
-		//fail gracefully is dataset is empty
+		//Return gracefully is dataset is empty
 		if (! ( count($users) > 0 ) ) {
-			$api_response['message'] = "error";
-			$api_response['errorMessage'] = "No user in dataset";
-			$this->log_dual("Error, nothing to process");
+			$this->log_dual("Nothing to process");
+			$api_response['message'] = "success";
+			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
 			return $api_response;
 		}
 
@@ -448,6 +529,7 @@ class acc_user_importer_Admin {
 
 		foreach ( $users as $user ) {
 			//Avoid PHP warnings in case some fields are unpopulated
+			//We are ignoring date of birth for now.
 			$userFirstName= $user["first_name"] ?? '';
 			$userLastName= $user["last_name"] ?? '';
 			//$userContactId = $user['member_number'] ?? '';
@@ -460,12 +542,7 @@ class acc_user_importer_Admin {
 			//$userHomePhone = $user["HomePhone"] ?? '';
 			//$userCellPhone = $user["Cell Phone"] ?? '';
 			$userMemberNumber = $user["member_number"] ?? '';
-			//No longer provided by Interpodia
-			//$userCity = $user["City"] ?? '';
-			//FIXME do we want to store date of birth? Not for now
-
 			$receivedMemberships = $user['memberships'];
-			//$this->log_dual("Processing {$userFirstName} {$userLastName}");
 			$this->log_dual(json_encode($user));
 
 			// It is possible for the user to have multiple memberships.
@@ -480,10 +557,10 @@ class acc_user_importer_Admin {
 				$mSection = $this->membershipTable[$mId]['section'];
 				$mType = $this->membershipTable[$mId]['type'];
 				$mExpiry = $membership['valid_to'];
-				$this->log_dual("detected membership: {$mId} {$mSection} {$mType} {$mExpiry}");
+				//$this->log_dual("detected membership: {$mId} {$mSection} {$mType} {$mExpiry}");
 				if ($mSection == $sectionName) {
 					if (empty($userMembershipType)) {
-						//Found a first membershio
+						//Found a first membership
 						$userMembershipType = $mType;
 						$userMembershipSection = $mSection;
 						$userMembershipExpiry = $mExpiry;
@@ -492,14 +569,14 @@ class acc_user_importer_Admin {
 						$userMembershipType = $mType;
 						$userMembershipSection = $mSection;
 						$userMembershipExpiry = $mExpiry;
-						$this->log_dual("Better expiry date");
+						$this->log_dual("> Better expiry date");
 					} else if ($mExpiry == $userMembershipExpiry &&
 					    $this->compareMembershipType($userMembershipType, $mType)) {
 						//Same expiry date, but found a better membership type.
 						$userMembershipType = $mType;
 						$userMembershipSection = $mSection;
 						$userMembershipExpiry = $mExpiry;
-						$this->log_dual("Same expiry date but better type");
+						$this->log_dual("> Same expiry date but better type");
 					}
 				}
 			}
@@ -517,32 +594,20 @@ class acc_user_importer_Admin {
 			$userInfoString .= " expiry:" . $userMembershipExpiry;
 			$this->log_dual("Received " . $userInfoString);
 
-			//TODO:
-			//add $userMembershipType to database [DONE]
-			//Display $userMembershipType in profile page [DONE]
-			//upon collision, compare membership type to decide whether
-			//to overwrite or not.
-			//In Profile page, something used to translate "Membership" to "Inscription".
-			//it would be nice to see where this is done and translate to french
-			//member number and membership type
+			//Validate we have received mandatory fields.
+			if (!is_numeric($userMemberNumber)) {
+				$this->log_dual(" > error, no member number; skip");
+				continue;
+			}
 
-			//TODO: change settings which controls username.
-
-			// Skip users if ContactID is missing and needed.
-			// if (!is_numeric($userContactId) &&
-			// 	$loginNameMapping == 'ContactId') {
-			// 		$this->log_dual(" > error, no contactID; skip");
-			// 		continue;
-			// }
-
-			// Skip users if userImisId is missing and needed.
-			// if (!is_numeric($userImisId) &&
-			// 	$loginNameMapping == 'imis_id') {
-			// 		$this->log_dual(" > error, no imis_id; skip");
-			// 		continue;
-			// }
+			//Safety check in case firstname and lastname are empty
+			if (empty($userFirstName) && empty($userLastName)) {
+				$this->log_dual(" > error, user has no name; skip");
+				continue;
+			}
 
 			switch($loginNameMapping) {
+				//FIXME
 				// case 'ContactId':
 				// 	$loginName = $userContactId;
 				// 	break;
@@ -578,7 +643,6 @@ class acc_user_importer_Admin {
 				'expiry' => $userMembershipExpiry,
 				'nickname' => $userFirstName . " " . $userLastName,
 				//'imis_id' => $userImisId,
-				//'city' => $userCity
 			];
 
 			// Check if ID or email already exist. Both should be unique
@@ -649,7 +713,6 @@ class acc_user_importer_Admin {
 					continue;
 				}
 
-
 				// Check which fields might have changed. On purpose we dont want to check nicename.
 				foreach (array_merge($accUserData, $accUserMetaData) as $field => $value) {
 					if ($value != $existingUser->$field) {
@@ -700,10 +763,7 @@ class acc_user_importer_Admin {
 					$wpdb->update($wpdb->users,
 							      ['user_nicename' => $accUserData['display_name']],
 								  ['ID' => $existingUser->ID]);
-					//update_user_meta($userID, 'nickname', $accUserData['display_name'] );
 				}
-
-
 
 				// Trigger hook if expiry date changed (updated membership)
 				if (in_array('expiry', $updatedFields)) {
@@ -764,7 +824,9 @@ class acc_user_importer_Admin {
 		foreach ( $updated_users as $id => $user ) {
 			$this->log_dual("  " . $user . " (" . $updated_users_email[$id] . ")");
 		}
-		$this->log_dual("--Errors updating " . count($update_errors) . " accounts:");
+		if (count($update_errors) != 0) {
+			$this->log_dual("--Errors updating " . count($update_errors) . " accounts:");
+		}
 		foreach ( $update_errors as $id => $user ) {
 			$this->log_dual(" [" . $id . "] " . var_export($user, true));
 		}
@@ -979,181 +1041,6 @@ class acc_user_importer_Admin {
 
 
 	/**
-	 * Request the list of changed members from the national office API.
-	 * It calls the Changed Member API until it has the full list of members
-	 * with changed memberships.
-	 */
-	private function getChangedMembers() {
-
-		$options = get_option('accUM_data');
-		$sectionApiId = $options['accUM_section_api_id'];
-
-		//Validation for token
-		$access_token = $options['accUM_token'];
-		$this->log_dual("Token=" . $access_token);
-		if (!isset($access_token) || (strlen($access_token) == 0)) {
-			$api_response['errorMessage'] = "Authentication token is not defined";
-			return $api_response;
-		}
-
-		$sinceDate = $options['accUM_since_date'];
-		if (!isset($sinceDate)) {
-			// FIXME, need to retrieve last execution date. Just use an arbitrary number for now
-			$sinceDate = "2020-01-01T15:05:00";
-			$this->log_dual("No sinceDate specified, using last run date (" . $sinceDate . ")");
-		}
-
-		//create response object for local api
-		$api_response = [];
-		$ii = 0;				//FIXME, delete eventually
-		$count = 0;
-		$changeList = [];
-		$changed_members_uri = 'https://2mev.com/rest/v2/member-apis/' . $sectionApiId .
-		                       '/changed_members/?changed_since=' . $sinceDate;
-
-		do {
-			$this->log_dual("changed_members_uri=" . $changed_members_uri);
-			$acc_response = wp_remote_get($changed_members_uri, array(
-				'headers' => array(
-					'Authorization' => 'Bearer ' . $access_token
-			),));
-
-			if (is_wp_error($acc_response)) {
-				$api_response['message'] = "error";
-				$api_response['errorMessage'] = $acc_response->get_error_message();
-				return $api_response;
-			}
-
-			$acc_response_data = wp_remote_retrieve_body ( $acc_response );
-			$acc_response_data = json_decode($acc_response_data);
-			if ( !array_key_exists('count', (array) $acc_response_data ) ) {
-				$api_response['message'] = "error";
-				$api_response['errorMessage'] = "No count in Changed Members API response";
-				return $api_response;
-			}
-
-			$this->log_dual("count=" . $acc_response_data->count);
-			$this->log_dual("next=" . $acc_response_data->next);
-			$this->log_dual("previous=" . $acc_response_data->previous);
-			$this->log_dual("results=" . json_encode($acc_response_data->results));
-			$count += $acc_response_data->count;
-			$changeList = array_merge($changeList, $acc_response_data->results);
-			$this->log_dual("total count=" . $count);
-			$this->log_dual("total change list=" . json_encode($changeList));
-
-		} while ($acc_response_data->next != null);
-		//} while (++$ii < 2);
-
-		$api_response['count'] = $count;
-		$api_response['results'] = $changeList;
-		$api_response['message'] = "success";
-		return $api_response;
-	}
-
-	/*
-	 * Select the next N entries from the list of changed members.
-	 */
-	private function getChangeListSubset( $changeList, $offset, $numToDo ) {
-		$changeSubset = array_slice($changeList, $offset, $numToDo);
-		//$this->log_dual("changeSubset=" . json_encode($changeSubset));
-		$subsetString = implode(",", $changeSubset);
-		//$this->log_dual("subsetString={$subsetString}");
-		return $subsetString;
-	}
-
-	/**
-	 * Request a dataset from the national office API.
-	 * Here is an example of the response from the Interpodia Member API
-	 *    [
-	 *        {
-	 *            "id": 240835,
-	 *            "first_name": "John",
-	 *            "last_name": "Doe",
-	 *            "email": "johndoe@hotmail.com",
-	 *            "date_of_birth": "1980-08-20",
-	 *            "member_number": "12345",
-	 *            "memberships": [
-	 *                {
-	 *                    "membership_group": {
-	 *                        "id": 1573,
-	 *                        "name": "Squamish Individual Membership (Adult) - Annual",
-	 *                        "group_group": {
-	 *                            "id": 546,
-	 *                            "name": "SQUAMISH SECTION - INDIVIDUAL MEMBERSHIP"
-	 *                        }
-	 *                    },
-	 *                    "valid_from": "2023-04-06",
-	 *                    "valid_to": "2024-04-04"
-	 *                }
-	 *            ],
-	 *            "identity_attribute_values": []
-	 *        }
-	 *    ]
-	 */
-	private function getMemberData( $changeList, $offset = 0 ) {
-
-		if ( !$offset ) { $offset = 0; }
-		$options = get_option('accUM_data');
-		$access_token = $options['accUM_token'];
-		//$this->log_dual("Token=" . $access_token);
-
-		//Compute how many members we want to process
-		$remaining = sizeof($changeList)-$offset;
-		$numToDo = min ($remaining, MEMBER_API_MAX_USERS);
-		// $this->log_dual("remaining=" . $remaining);
-		// $this->log_dual("numToDo=" . $numToDo);
-		$subsetString = $this->getChangeListSubset($changeList, $offset, $numToDo);
-
-		$member_uri = 'https://2mev.com/rest/v2/member-apis/1/fetch/?member_number=' . $subsetString;
-		$this->log_dual("member_uri=" . $member_uri);
-
-		$get_args = array(
-			'headers' => array(
-				'content-type' => 'application/json',
-				'Authorization' => "Bearer " . $access_token
-			)
-		);
-		$acc_response = wp_remote_get( $member_uri, $get_args );
-
-		//create response object
-		$api_response = [];
-
-		//if the post request fails
-		if ( is_wp_error( $acc_response ) ) {
-			$api_response['message'] = "error";
-			$api_response['errorMessage'] = $acc_response->get_error_message();
-			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
-			$this->log_dual("Error, " . $api_response['errorMessage']);
-			return $api_response;
-		}
-
-		$acc_response_data = wp_remote_retrieve_body ( $acc_response );
-		//$acc_response_data = str_replace( ["\t", '$values'], ["", 'Values'], $acc_response_data );
-		//$acc_response_data = preg_replace( '/"\$type"\:".*",/U', "", $acc_response_data );
-		//$this->log_dual($acc_response_data);
-		$memberData = json_decode($acc_response_data);
-		$count = sizeof ($memberData);
-		//$this->log_dual("count={$count}");
-
-		if ($count != $numToDo) {
-			$this->log_dual("Error, member API returned " . $count . " members instead of " . $numToDo);
-			$api_response['message'] = "error";
-			$api_response['errorMessage'] = "Member API returned " . $count . " members instead of " . $numToDo;
-			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
-			return $api_response;
-		}
-
-		$lastUser = $offset + $numToDo -1;
-		$this->log_dual("Received users $offset to $lastUser");
-
-		$api_response['nextDataOffset'] = $offset + $numToDo;
-		$api_response['results'] = $memberData;
-		$api_response['message'] = "success";
-		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
-		return $api_response;
-	}
-
-	/**
 	 * Register the stylesheets for the admin area.
 	 */
 	public function enqueue_styles() {
@@ -1171,6 +1058,17 @@ class acc_user_importer_Admin {
 			array('url' => admin_url( 'admin-ajax.php' ), 'nonce' =>  wp_create_nonce( "accUserAPI" ))
 		);
 	}
+
+	/**
+	 * This function will log a string to the log file and also accumulate it
+	 * in a variable that is sent in the API response, for displaying on the
+	 * plugin Update Status window.
+	 */
+	private function log_dual( $string ) {
+		$this->log_local_output($string);
+		$GLOBALS['acc_logstr'] .= $string . "<br/>";
+	}
+
 
 	public function log_local_output( $v ) {
 		static $new_run = true;

@@ -14,7 +14,7 @@
  * used as a way to trigger the PHP code.
  */
 
-var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
+var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 
 (function( $ ) {
 	'use strict';
@@ -40,7 +40,6 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 	function wpStartMembershipUpdate () {
 
 		usersInData = 0;
-		roleRefreshed = 0;
 		newUsers = 0;
 		updatedUsers = 0;
 		usersWithErrors = 0;
@@ -174,7 +173,10 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 						logLocalOutput("--Parsed data for " + usersInData + " people total.");
 						logLocalOutput("--Created accounts for " + newUsers + " people total.");
 						logLocalOutput("--Updated data for " + updatedUsers + " people total.");
-						logLocalOutput("--Errors updating " + usersWithErrors + " accounts total.</b>");
+						if (usersWithErrors != 0) {
+							logLocalOutput("--Errors updating " + usersWithErrors + " accounts total.</b>");
+						}
+						logLocalOutput("&nbsp;");
 
 						//Now that we have updated all members, check for expiry
 						wpProccessExpiry();
@@ -238,6 +240,12 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
 
+			//Update overall stats
+			usersInData += responseObject.usersInData;
+			newUsers += responseObject.newUsers;
+			updatedUsers += responseObject.updatedUsers;
+			usersWithErrors += responseObject.usersWithErrors;			
+
 			if (responseObject.message == "success") {
 				logLocalOutput("Success updating the Wordpress database");
 				logLocalOutput("-----php side log------");
@@ -249,7 +257,6 @@ var usersInData, roleRefreshed, newUsers, updatedUsers, usersWithErrors, accSync
 				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
 				if (failureFn) failureFn.call(this, responseObject);
 			}
-
 		});
 	}
 
