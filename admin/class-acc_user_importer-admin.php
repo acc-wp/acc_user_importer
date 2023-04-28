@@ -186,76 +186,59 @@ class acc_user_importer_Admin {
 	}
 
 
+	public function responseErrMsg($api_response) {
+		return("Error: " . ($api_response['errorMessage'] ? $api_response['errorMessage'] : 'Unknown.'));
+	}
+
 
 	/**
 	 * This is the user import loop (when triggered by a timer)
 	 */
 	public function begin_automatic_update() {
 
+		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
+
 		//force certificate validation - i.e. speed up authentication process
 		add_filter( 'https_local_ssl_verify', '__return_true' );
 
-		$options = get_option('accUM_data');
-		$acc_user = $options['accUM_section_api_id'];
-		//FIXME
-		$this->log_local_output("Automatic member update starting for section $acc_user");
+		$sectionName = $this->getSectionName();
+		$this->log_local_output("Automatic member update starting for section $sectionName");
 		$timestamp_start = date_i18n("Y-m-d-H-i-s");
 
-		//FIXME this is no longer required
-		//request token
-		$this->log_local_output("Requesting access token from national office.");
-		$access_token_request = ""; 	//FIXME delete line
+		// Get the list of changed members
+		$api_response = $this->getChangedMembers();
+		if ( $api_response['message'] != "success") {
+			$this->log_local_output($this->responseErrMsg($api_response));
+		} else {
+			$done = 0;
+			$changeList = $api_response['results'];
+			$count = count($changeList);
+			$this->log_local_output("Received {$count} membership changes");
 
-		//did we get token?
-		if ( $access_token_request['message'] == "success") {
+			// Loop for each changed membership
+			while ($done < $count) {
 
-			$this->log_local_output('Received token: ' . substr($access_token_request['accessToken'], 0, 10) . ".");
-
-			$has_next = true;
-			$get_attempts_remaining = 3;
-			$data_offset = 0;
-
-			//get data until no more data exists
-			while ( ($has_next === true) && ($get_attempts_remaining > 0) ) {
-
-				//request next dataset with token
-				$this->log_local_output("Requesting membership data using token: " . substr($access_token_request['accessToken'], 0, 10) . ".");
-				$member_data_request = $this->getMemberData( $access_token_request['accessToken'], $data_offset );
-
-				//did we get data?
-				if ( $member_data_request['message'] == "success") {
-
-					$proccess_request = $this->proccess_user_data( $member_data_request['dataset'] );
-
-					//If there is more data, move offset and prepare for one more loop
-					if ($member_data_request['HasNext']) {
-						$has_next = true;
-						$data_offset = $member_data_request['NextOffset'];
-						$this->log_local_output("More members to process, next offset=$data_offset");
-					} else {
-						$has_next = false; //default to not having more data
-						$this->log_local_output("No more members, ending data loop.");
-					}
-
+				$api_response = $this->getMemberData($changeList, $done);
+				if ( $api_response['message'] != "success") {
+					$this->log_local_output($this->responseErrMsg($api_response));
+					break;
 				} else {
-					//failed to get data - if attempts remain, try again
-					$this->log_local_output("Error: " . ($member_data_request['errorMessage'] ? $member_data_request['errorMessage'] : 'Unknown.'));
-					$has_next = true;
-					$get_attempts_remaining = $get_attempts_remaining - 1;
-					$this->log_local_output("Error: " . $get_attempts_remaining . " attempts remaining to get API data.");
-				}
+					//We have an array of membership information
+					$nextToDo = $api_response['nextDataOffset'];
+					$done = $nextToDo;
+					$memberArray = $api_response['results'];
+
+					$api_response = $this->proccess_user_data($memberArray);
+					if ( $api_response['message'] != "success") {
+						$this->log_local_output($this->responseErrMsg($api_response));
+						break;
+					}
+				}					
 			}
-
-			if ($has_next == false) {
-				// All members have been successfully updated, now look for expired members
-				$expiryResult = $this->proccess_expiry();
-			}
-
-		} //end: if token granted
-
-		else {
-			$this->log_local_output("Error: Token was not granted.");
 		}
+
+		// All members have been successfully updated, now look for expired members
+		$expiryResult = $this->proccess_expiry();
 
 		$timestamp_end = date_i18n("Y-m-d-H-i-s");
 		$this->log_local_output("This journey has come to an end.");
@@ -469,7 +452,7 @@ class acc_user_importer_Admin {
 		}
 
 		$acc_response_data = wp_remote_retrieve_body ( $acc_response );
-		$memberData = json_decode($acc_response_data);
+		$memberData = (array) json_decode($acc_response_data, true);
 		$count = sizeof ($memberData);
 
 		if ($count != $numToDo) {

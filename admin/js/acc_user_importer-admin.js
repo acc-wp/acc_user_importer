@@ -122,8 +122,8 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 	 * Each iteration, take N members, request for their latest info,
 	 * and update the database. The changeList remains the same along the way.
 	 * However, dataOffset increases on each iteration by the number of
-	 * members we processed.  For example if we process 100 members at a time,
-	 * then dataOffset will take the successive values of 0, 100, 200...
+	 * members we processed.  For example if we process 10 members at a time,
+	 * then dataOffset will take the successive values of 0, 10, 20...
 	 */
 	function getNextDataset (changeList, dataOffset, apiAttemptsRemaining) {
 
