@@ -145,6 +145,14 @@ class acc_user_importer_Admin {
 		'1906' => ['section' => 'NEWFOUNDLAND & LABRADOR', 'type' => 'child'],
 	);
 
+	//FIXME only the first 2 APIs have been created, the rest are bogus numbers
+	private $sectionApiId = array (
+			'SQUAMISH' => '1',
+			'CALGARY' => '2',
+			'OTTAWA' => '3',
+			'MONTRÉAL' => '4',
+			'OUTAOUAIS' => '5',
+			'VANCOUVER' => '6');
 
 	public function __construct( $plugin_name, $version ) {
 
@@ -155,6 +163,30 @@ class acc_user_importer_Admin {
 		require plugin_dir_path( __FILE__ ) . '/partials/acc_user_importer-admin-settings.php';
 	}
 
+	// Get the section name as per the settings
+	private function getSectionName ( ) {
+		$options = get_option('accUM_data');
+		if (!isset($options['accUM_section_api_id'])) {
+			$sectionName = accUM_get_section_default();
+		} else {
+			$sectionName = $options['accUM_section_api_id'];
+		}
+		return $sectionName;
+	}
+
+	// Get the section API ID
+	private function getSectionApiID ( $sectionName ) {
+		return($this->sectionApiId[$sectionName]);
+	}
+
+	// Get the API token as per the setting
+	private function getApiToken ( ) {
+		$options = get_option('accUM_data');
+		return($options['accUM_token']);
+	}
+
+
+
 	/**
 	 * This is the user import loop (when triggered by a timer)
 	 */
@@ -164,7 +196,8 @@ class acc_user_importer_Admin {
 		add_filter( 'https_local_ssl_verify', '__return_true' );
 
 		$options = get_option('accUM_data');
-		$acc_user = $options['accUM_section_api_id'];		//FIXME this field is not used the same way
+		$acc_user = $options['accUM_section_api_id'];
+		//FIXME
 		$this->log_local_output("Automatic member update starting for section $acc_user");
 		$timestamp_start = date_i18n("Y-m-d-H-i-s");
 
@@ -296,11 +329,14 @@ class acc_user_importer_Admin {
 	private function getChangedMembers() {
 
 		$options = get_option('accUM_data');
-		$sectionApiId = $options['accUM_section_api_id'];
+		$sectionName = $this->getSectionName();
+		$sectionApiId = $this->getSectionApiId($sectionName);
 
-		// Read token from user settings
-		$access_token = $options['accUM_token'];
-		$this->log_dual("Token=" . $access_token);
+		$this->log_dual("Retrieving changed members for section {$sectionName}, API {$sectionApiId}");
+
+		// Read token from user settings. Avoid printing token it is sensitive data
+		$access_token = $this->getApiToken();
+		//$this->log_dual("Token=" . $access_token);
 		if (!isset($access_token) || (strlen($access_token) == 0)) {
 			$api_response['errorMessage'] = "Authentication token is not defined";
 			return $api_response;
@@ -329,6 +365,7 @@ class acc_user_importer_Admin {
 
 			if (is_wp_error($acc_response)) {
 				$api_response['message'] = "error";
+				$api_response['log'] = $GLOBALS['acc_logstr'];
 				$api_response['errorMessage'] = $acc_response->get_error_message();
 				return $api_response;
 			}
@@ -337,6 +374,7 @@ class acc_user_importer_Admin {
 			$acc_response_data = json_decode($acc_response_data);
 			if ( !array_key_exists('count', (array) $acc_response_data ) ) {
 				$api_response['message'] = "error";
+				$api_response['log'] = $GLOBALS['acc_logstr'];
 				$api_response['errorMessage'] = "No count in Changed Members API response";
 				return $api_response;
 			}
@@ -399,8 +437,7 @@ class acc_user_importer_Admin {
 	private function getMemberData( $changeList, $offset = 0 ) {
 
 		if ( !$offset ) { $offset = 0; }
-		$options = get_option('accUM_data');
-		$access_token = $options['accUM_token'];
+		$access_token = $this->getApiToken();
 
 		//Compute how many members we want to process
 		$remaining = sizeof($changeList)-$offset;
@@ -484,16 +521,18 @@ class acc_user_importer_Admin {
 	 */
 	private function proccess_user_data ( $users ) {
 
-		// Get user-configurable option values
+		//create response object
+		$api_response = [];
+		$this->log_dual("Start processing batch of " . count($users) . " users");
 		$options = get_option('accUM_data');
 
-		// Get the loginNameMapping setting
-		if (!isset($options['accUM_login_name_mapping'])) {
-			$loginNameMapping = accUM_get_login_name_mapping_default();
-		} else {
-			$loginNameMapping = $options['accUM_login_name_mapping'];
+		//Return gracefully is dataset is empty
+		if (! ( count($users) > 0 ) ) {
+			$this->log_dual("Nothing to process");
+			$api_response['message'] = "success";
+			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+			return $api_response;
 		}
-		$this->log_dual("Using $loginNameMapping as login name.");
 
 		// Get the default_role setting
 		if (!isset($options['accUM_default_role'])) {
@@ -504,21 +543,15 @@ class acc_user_importer_Admin {
 		}
 		$this->log_dual("Using $default_role as default role for new users");
 
-		//FIXME get the name of the section for which the plugin is currently running
-		//The name should match what is in the $membershipTable.
-		$sectionName = 'SQUAMISH';
-
-		//create response object
-		$api_response = [];
-		$this->log_dual("Start processing batch of " . count($users) . " users");
-
-		//Return gracefully is dataset is empty
-		if (! ( count($users) > 0 ) ) {
-			$this->log_dual("Nothing to process");
-			$api_response['message'] = "success";
-			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
-			return $api_response;
+		// Get the loginNameMapping setting
+		if (!isset($options['accUM_login_name_mapping'])) {
+			$loginNameMapping = accUM_get_login_name_mapping_default();
+		} else {
+			$loginNameMapping = $options['accUM_login_name_mapping'];
 		}
+		$this->log_dual("Using $loginNameMapping as login name.");
+
+		$sectionName = $this->getSectionName();
 
 		//loop through the received data and create users
 		$update_errors = [];
@@ -607,16 +640,12 @@ class acc_user_importer_Admin {
 			}
 
 			switch($loginNameMapping) {
-				//FIXME
-				// case 'ContactId':
-				// 	$loginName = $userContactId;
-				// 	break;
 				case 'Firstname Lastname':
 					$loginName = "$userFirstName $userLastName";
 					break;
-				case 'imis_id':
+				case 'member_number':
 				default:
-					$loginName = $userImisId;
+					$loginName = $userMemberNumber;
 					break;
 			}
 
@@ -833,7 +862,7 @@ class acc_user_importer_Admin {
 
 		$api_response['usersInData'] = count($users);
 		$api_response['newUsers'] = count($new_users);
-		$api_response['updatedUsers'] = (count($users) - count($update_errors));
+		$api_response['updatedUsers'] = (count($updated_users) - count($update_errors));
 		$api_response['usersWithErrors'] = count($update_errors);
 		$api_response['message'] = "success";
 		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string

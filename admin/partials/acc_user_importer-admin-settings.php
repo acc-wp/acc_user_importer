@@ -45,6 +45,7 @@
 
 	// Define functions to get default values from different files.
 	function accUM_get_login_name_mapping_default() {return 'Firstname Lastname';}
+	function accUM_get_section_default() {return 'Ottawa';}
 	function accUM_get_default_role_default() {return 'subscriber';}
 	function accUM_get_default_notif_title() {return 'ACC membership change notification';}
 	function accUM_get_do_expire_role_default() {return 'off';}
@@ -61,14 +62,19 @@
 
 		add_settings_field(
 			'accUM_section_api_id',			//ID
-			'Section API Identifier',		//Title
-			'accUM_text_render',			//Callback
+			'Section for which to import membership',		//Title
+			'accUM_select_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
-				'type' => 'text',
 				'name' => 'accUM_section_api_id',
-				'html_tags' => 'required'
+				'values' => ['SQUAMISH' => 'SQUAMISH',
+							 'CALGARY' => 'CALGARY',
+							 'OTTAWA' => 'OTTAWA',
+							 'MONTRÉAL' => 'MONTRÉAL',
+							 'OUTAOUAIS' => 'OUTAOUAIS',
+							 'VANCOUVER' => 'VANCOUVER'],
+				'default' => accUM_get_section_default(),
 			)
 		);
 
@@ -99,27 +105,14 @@
 		);
 
 		add_settings_field(
-			'accUM_member_URI',				//ID
-			'API Data Endpoint',			//Title
-			'accUM_text_render',			//Callback
-			'acc_admin_page',				//Page
-			'accUM_user_section',			//Section
-			array(
-				'type' => 'text',
-				'name' => 'accUM_memberURI',
-				'html_tags' => 'required'
-			)
-		);
-
-		add_settings_field(
 			'accUM_login_name_mapping',		//ID
-			'When creating a new user, set login name to',	//Title
+			'Set usernames to (Use with caution, this affects login of users, although they normally login using their email)',	//Title
 			'accUM_select_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
 				'name' => 'accUM_login_name_mapping',
-				'values' => ['ContactId' => 'ContactId', 'imis_id' => 'imis_id', 'Firstname Lastname' => 'Firstname Lastname'],
+				'values' => ['member_number' => 'ACC member number', 'Firstname Lastname' => 'Firstname Lastname'],
 				'default' => accUM_get_login_name_mapping_default(),
 			)
 		);

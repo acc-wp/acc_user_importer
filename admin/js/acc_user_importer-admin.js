@@ -90,13 +90,9 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 	function wpRequestChangedMembers (successFn, failureFn) {
 
 		logLocalOutput("Getting list of members with recent changes");
-		//This is just for information only (print to the log)
-		var accessToken = jQuery("#accUM_token").val();
-		logLocalOutput("accessToken: " + accessToken);
-		var sinceDate = jQuery("#accUM_since_date").val();
-		logLocalOutput("since_date:  " + sinceDate);
 
 		//Validation for token
+		var accessToken = jQuery("#accUM_token").val();
 		if (accessToken === undefined || String(accessToken).length == 0) {
 			logLocalOutput("Error: Invalid access token provided.");
 			if (failureFn) failureFn.call(this, responseObject);
@@ -313,11 +309,15 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 		}
 	}
 
-	function onPostRequestFailure () {
+	function onPostRequestFailure (responseObject) {
 
 		//enable buttons after proccess has stopped
-		$("#update_status_submit").attr("disabled", "");
+		//$("#update_status_submit").attr("disabled", "");
+		$("#update_status_submit").removeAttr("disabled");
 
+		logLocalOutput("-----php side log------");
+		logLocalOutput(responseObject.log);
+		logLocalOutput("-----end of log------");
 		logLocalOutput('FAILED: Process Stopped...');
 	}
 
