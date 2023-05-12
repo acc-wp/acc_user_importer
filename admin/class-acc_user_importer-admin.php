@@ -205,7 +205,11 @@ class acc_user_importer_Admin {
 		$this->log_local_output("Automatic member update starting for section $sectionName");
 		$timestamp_start = date_i18n("Y-m-d-H-i-s");
 
-		// Get the list of changed members
+		// Take note of the ISO 8601 time of start
+		$iso_timestamp_start = date('Y-m-d\TH:i:s\Z');
+		//$this->log_dual("iso_timestamp_start={$iso_timestamp_start}");
+
+		// Get the full list of changed members
 		$api_response = $this->getChangedMembers();
 		if ( $api_response['message'] != "success") {
 			$this->log_local_output($this->responseErrMsg($api_response));
@@ -237,6 +241,20 @@ class acc_user_importer_Admin {
 			}
 		}
 
+		// If import was a success, store the date/time where we last did it.
+		// This will be used as the changed_since parameter in the next plugin run.
+		if ( $api_response['message'] == "success") {
+			$options = get_option('accUM_data');
+			if (is_array($options)) {
+				$options['accUM_since_date'] = $iso_timestamp_start;
+				update_option( 'accUM_data',  $options);
+				$this->log_local_output("On next run, use changed_since={$iso_timestamp_start}");
+			} else {
+				$this->log_local_output("Error getting plugin options");
+			}
+
+		}
+
 		// All members have been successfully updated, now look for expired members
 		$expiryResult = $this->proccess_expiry();
 
@@ -244,6 +262,7 @@ class acc_user_importer_Admin {
 		$this->log_local_output("This journey has come to an end.");
 		$this->log_local_output("Start time: " . $timestamp_start);
 		$this->log_local_output("End time: " . $timestamp_end);
+		$this->log_local_output("\n\n");
 	}
 
 	/**
@@ -315,8 +334,6 @@ class acc_user_importer_Admin {
 		$sectionName = $this->getSectionName();
 		$sectionApiId = $this->getSectionApiId($sectionName);
 
-		$this->log_dual("Retrieving changed members for section {$sectionName}, API {$sectionApiId}");
-
 		// Read token from user settings. Avoid printing token it is sensitive data
 		$access_token = $this->getApiToken();
 		//$this->log_dual("Token=" . $access_token);
@@ -325,12 +342,18 @@ class acc_user_importer_Admin {
 			return $api_response;
 		}
 
-		$sinceDate = $options['accUM_since_date'];
-		if (!isset($sinceDate)) {
-			// FIXME, need to retrieve last execution date. Just use an arbitrary number for now
-			$sinceDate = "2020-01-01T15:05:00";
-			$this->log_dual("No sinceDate specified, using last run date (" . $sinceDate . ")");
+		if (array_key_exists('accUM_since_date', $options)) {
+			$sinceDate = $options['accUM_since_date'];
 		}
+		if (!isset($sinceDate) || empty($sinceDate)) {
+			// Looks like the plugin is running for the first time. 
+			// Use 2023-01-01, this should import all memberships.
+			$sinceDate = "2023-01-01";
+			$this->log_dual("No sinceDate specified, using {$sinceDate}");
+		}
+
+		$this->log_dual("Retrieving changed members since {$sinceDate} " . 
+				        "for section {$sectionName}, API {$sectionApiId}");
 
 		// Create response object for local api
 		$api_response = [];
@@ -365,17 +388,18 @@ class acc_user_importer_Admin {
 			$this->log_dual("count=" . $acc_response_data->count);
 			$this->log_dual("next=" . $acc_response_data->next);
 			$this->log_dual("previous=" . $acc_response_data->previous);
-			$this->log_dual("results=" . json_encode($acc_response_data->results));
+			$this->log_dual("members=" . json_encode($acc_response_data->results));
 			$count += $acc_response_data->count;
 			$changeList = array_merge($changeList, $acc_response_data->results);
-			$this->log_dual("total count=" . $count);
-			$this->log_dual("total change list=" . json_encode($changeList));
 
 		} while ($acc_response_data->next != null);
 
+		$this->log_dual("total count=" . $count);
+		$this->log_dual("total members=" . json_encode($changeList));
 		$api_response['count'] = $count;
 		$api_response['results'] = $changeList;
 		$api_response['message'] = "success";
+		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
 		return $api_response;
 	}
 

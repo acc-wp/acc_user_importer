@@ -92,15 +92,15 @@
 		);
 
 		add_settings_field(
-			'accUM_since_date',				//ID
-			'Sync changes since when? Leave empty to import changes since last run, otherwise enter date in a format such as 2020-11-23T15:05:00',
+			'accUM_since_date',		//ID
+			"Sync changes since when? This normally shows the last run time (in UTC), " .
+			"but you can force a date in ISO 8601 format such as 2020-11-23T15:05:00.",
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
 				'type' => 'text',
 				'name' => 'accUM_since_date',
-				'html_tags' => 'required',
 			)
 		);
 

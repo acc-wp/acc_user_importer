@@ -103,16 +103,14 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
 			//logLocalOutput(response);
-
+			logLocalOutput(responseObject.log);
 			if (responseObject.message == "success") {
 				logLocalOutput("Number of members with changes: " + responseObject.count);
 				if (successFn) successFn.call(this, responseObject.results);
-			}
-			else {
+			} else {
 				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
 				if (failureFn) failureFn.call(this, responseObject);
 			}
-
 		});
 	}
 
