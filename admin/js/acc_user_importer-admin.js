@@ -55,6 +55,10 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 			wpRequestChangedMembers(function (changeList) {
 
 				// Get membership data (recursive)
+				if (changeList.length == 0) {
+					logLocalOutput("We are done processing");
+					return normalExit();
+				}
 				getNextDataset(changeList, 0, 3);
 
 			}, onPostRequestFailure);
@@ -91,10 +95,10 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 
 		logLocalOutput("Getting list of members with recent changes");
 
-		//Validation for token
+		// Very basic validation for token
 		var accessToken = jQuery("#accUM_token").val();
 		if (accessToken === undefined || String(accessToken).length == 0) {
-			logLocalOutput("Error: Invalid access token provided.");
+			logLocalOutput("Error, please provide an access token.");
 			if (failureFn) failureFn.call(this, responseObject);
 			return;
 		}
@@ -102,7 +106,6 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 		var apiData = {'action': 'accUserAPI','request': 'getChangedMembers', 'security': ajax_object.nonce};
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
-			//logLocalOutput(response);
 			logLocalOutput(responseObject.log);
 			if (responseObject.message == "success") {
 				logLocalOutput("Number of members with changes: " + responseObject.count);
@@ -134,7 +137,7 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 		logLocalOutput("Getting data for member " + dataOffset + " and on");
 		//logLocalOutput(changeList);
 
-		if (dataOffset >= changeList.length) {
+		if (dataOffset > changeList.length) {
 			logLocalOutput("Error: attempt to getNextDataset with the changeList fully processed");
 			return onPostRequestFailure();
 		}
@@ -196,18 +199,16 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
-
-			//FIXME remove debugs
-			//logLocalOutput(`Results from Members API=${response}`);
+			logLocalOutput(responseObject.log);
 
 			if (responseObject.message == "success") {
 				var memberCount = responseObject.results.length;
 				var nextOffset = responseObject.nextDataOffset;
 
 				logLocalOutput(`Success receiving data for ${memberCount} members, nextOffset=${nextOffset}`);
-				logLocalOutput("-----php side log------");
-				logLocalOutput(responseObject.log);
-				logLocalOutput("-----end of log------");
+				// logLocalOutput("-----php side log------");
+				// logLocalOutput(responseObject.log);
+				// logLocalOutput("-----end of log------");
 
 				if (successFn) successFn.call(this, changeList, nextOffset, responseObject.results);
 			} else {
@@ -233,18 +234,19 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
+			logLocalOutput(responseObject.log);
 
 			//Update overall stats
 			usersInData += responseObject.usersInData;
 			newUsers += responseObject.newUsers;
 			updatedUsers += responseObject.updatedUsers;
-			usersWithErrors += responseObject.usersWithErrors;			
+			usersWithErrors += responseObject.usersWithErrors;
 
 			if (responseObject.message == "success") {
 				logLocalOutput("Success updating the Wordpress database");
-				logLocalOutput("-----php side log------");
-				logLocalOutput(responseObject.log);
-				logLocalOutput("-----end of log------");
+				// logLocalOutput("-----php side log------");
+				// logLocalOutput(responseObject.log);
+				// logLocalOutput("-----end of log------");
 				if (successFn) successFn.call(this, changeList, dataOffset);
 			}
 			else {
@@ -265,12 +267,11 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 
 		jQuery.post(ajax_object.url, apiData, function(response) {
 			var responseObject = JSON.parse(response);
+			logLocalOutput(responseObject.log);
 
 			if (responseObject.message == "success") {
-				logLocalOutput(responseObject.log);
+				//logLocalOutput(responseObject.log);
 				logLocalOutput("Finished expiry processing.");
-
-				$("#update_status_submit").removeAttr("disabled");
 				logLocalOutput("&nbsp;");
 				logLocalOutput("This journey has come to an end.");
 				var accSyncEndTime = new Date();
@@ -278,6 +279,7 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 				logLocalOutput("Start time: " + accSyncStartTime);
 				logLocalOutput("End time: " + accSyncEndTime);
 				logLocalOutput("Duration: " + duration + "seconds");
+				normalExit();
 			} else {
 				logLocalOutput("Error: " + (responseObject.errorMessage ? responseObject.errorMessage : 'Unknown.'));
 			}
@@ -307,15 +309,19 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 		}
 	}
 
+	function normalExit() {
+		$("#update_status_submit").removeAttr("disabled");
+	}
+
 	function onPostRequestFailure (responseObject) {
 
 		//enable buttons after proccess has stopped
 		//$("#update_status_submit").attr("disabled", "");
 		$("#update_status_submit").removeAttr("disabled");
 
-		logLocalOutput("-----php side log------");
-		logLocalOutput(responseObject.log);
-		logLocalOutput("-----end of log------");
+		// logLocalOutput("-----php side log------");
+		// logLocalOutput(responseObject.log);
+		// logLocalOutput("-----end of log------");
 		logLocalOutput('FAILED: Process Stopped...');
 	}
 

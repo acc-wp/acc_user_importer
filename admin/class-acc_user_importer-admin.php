@@ -179,10 +179,36 @@ class acc_user_importer_Admin {
 		return($this->sectionApiId[$sectionName]);
 	}
 
-	// Get the API token as per the setting
-	private function getApiToken ( ) {
+	/*
+	 * Returns the token for the section the plugin is operating on.
+	 * Null is returned if no token has been defined for the section.
+	 * Token format: the section name must be as in the accUM_section_api_id list.
+	 * Do not put spaces before or after the comma. Here are valid examples
+	 * (with bogus token values):
+	 * 		SQUAMISH:fpZloKQj8L
+	 * 		COLUMBIA MOUNTAINS:123,MONTRÉAL:666,OUTAOUAIS:HJD634
+	 */
+	private function getSectionToken() {
 		$options = get_option('accUM_data');
-		return($options['accUM_token']);
+		$sectionName = $this->getSectionName();
+		$tokenStrings = explode(',', $options['accUM_token']);
+
+		foreach ($tokenStrings as $tokenString) {
+			$sectionEntry = [];
+			$sectionTokenStrings = explode(':', $tokenString);
+			if (count($sectionTokenStrings) != 2) {
+				$this->log_dual("Error, each section token should have 2 params");
+				return null;
+			}
+			if ($sectionTokenStrings[0] == $sectionName) {
+				// Found the token for the current section
+				//$this->log_dual("Token for section {$sectionName} is {$sectionTokenStrings[1]}");
+				return $sectionTokenStrings[1];
+			}
+		}
+
+		$this->log_dual("Error, no token provided for section {$sectionName}");
+		return null;
 	}
 
 
@@ -237,7 +263,7 @@ class acc_user_importer_Admin {
 						$this->log_local_output($this->responseErrMsg($api_response));
 						break;
 					}
-				}					
+				}
 			}
 		}
 
@@ -322,7 +348,6 @@ class acc_user_importer_Admin {
 		wp_die();
 	}
 
-
 	/**
 	 * Request the list of changed members from the national office API.
 	 * It calls the Changed Member API until it has the full list of members
@@ -335,10 +360,12 @@ class acc_user_importer_Admin {
 		$sectionApiId = $this->getSectionApiId($sectionName);
 
 		// Read token from user settings. Avoid printing token it is sensitive data
-		$access_token = $this->getApiToken();
+		$access_token=$this->getSectionToken();
 		//$this->log_dual("Token=" . $access_token);
-		if (!isset($access_token) || (strlen($access_token) == 0)) {
-			$api_response['errorMessage'] = "Authentication token is not defined";
+		if (is_null($access_token)) {
+			$api_response['message'] = "error";
+			$api_response['log'] = $GLOBALS['acc_logstr'];
+			$api_response['errorMessage'] = "No valid token";
 			return $api_response;
 		}
 
@@ -346,13 +373,13 @@ class acc_user_importer_Admin {
 			$sinceDate = $options['accUM_since_date'];
 		}
 		if (!isset($sinceDate) || empty($sinceDate)) {
-			// Looks like the plugin is running for the first time. 
+			// Looks like the plugin is running for the first time.
 			// Use 2023-01-01, this should import all memberships.
 			$sinceDate = "2023-01-01";
 			$this->log_dual("No sinceDate specified, using {$sinceDate}");
 		}
 
-		$this->log_dual("Retrieving changed members since {$sinceDate} " . 
+		$this->log_dual("Retrieving changed members since {$sinceDate} " .
 				        "for section {$sectionName}, API {$sectionApiId}");
 
 		// Create response object for local api
@@ -377,6 +404,7 @@ class acc_user_importer_Admin {
 			}
 
 			$acc_response_data = wp_remote_retrieve_body ( $acc_response );
+			//$this->log_dual("ACC response=" . $acc_response_data);
 			$acc_response_data = json_decode($acc_response_data);
 			if ( !array_key_exists('count', (array) $acc_response_data ) ) {
 				$api_response['message'] = "error";
@@ -443,10 +471,11 @@ class acc_user_importer_Admin {
 	 */
 	private function getMemberData( $changeList, $offset = 0 ) {
 
-		if ( !$offset ) { $offset = 0; }
-		$access_token = $this->getApiToken();
+		//create response object
+		$api_response = [];
 
 		//Compute how many members we want to process
+		if ( !$offset ) { $offset = 0; }
 		$remaining = sizeof($changeList)-$offset;
 		$numToDo = min ($remaining, MEMBER_API_MAX_USERS);
 		$this->log_dual("remaining={$remaining}, will fetch {$numToDo}");
@@ -454,6 +483,7 @@ class acc_user_importer_Admin {
 
 		$member_uri = 'https://2mev.com/rest/v2/member-apis/1/fetch/?member_number=' . $subsetString;
 		$this->log_dual("member_uri=" . $member_uri);
+		$access_token = $this->getSectionToken();
 
 		$get_args = array(
 			'headers' => array(
@@ -462,9 +492,6 @@ class acc_user_importer_Admin {
 			)
 		);
 		$acc_response = wp_remote_get( $member_uri, $get_args );
-
-		//create response object
-		$api_response = [];
 
 		//if the post request fails
 		if ( is_wp_error( $acc_response ) ) {

@@ -80,7 +80,9 @@
 
 		add_settings_field(
 			'accUM_token',				//ID
-			'Authentication Token', 		//Title
+			'One or more section authentication tokens. Section names are in Capitals. ' .
+			'Example with bogus token values: ' .
+			'OUTAOUAIS:K39FKJ5HJDU2,MONTRÉAL:K49G86J345',
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
@@ -106,7 +108,7 @@
 
 		add_settings_field(
 			'accUM_login_name_mapping',		//ID
-			'Set usernames to (Use with caution, this affects login of users, ' . 
+			'Set usernames to (Use with caution, this affects login of users, ' .
 			'although they always can login using their email)',
 			'accUM_select_render',			//Callback
 			'acc_admin_page',				//Page
