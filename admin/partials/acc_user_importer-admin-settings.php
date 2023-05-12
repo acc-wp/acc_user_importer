@@ -44,7 +44,7 @@
 	}
 
 	// Define functions to get default values from different files.
-	function accUM_get_login_name_mapping_default() {return 'Firstname Lastname';}
+	function accUM_get_login_name_mapping_default() {return 'member_number';}
 	function accUM_get_section_default() {return 'Ottawa';}
 	function accUM_get_default_role_default() {return 'subscriber';}
 	function accUM_get_default_notif_title() {return 'ACC membership change notification';}
@@ -106,7 +106,8 @@
 
 		add_settings_field(
 			'accUM_login_name_mapping',		//ID
-			'Set usernames to (Use with caution, this affects login of users, although they normally login using their email)',	//Title
+			'Set usernames to (Use with caution, this affects login of users, ' . 
+			'although they always can login using their email)',
 			'accUM_select_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
@@ -158,7 +159,7 @@
 
 		add_settings_field(
 			'accUM_notification_emails',	//ID
-			'Who to notify about membership creation/expiry? List of emails, comma separated. Leave blank for no notifications',
+			'Admin to notify about membership creation/expiry? List of emails, comma separated. Leave blank for no notifications',
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
@@ -170,7 +171,7 @@
 
 		add_settings_field(
 			'accUM_notification_title',	//ID
-			'Title of notification email',
+			'Title of admin notification email',
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
