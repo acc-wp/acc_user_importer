@@ -1,6 +1,6 @@
 # ACC User Importer
 
-Contributors: Raz Peel, Karine Frenette-G, Francois Bessette, Claude Vessaz
+Contributors: Francois Bessette, Claude Vessaz, Raz Peel, Karine Frenette-G
 
 Tags:
 
@@ -24,9 +24,8 @@ Logs are written to a timestamped file.
 The plugin provides the following 2 web pages for configuration:
 
 ### ACC Admin
-- how to access to the National website
+- parameters to access the National website
 - what username to assign new members
-- whether to update username for an existing user (normally set to NO)
 - What role to assign new members
 - periodic Cron timer interval
 - A button to manually trigger the Membership update

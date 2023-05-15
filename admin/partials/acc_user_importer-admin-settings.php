@@ -49,7 +49,19 @@
 	function accUM_get_default_role_default() {return 'subscriber';}
 	function accUM_get_default_notif_title() {return 'ACC membership change notification';}
 	function accUM_get_do_expire_role_default() {return 'off';}
+	function accUM_transition_from_contactID_default() {return 'off';}
 	function accUM_get_expired_role_default() {return 'subscriber';}
+
+	// Returns true if the database is transitioning from FromContactID usernames.
+	function accUM_get_transitionFromContactID() {
+		$options = get_option('accUM_data');
+		if (!isset($options['accUM_transition_from_contactID'])) {
+			$transitionFromContactID = accUM_transition_from_contactID_default();
+		} else {
+			$transitionFromContactID = $options['accUM_transition_from_contactID'];
+		}
+		return $transitionFromContactID == 'on';
+	}
 
 	/*
 	 * Register user settings for options page.
@@ -117,6 +129,19 @@
 				'name' => 'accUM_login_name_mapping',
 				'values' => ['member_number' => 'ACC member number', 'Firstname Lastname' => 'Firstname Lastname'],
 				'default' => accUM_get_login_name_mapping_default(),
+			)
+		);
+
+		add_settings_field(
+			'accUM_transition_from_contactID',			//ID
+			'Usernames will transition from ContactID to Interpodia member_number? ' .
+			'Check this box for a safer transition (verifies that member being synced has the right name)',
+			'accUM_chkbox_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_transition_from_contactID',
+				'default' => accUM_transition_from_contactID_default(),
 			)
 		);
 
