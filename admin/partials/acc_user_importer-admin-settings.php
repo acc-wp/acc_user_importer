@@ -50,6 +50,7 @@
 	function accUM_get_default_notif_title() {return 'ACC membership change notification';}
 	function accUM_get_do_expire_role_default() {return 'off';}
 	function accUM_transition_from_contactID_default() {return 'off';}
+	function accUM_readonly_mode_default() {return 'off';}
 	function accUM_get_expired_role_default() {return 'subscriber';}
 
 	// Returns true if the database is transitioning from FromContactID usernames.
@@ -61,6 +62,17 @@
 			$transitionFromContactID = $options['accUM_transition_from_contactID'];
 		}
 		return $transitionFromContactID == 'on';
+	}
+
+	// Returns true if the plugin operates in read-only mode (for debug)
+	function accUM_get_readonly_mode() {
+		$options = get_option('accUM_data');
+		if (!isset($options['accUM_readonly_mode'])) {
+			$readonly_mode = accUM_readonly_mode_default();
+		} else {
+			$readonly_mode = $options['accUM_readonly_mode'];
+		}
+		return $readonly_mode == 'on';
 	}
 
 	/*
@@ -142,6 +154,19 @@
 			array(
 				'name' => 'accUM_transition_from_contactID',
 				'default' => accUM_transition_from_contactID_default(),
+			)
+		);
+
+		add_settings_field(
+			'accUM_readonly_mode',			//ID
+			'Test mode: do not update Wordpress database. ' .
+			'Check this box to do a normal run but skip the Wordpress users update.',
+			'accUM_chkbox_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_readonly_mode',
+				'default' => accUM_readonly_mode_default(),
 			)
 		);
 

@@ -589,6 +589,12 @@ class acc_user_importer_Admin {
 		$transitionFromContactID = accUM_get_transitionFromContactID();
 		$this->log_dual("Usernames " . ($transitionFromContactID ? "":"DO NOT") . "transition from ContactID");
 
+		// Get the readonly_mode setting
+		$readonly_mode = accUM_get_readonly_mode();
+		if ($readonly_mode) {
+			$this->log_dual("Read-only test mode, will not update user database");
+		}
+
 		$sectionName = $this->getSectionName();
 
 		//loop through the received data and create users
@@ -815,7 +821,7 @@ class acc_user_importer_Admin {
 				}
 
 				// If fields changed, then update the user in the database.
-				if (!empty($updatedFields)) {
+				if (!$readonly_mode && !empty($updatedFields)) {
 					// Passing in the $existingUser object with the updated values will persist to the database.
 					$updateResp = wp_update_user($existingUser);
 					if ( is_wp_error($updateResp) ) {
@@ -843,7 +849,7 @@ class acc_user_importer_Admin {
 				//email address. Another solution to that would be a pre-processing
 				//step where we re-order the array of incoming registrations,
 				//so that the parent records are received first.
-				if ($loginName != $existingUser->user_login) {
+				if (!$readonly_mode && $loginName != $existingUser->user_login) {
 					$userID = $existingUser->ID;
 					$this->log_dual("> user {$userID} username changed from
 						{$existingUser->user_login} to {$loginName}, update database");
@@ -858,7 +864,7 @@ class acc_user_importer_Admin {
 				}
 
 				// Trigger hook if expiry date changed (updated membership)
-				if (in_array('expiry', $updatedFields)) {
+				if (!$readonly_mode && in_array('expiry', $updatedFields)) {
 					do_action('acc_membership_renewal', $existingUser->ID);
 				}
 
@@ -874,6 +880,8 @@ class acc_user_importer_Admin {
 				$update_errors[] = $user;
 				continue;
 			}
+
+			if ($readonly_mode) continue;	// Skip the rest if we are in read-only test mode
 
 			//--------CREATE NEW USER-----
 			$this->log_dual(" > email not found on any other users");
@@ -958,6 +966,14 @@ class acc_user_importer_Admin {
 	 * Go over our local user database and see who has an expired membership.
 	 */
 	private function proccess_expiry () {
+
+		$readonly_mode = accUM_get_readonly_mode();
+		if ($readonly_mode) {
+			$this->log_dual("Read-only test mode, do not check for user expiry");
+			$api_response['message'] = "success";
+			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+			return $api_response;
+		}
 
 		// Get user-configurable option values
 		$options = get_option('accUM_data');
