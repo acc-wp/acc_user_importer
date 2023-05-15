@@ -145,7 +145,7 @@ class acc_user_importer_Admin {
 		'1906' => ['section' => 'NEWFOUNDLAND & LABRADOR', 'type' => 'child'],
 	);
 
-	//FIXME only the first 2 APIs have been created, the rest are bogus numbers
+	//FIXME only the first 5 APIs have been created, the rest are bogus numbers
 	private $sectionApiId = array (
 			'SQUAMISH' => '1',
 			'CALGARY' => '2',
@@ -163,20 +163,9 @@ class acc_user_importer_Admin {
 		require plugin_dir_path( __FILE__ ) . '/partials/acc_user_importer-admin-settings.php';
 	}
 
-	// Get the section name as per the settings
-	private function getSectionName ( ) {
-		$options = get_option('accUM_data');
-		if (!isset($options['accUM_section_api_id'])) {
-			$sectionName = accUM_get_section_default();
-		} else {
-			$sectionName = $options['accUM_section_api_id'];
-		}
-		return $sectionName;
-	}
-
 	// Get the section API ID
-	private function getSectionApiID ( $sectionName ) {
-		return($this->sectionApiId[$sectionName]);
+	private function getSectionApiID () {
+		return($this->sectionApiId[accUM_getSectionName()]);
 	}
 
 	/*
@@ -190,7 +179,7 @@ class acc_user_importer_Admin {
 	 */
 	private function getSectionToken() {
 		$options = get_option('accUM_data');
-		$sectionName = $this->getSectionName();
+		$sectionName = accUM_getSectionName();
 		$tokenStrings = explode(',', $options['accUM_token']);
 
 		foreach ($tokenStrings as $tokenString) {
@@ -227,7 +216,7 @@ class acc_user_importer_Admin {
 		//force certificate validation - i.e. speed up authentication process
 		add_filter( 'https_local_ssl_verify', '__return_true' );
 
-		$sectionName = $this->getSectionName();
+		$sectionName = accUM_getSectionName();
 		$this->log_local_output("Automatic member update starting for section $sectionName");
 		$timestamp_start = date_i18n("Y-m-d-H-i-s");
 
@@ -356,8 +345,8 @@ class acc_user_importer_Admin {
 	private function getChangedMembers() {
 
 		$options = get_option('accUM_data');
-		$sectionName = $this->getSectionName();
-		$sectionApiId = $this->getSectionApiId($sectionName);
+		$sectionName = accUM_getSectionName();
+		$sectionApiId = $this->getSectionApiID();
 
 		// Read token from user settings. Avoid printing token it is sensitive data
 		$access_token=$this->getSectionToken();
@@ -481,7 +470,8 @@ class acc_user_importer_Admin {
 		$this->log_dual("remaining={$remaining}, will fetch {$numToDo}");
 		$subsetString = $this->getChangeListSubset($changeList, $offset, $numToDo);
 
-		$member_uri = 'https://2mev.com/rest/v2/member-apis/1/fetch/?member_number=' . $subsetString;
+		$sectionApiId = $this->getSectionApiID();
+		$member_uri = "https://2mev.com/rest/v2/member-apis/{$sectionApiId}/fetch/?member_number=" . $subsetString;
 		$this->log_dual("member_uri=" . $member_uri);
 		$access_token = $this->getSectionToken();
 
@@ -505,6 +495,16 @@ class acc_user_importer_Admin {
 		$acc_response_data = wp_remote_retrieve_body ( $acc_response );
 		$memberData = (array) json_decode($acc_response_data, true);
 		$count = sizeof ($memberData);
+		$this->log_dual("acc_response_data={$acc_response_data}");     //for debug only
+
+		$responseMsg = wp_remote_retrieve_response_message($acc_response);
+		if ($responseMsg != 'OK') {
+			$responseMsg = wp_remote_retrieve_response_message($acc_response);
+			$api_response['message'] = "error";
+			$api_response['errorMessage'] = "HTTP error={$responseMsg}, {$memberData['detail']}";
+			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+			return $api_response;
+		}
 
 		if ($count != $numToDo) {
 			$this->log_dual("Error, member API returned " . $count . " members instead of " . $numToDo);
@@ -595,7 +595,7 @@ class acc_user_importer_Admin {
 			$this->log_dual("Read-only test mode, will not update user database");
 		}
 
-		$sectionName = $this->getSectionName();
+		$sectionName = accUM_getSectionName();
 
 		//loop through the received data and create users
 		$update_errors = [];

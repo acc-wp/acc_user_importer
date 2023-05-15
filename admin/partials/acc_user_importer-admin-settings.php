@@ -53,6 +53,17 @@
 	function accUM_readonly_mode_default() {return 'off';}
 	function accUM_get_expired_role_default() {return 'subscriber';}
 
+	// Get the section name as per the settings
+	function accUM_getSectionName ( ) {
+		$options = get_option('accUM_data');
+		if (!isset($options['accUM_section_api_id'])) {
+			$sectionName = accUM_get_section_default();
+		} else {
+			$sectionName = $options['accUM_section_api_id'];
+		}
+		return $sectionName;
+	}
+
 	// Returns true if the database is transitioning from FromContactID usernames.
 	function accUM_get_transitionFromContactID() {
 		$options = get_option('accUM_data');
