@@ -149,9 +149,9 @@ class acc_user_importer_Admin {
 	private $sectionApiId = array (
 			'SQUAMISH' => '1',
 			'CALGARY' => '2',
-			'OTTAWA' => '3',
-			'MONTRÉAL' => '4',
-			'OUTAOUAIS' => '5',
+			'MONTRÉAL' => '3',
+			'OUTAOUAIS' => '4',
+			'OTTAWA' => '5',
 			'VANCOUVER' => '6');
 
 	public function __construct( $plugin_name, $version ) {
