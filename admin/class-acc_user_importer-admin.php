@@ -505,7 +505,7 @@ class acc_user_importer_Admin {
 		$acc_response_data = wp_remote_retrieve_body ( $acc_response );
 		$memberData = (array) json_decode($acc_response_data, true);
 		$count = sizeof ($memberData);
-		$this->log_dual("acc_response_data={$acc_response_data}");     //FIXME for debug only
+		//$this->log_dual("acc_response_data={$acc_response_data}");     //for debug only
 
 		$responseMsg = wp_remote_retrieve_response_message($acc_response);
 		if ($responseMsg != 'OK') {
@@ -516,13 +516,14 @@ class acc_user_importer_Admin {
 			return $api_response;
 		}
 
-		if ($count != $numToDo) {
-			$this->log_dual("Error, member API returned " . $count . " members instead of " . $numToDo);
-			$api_response['message'] = "error";
-			$api_response['errorMessage'] = "Member API returned " . $count . " members instead of " . $numToDo;
-			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
-			return $api_response;
-		}
+		//FIXME, this should be ON
+		// if ($count != $numToDo) {
+		// 	$this->log_dual("Error, member API returned " . $count . " members instead of " . $numToDo);
+		// 	$api_response['message'] = "error";
+		// 	$api_response['errorMessage'] = "Member API returned " . $count . " members instead of " . $numToDo;
+		// 	$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+		// 	return $api_response;
+		// }
 
 		$lastUser = $offset + $numToDo -1;
 		$this->log_dual("Received users $offset to $lastUser");
@@ -643,7 +644,8 @@ class acc_user_importer_Admin {
 				$mId = $membership['membership_group']['id'];
 				$mSection = $this->membershipTable[$mId]['section'];
 				$mType = $this->membershipTable[$mId]['type'];
-				$mExpiry = $membership['valid_to'];
+				// Keep the YYYY-MM-DD, but truncate the time portion if it was there.
+				$mExpiry = substr($membership['valid_to'], 0, 10);
 				//$this->log_dual("detected membership: {$mId} {$mSection} {$mType} {$mExpiry}");
 				if ($mSection == $sectionName) {
 					if (empty($userMembershipType)) {
@@ -816,7 +818,11 @@ class acc_user_importer_Admin {
 				//latest expiry date is the best, because it is the latest one subscribed
 				//to by the user.
 				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
-				if ($userMembershipExpiry < $existingUser->expiry) {
+				//But truncate strings to remove the time portion, it is not needed.
+				//The old ACC API used to give a time portion we no longer want.
+				$existingUserExpiryDate = substr($existingUser->expiry, 0, 10);
+				$this->log_dual(" > userMembershipExpiry={$userMembershipExpiry}, existingUserExpiryDate={$existingUserExpiryDate}");
+				if ($userMembershipExpiry < $existingUserExpiryDate) {
 					$this->log_dual(" > warn, received expiry is earlier than local one; skip");
 					continue;
 				}
