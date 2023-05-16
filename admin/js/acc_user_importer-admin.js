@@ -205,7 +205,7 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 				var memberCount = responseObject.results.length;
 				var nextOffset = responseObject.nextDataOffset;
 
-				logLocalOutput(`Success receiving data for ${memberCount} members, nextOffset=${nextOffset}`);
+				// logLocalOutput(`Success receiving data for ${memberCount} members, nextOffset=${nextOffset}`);
 				// logLocalOutput("-----php side log------");
 				// logLocalOutput(responseObject.log);
 				// logLocalOutput("-----end of log------");
@@ -243,7 +243,7 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 			usersWithErrors += responseObject.usersWithErrors;
 
 			if (responseObject.message == "success") {
-				logLocalOutput("Success updating the Wordpress database");
+				//logLocalOutput("Success updating the Wordpress database");
 				// logLocalOutput("-----php side log------");
 				// logLocalOutput(responseObject.log);
 				// logLocalOutput("-----end of log------");

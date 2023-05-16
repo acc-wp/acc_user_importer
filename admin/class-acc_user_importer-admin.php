@@ -379,13 +379,14 @@ class acc_user_importer_Admin {
 		                       '/changed_members/?changed_since=' . $sinceDate;
 
 		do {
-			$this->log_dual("changed_members_uri=" . $changed_members_uri);
+			$this->log_dual("Request sent=" . $changed_members_uri);
 			$acc_response = wp_remote_get($changed_members_uri, array(
 				'headers' => array(
 					'Authorization' => 'Bearer ' . $access_token
 			),));
 
 			if (is_wp_error($acc_response)) {
+				$this->log_dual("wp_remote_get error" . $acc_response->get_error_message());
 				$api_response['message'] = "error";
 				$api_response['log'] = $GLOBALS['acc_logstr'];
 				$api_response['errorMessage'] = $acc_response->get_error_message();
@@ -398,7 +399,7 @@ class acc_user_importer_Admin {
 
 			$responseMsg = wp_remote_retrieve_response_message($acc_response);
 			if ($responseMsg != 'OK') {
-				$responseMsg = wp_remote_retrieve_response_message($acc_response);
+				$this->log_dual("HTTP error={$responseMsg}, {$memberData['detail']}");
 				$api_response['message'] = "error";
 				$api_response['errorMessage'] = "HTTP error={$responseMsg}, {$memberData['detail']}";
 				$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
@@ -412,14 +413,22 @@ class acc_user_importer_Admin {
 				return $api_response;
 			}
 
-			$this->log_dual("count=" . $acc_response_data->count);
-			$this->log_dual("next=" . $acc_response_data->next);
-			$this->log_dual("previous=" . $acc_response_data->previous);
-			$this->log_dual("members=" . json_encode($acc_response_data->results));
-			$count += $acc_response_data->count;
+			// $this->log_dual("count=" . $acc_response_data->count);
+			// $this->log_dual("next=" . $acc_response_data->next);
+			// $this->log_dual("previous=" . $acc_response_data->previous);
+			// $this->log_dual("members=" . json_encode($acc_response_data->results));
+			$count += count($acc_response_data->results);
 			$changeList = array_merge($changeList, $acc_response_data->results);
+			//The server gives us a convenient string to access next page of data
+			$changed_members_uri = $acc_response_data->next;
 
 		} while ($acc_response_data->next != null);
+
+		//Validation step
+		if ($acc_response_data->count != $count) {
+			$this->log_dual("Warning, server said there would be {$acc_response_data->count}
+			                entries but we actually received {$count}");
+		}
 
 		$this->log_dual("total count=" . $count);
 		$this->log_dual("total members=" . json_encode($changeList));
@@ -482,7 +491,7 @@ class acc_user_importer_Admin {
 
 		$sectionApiId = $this->getSectionApiID();
 		$member_uri = "https://2mev.com/rest/v2/member-apis/{$sectionApiId}/fetch/?member_number=" . $subsetString;
-		$this->log_dual("member_uri=" . $member_uri);
+		$this->log_dual("Request sent=" . $member_uri);
 		$access_token = $this->getSectionToken();
 
 		$get_args = array(
@@ -495,10 +504,10 @@ class acc_user_importer_Admin {
 
 		//if the post request fails
 		if ( is_wp_error( $acc_response ) ) {
+			$this->log_dual("wp_remote_get error" . $acc_response->get_error_message());
 			$api_response['message'] = "error";
 			$api_response['errorMessage'] = $acc_response->get_error_message();
 			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
-			$this->log_dual("Error, " . $api_response['errorMessage']);
 			return $api_response;
 		}
 
@@ -509,7 +518,7 @@ class acc_user_importer_Admin {
 
 		$responseMsg = wp_remote_retrieve_response_message($acc_response);
 		if ($responseMsg != 'OK') {
-			$responseMsg = wp_remote_retrieve_response_message($acc_response);
+			$this->log_dual("HTTP error={$responseMsg}, {$memberData['detail']}");
 			$api_response['message'] = "error";
 			$api_response['errorMessage'] = "HTTP error={$responseMsg}, {$memberData['detail']}";
 			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
