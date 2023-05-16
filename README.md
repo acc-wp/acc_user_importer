@@ -64,6 +64,21 @@ An email is sent whenever the acc_status state changes. When upgrading an existi
 - `do_action("acc_member_goodbye", $user->ID)`: Called whenever a user's membership lapsed.
 
 
+## Caveats
+- The log files accumulate forever, so take more and more memory over time.
+  For the moment it is good to manually delete old files once in a while.
+- It is possible for the 2M Changed Member API to return a number to
+  indicate a member change, and then for the Member API to return nothing
+  for that particular member. This may happen if the member is no longer
+  member of ACC.  Right now if this happens, the plugin is not wise
+  enough to understand that something is missing in the response.
+  It processes all received responses, and therefore ignores the
+  missing member. The result: nothing is updated in the DB for that user.
+  This is fine assuming the membership expired at the planned date.
+  However if the ACC decides to expire prematurely this member
+  (expell, cancel, reimburse, etc), then on the local section web site
+  the membership would still be valid until the last received expiry date.
+
 
 ## Road Map
 Here are some ideas that could be implemented, sorted by likelihood.

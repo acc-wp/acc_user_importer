@@ -516,7 +516,13 @@ class acc_user_importer_Admin {
 			return $api_response;
 		}
 
-		//FIXME, this should be ON
+		// We do not need this check. When a membership becomes expired, it will
+		// be flagged as a change and we will receive the member_number, however
+		// the Member API will not send any data for that member because he
+		// is no longer part of our section and therefore we cannot access
+		// his private info.  However we should probably add some handling
+		// to terminate his membership. It is possible that on the Wordpress
+		// database the user expiry is still in the future.
 		// if ($count != $numToDo) {
 		// 	$this->log_dual("Error, member API returned " . $count . " members instead of " . $numToDo);
 		// 	$api_response['message'] = "error";
@@ -626,9 +632,8 @@ class acc_user_importer_Admin {
 			//For now we just ignore it.
 			//$userImisId = $user['imis_id'] ?? '';
 			$userEmail = strtolower($user["email"] ?? '');
-			//FIXME the phone is missing in Interpodia DB
-			//$userHomePhone = $user["HomePhone"] ?? '';
-			//$userCellPhone = $user["Cell Phone"] ?? '';
+			//Note the 2M system only has 1 phone number per user.
+			$userCellPhone = $user["phone_number"] ?? '';
 			$userMemberNumber = $user["member_number"] ?? '';
 			$receivedMemberships = $user['memberships'];
 			$this->log_dual(json_encode($user));
@@ -676,8 +681,7 @@ class acc_user_importer_Admin {
 			//$userInfoString .= " ContactID:" . $userContactId;
 			//$userInfoString .= " imis_id:" . $userImisId;
 			$userInfoString .= " membership#:" . $userMemberNumber;
-			//$userInfoString .= " home:" . $userHomePhone;
-			//$userInfoString .= " cell:" . $userCellPhone;
+			$userInfoString .= " cell:" . $userCellPhone;
 			$userInfoString .= " type:" . $userMembershipType;
 			$userInfoString .= " section:" . $userMembershipSection;
 			$userInfoString .= " expiry:" . $userMembershipExpiry;
@@ -721,8 +725,7 @@ class acc_user_importer_Admin {
 			];
 
 			$accUserMetaData = [
-				//'home_phone' => $userHomePhone,
-				//'cell_phone' => $userCellPhone,
+				'cell_phone' => $userCellPhone,
 				'membership' => $userMemberNumber,
 				'membership_type' => $userMembershipType,
 				'expiry' => $userMembershipExpiry,
