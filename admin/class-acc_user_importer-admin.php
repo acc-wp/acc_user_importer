@@ -395,7 +395,17 @@ class acc_user_importer_Admin {
 			$acc_response_data = wp_remote_retrieve_body ( $acc_response );
 			//$this->log_dual("ACC response=" . $acc_response_data);
 			$acc_response_data = json_decode($acc_response_data);
-			if ( !array_key_exists('count', (array) $acc_response_data ) ) {
+
+			$responseMsg = wp_remote_retrieve_response_message($acc_response);
+			if ($responseMsg != 'OK') {
+				$responseMsg = wp_remote_retrieve_response_message($acc_response);
+				$api_response['message'] = "error";
+				$api_response['errorMessage'] = "HTTP error={$responseMsg}, {$memberData['detail']}";
+				$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+				return $api_response;
+			}
+
+			if ( !isset($acc_response_data->count )) {
 				$api_response['message'] = "error";
 				$api_response['log'] = $GLOBALS['acc_logstr'];
 				$api_response['errorMessage'] = "No count in Changed Members API response";
@@ -495,7 +505,7 @@ class acc_user_importer_Admin {
 		$acc_response_data = wp_remote_retrieve_body ( $acc_response );
 		$memberData = (array) json_decode($acc_response_data, true);
 		$count = sizeof ($memberData);
-		$this->log_dual("acc_response_data={$acc_response_data}");     //for debug only
+		$this->log_dual("acc_response_data={$acc_response_data}");     //FIXME for debug only
 
 		$responseMsg = wp_remote_retrieve_response_message($acc_response);
 		if ($responseMsg != 'OK') {
