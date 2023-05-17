@@ -1,10 +1,20 @@
 <?php
 
-/* When requesting member data, we are limited by the size of the response.
+/*
+ * When requesting member data, we are limited by the size of the response.
  * Benoit says that Microsoft Edge has a limit of 64000 bytes.
- * Be conservative and ask for 10 members at a time.
+ * 100 works
+ * 150 fails with HTTP error 502 Bad Gateway.
  */
-define("MEMBER_API_MAX_USERS", "10");
+define("MEMBER_API_MAX_USERS", "50");
+
+/*
+ * Slow down HTTP request rate by sleeping deliberately after each one.
+ * Tests seem to indicate that HTTP error 429 happens if more than
+ * 10 requests are done in 60 seconds.
+ * Parameter is in seconds.
+ */
+define("SLEEP_TIME_AFTER_HTTP", 6);
 
 $acc_logstr = "";		//handy global to store log string
 
@@ -375,15 +385,18 @@ class acc_user_importer_Admin {
 		$api_response = [];
 		$count = 0;
 		$changeList = [];
-		$changed_members_uri = 'https://2mev.com/rest/v2/member-apis/' . $sectionApiId .
-		                       '/changed_members/?changed_since=' . $sinceDate;
+		$httpRequest = 'https://2mev.com/rest/v2/member-apis/' . $sectionApiId .
+		               '/changed_members/?changed_since=' . $sinceDate;
+
+		$get_args = array('headers' => array('content-type' => 'application/json',
+										     'Authorization' => "Bearer " . $access_token));
 
 		do {
-			$this->log_dual("Request sent=" . $changed_members_uri);
-			$acc_response = wp_remote_get($changed_members_uri, array(
-				'headers' => array(
-					'Authorization' => 'Bearer ' . $access_token
-			),));
+			$currentTime = date_i18n("Y-m-d-H-i-s");
+			$this->log_dual("Request sent @{$currentTime}: {$httpRequest}");
+			$acc_response = wp_remote_get($httpRequest, $get_args);
+
+			sleep(SLEEP_TIME_AFTER_HTTP);
 
 			if (is_wp_error($acc_response)) {
 				$this->log_dual("wp_remote_get error" . $acc_response->get_error_message());
@@ -399,9 +412,9 @@ class acc_user_importer_Admin {
 
 			$responseMsg = wp_remote_retrieve_response_message($acc_response);
 			if ($responseMsg != 'OK') {
-				$this->log_dual("HTTP error={$responseMsg}, {$memberData['detail']}");
+				$this->log_dual("HTTP error={$responseMsg}");
 				$api_response['message'] = "error";
-				$api_response['errorMessage'] = "HTTP error={$responseMsg}, {$memberData['detail']}";
+				$api_response['errorMessage'] = "HTTP error={$responseMsg}";
 				$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
 				return $api_response;
 			}
@@ -420,7 +433,7 @@ class acc_user_importer_Admin {
 			$count += count($acc_response_data->results);
 			$changeList = array_merge($changeList, $acc_response_data->results);
 			//The server gives us a convenient string to access next page of data
-			$changed_members_uri = $acc_response_data->next;
+			$httpRequest = $acc_response_data->next;
 
 		} while ($acc_response_data->next != null);
 
@@ -450,6 +463,10 @@ class acc_user_importer_Admin {
 
 	/**
 	 * Request a dataset from the national office API.
+	 * With retries because if we ask too quicky, the API returns error 429
+	 * (Too Many Requests). For example, 10 requests in 16 seconds seems too
+	 * fast for the server.
+	 *
 	 * Here is an example of the response from the Interpodia Member API
 	 *    [
 	 *        {
@@ -490,17 +507,17 @@ class acc_user_importer_Admin {
 		$subsetString = $this->getChangeListSubset($changeList, $offset, $numToDo);
 
 		$sectionApiId = $this->getSectionApiID();
-		$member_uri = "https://2mev.com/rest/v2/member-apis/{$sectionApiId}/fetch/?member_number=" . $subsetString;
-		$this->log_dual("Request sent=" . $member_uri);
+		$httpRequest = "https://2mev.com/rest/v2/member-apis/{$sectionApiId}/fetch/?member_number=" . $subsetString;
 		$access_token = $this->getSectionToken();
 
-		$get_args = array(
-			'headers' => array(
-				'content-type' => 'application/json',
-				'Authorization' => "Bearer " . $access_token
-			)
-		);
-		$acc_response = wp_remote_get( $member_uri, $get_args );
+		$get_args = array('headers' => array('content-type' => 'application/json',
+										     'Authorization' => "Bearer " . $access_token));
+
+		$currentTime = date_i18n("Y-m-d-H-i-s");
+		$this->log_dual("Request sent @{$currentTime}: {$httpRequest}");
+		$acc_response = wp_remote_get( $httpRequest, $get_args );
+
+		sleep(SLEEP_TIME_AFTER_HTTP);
 
 		//if the post request fails
 		if ( is_wp_error( $acc_response ) ) {
@@ -516,11 +533,16 @@ class acc_user_importer_Admin {
 		$count = sizeof ($memberData);
 		//$this->log_dual("acc_response_data={$acc_response_data}");     //for debug only
 
+		$responseCode = wp_remote_retrieve_response_code($acc_response);
 		$responseMsg = wp_remote_retrieve_response_message($acc_response);
-		if ($responseMsg != 'OK') {
-			$this->log_dual("HTTP error={$responseMsg}, {$memberData['detail']}");
+		// Here we could test for code 429 (sending data too fast to server who
+		// rejects because of throttling). And if it happens, sleep for 60s and retry.
+		// But I think we will no longer hit this issue thanks to the preventive
+		// sleep after each request.
+		if ($responseCode != 200) {
+			$this->log_dual("HTTP error {$responseCode} ({$responseMsg})");
 			$api_response['message'] = "error";
-			$api_response['errorMessage'] = "HTTP error={$responseMsg}, {$memberData['detail']}";
+			$api_response['errorMessage'] = "HTTP error={$responseMsg}, code={$responseCode}";
 			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
 			return $api_response;
 		}

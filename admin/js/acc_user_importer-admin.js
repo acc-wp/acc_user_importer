@@ -323,7 +323,12 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 		// logLocalOutput(responseObject.log);
 		// logLocalOutput("-----end of log------");
 		logLocalOutput('FAILED: Process Stopped...');
-	}
+		var accSyncEndTime = new Date();
+		var duration = (accSyncEndTime.getTime() - accSyncStartTime.getTime()) / 1000;
+		logLocalOutput("Start time: " + accSyncStartTime);
+		logLocalOutput("End time: " + accSyncEndTime);
+		logLocalOutput("Duration: " + duration + "seconds");
+}
 
 
 })( jQuery );
