@@ -70,7 +70,7 @@ An email is sent whenever the acc_status state changes. When upgrading an existi
 
 
 ## Caveats
-- The 2M server is throttling API requests at 10 per minute max.
+- The 2M server is throttling API requests at 20 per minute max.
   To avoid HTTP errors, we sleep when processing large amount of data.
   This may cause the web site to become unresponsive for a minute or so.
 - The log files accumulate forever, so take more and more memory over time.

@@ -10,11 +10,11 @@ define("MEMBER_API_MAX_USERS", "50");
 
 /*
  * Slow down HTTP request rate by sleeping deliberately after each one.
- * The 2M server throttles API at 10 requests per minute max.
- * We get HTTP error 429 if more than 10 requests are done in 60 seconds.
+ * The 2M server throttles API at 20 requests per minute max.
+ * We get HTTP error 429 if send faster than that.
  * Parameter is in seconds.
  */
-define("SLEEP_TIME_AFTER_HTTP", 7);
+define("SLEEP_TIME_AFTER_HTTP", 4);
 
 $acc_logstr = "";		//handy global to store log string
 
@@ -263,8 +263,7 @@ class acc_user_importer_Admin {
 						break;
 					}
 
-					// 2M server throttles API at 10 requests per minute max.
-					// Sleep 6s to avoid HTTP errors.
+					// Throttle requests to avoid HTTP errors.
 					if ($done < $count) {
 						sleep(SLEEP_TIME_AFTER_HTTP);
 					}

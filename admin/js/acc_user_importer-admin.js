@@ -160,9 +160,8 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 						// logLocalOutput("More data found; the journey will continue.");
 						// logLocalOutput("&nbsp;");
 
-						// 2M server throttles API at 10 requests per minute max.
-						// Sleep 7s to avoid HTTP errors.
-						setTimeout(() => { getNextDataset(changeList, dataOffset, 3); }, 7000);
+						// Throttle HTTP requests to avoid server HTTP errors.
+						setTimeout(() => { getNextDataset(changeList, dataOffset, 3); }, 4000);
 				 	}
 
 					//Enable Buttons At End
