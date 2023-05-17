@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.2 Francois Bessette
+
+- Sleep only 4s since 2M reduced their server throttling to 20 requests per minute
+
 ## 2.0.1 Francois Bessette
 
 - Optimized sleeps used to avoid HTTP too many requests errors
