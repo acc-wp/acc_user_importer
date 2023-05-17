@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.1 Francois Bessette
+
+- Optimized sleeps used to avoid HTTP too many requests errors
+
 ## 2.0.0 Francois Bessette
 
 - Adapted code to the new Interpedia-based ACC IT platform

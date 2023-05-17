@@ -24,8 +24,11 @@ Logs are written to a timestamped file.
 The plugin provides the following 2 web pages for configuration:
 
 ### ACC Admin
-- parameters to access the National website
+- Which section API the plugin should connect to
+- Authentication token or token list
+- Sync changes since when?
 - what username to assign new members
+- Test mode (do not actually update the local Wordpress database)
 - What role to assign new members
 - periodic Cron timer interval
 - A button to manually trigger the Membership update
@@ -38,6 +41,8 @@ The plugin provides the following 2 web pages for configuration:
 ## Installation
 1. install "acc_user_importer_x_y_z.zip".
 2. Activate the plugin.
+One hour after activation, the plugin will execute its first automatic
+update, then normally after every 12 hours.
 
 ## User Guide
 
@@ -65,6 +70,9 @@ An email is sent whenever the acc_status state changes. When upgrading an existi
 
 
 ## Caveats
+- The 2M server is throttling API requests at 10 per minute max.
+  To avoid HTTP errors, we sleep when processing large amount of data.
+  This may cause the web site to become unresponsive for a minute or so.
 - The log files accumulate forever, so take more and more memory over time.
   For the moment it is good to manually delete old files once in a while.
 - It is possible for the 2M Changed Member API to return a number to
@@ -82,6 +90,7 @@ An email is sent whenever the acc_status state changes. When upgrading an existi
 
 ## Road Map
 Here are some ideas that could be implemented, sorted by likelihood.
+- setting: enable/disable automatic operation (Cron job)
 - setting: email addresses to notify about new and expired members
 - setting: email addresses to notify about plugin operation
 - setting: disable access for expired members
@@ -121,7 +130,7 @@ Test on a staging or development site with email transmission disabled.
 - Verify log file is created correctly. Download it and inspect it.
 - In the log file, the following errors are normal. They are caused by
  family members having the same email address, or not having an email address.
-    > error: no valid email given, cannot create new user account.
+    > error: no valid email, cannot create new user account.
 
     > error, email already used by someone else, skip
 - verify that a goodbye email is sent (if option is enabled) to an expired user

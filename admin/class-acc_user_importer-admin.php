@@ -10,11 +10,11 @@ define("MEMBER_API_MAX_USERS", "50");
 
 /*
  * Slow down HTTP request rate by sleeping deliberately after each one.
- * Tests seem to indicate that HTTP error 429 happens if more than
- * 10 requests are done in 60 seconds.
+ * The 2M server throttles API at 10 requests per minute max.
+ * We get HTTP error 429 if more than 10 requests are done in 60 seconds.
  * Parameter is in seconds.
  */
-define("SLEEP_TIME_AFTER_HTTP", 6);
+define("SLEEP_TIME_AFTER_HTTP", 7);
 
 $acc_logstr = "";		//handy global to store log string
 
@@ -262,6 +262,12 @@ class acc_user_importer_Admin {
 						$this->log_local_output($this->responseErrMsg($api_response));
 						break;
 					}
+
+					// 2M server throttles API at 10 requests per minute max.
+					// Sleep 6s to avoid HTTP errors.
+					if ($done < $count) {
+						sleep(SLEEP_TIME_AFTER_HTTP);
+					}
 				}
 			}
 		}
@@ -396,8 +402,6 @@ class acc_user_importer_Admin {
 			$this->log_dual("Request sent @{$currentTime}: {$httpRequest}");
 			$acc_response = wp_remote_get($httpRequest, $get_args);
 
-			sleep(SLEEP_TIME_AFTER_HTTP);
-
 			if (is_wp_error($acc_response)) {
 				$this->log_dual("wp_remote_get error" . $acc_response->get_error_message());
 				$api_response['message'] = "error";
@@ -434,6 +438,12 @@ class acc_user_importer_Admin {
 			$changeList = array_merge($changeList, $acc_response_data->results);
 			//The server gives us a convenient string to access next page of data
 			$httpRequest = $acc_response_data->next;
+
+			// If we are going to send another API request, sleep a bit to
+			// avoid the server to throttle (reject) our request.
+			if ($acc_response_data->next != null) {
+				sleep(SLEEP_TIME_AFTER_HTTP);
+			}
 
 		} while ($acc_response_data->next != null);
 
@@ -516,8 +526,6 @@ class acc_user_importer_Admin {
 		$currentTime = date_i18n("Y-m-d-H-i-s");
 		$this->log_dual("Request sent @{$currentTime}: {$httpRequest}");
 		$acc_response = wp_remote_get( $httpRequest, $get_args );
-
-		sleep(SLEEP_TIME_AFTER_HTTP);
 
 		//if the post request fails
 		if ( is_wp_error( $acc_response ) ) {
