@@ -915,9 +915,6 @@ class acc_user_importer_Admin {
 					$wpdb->update($wpdb->users,
 								  ['user_login' => $loginName],
 								  ['ID' => $existingUser->ID]);
-					$wpdb->update($wpdb->users,
-							      ['user_nicename' => $accUserData['display_name']],
-								  ['ID' => $existingUser->ID]);
 				}
 
 				// Trigger hook if expiry date changed (updated membership)

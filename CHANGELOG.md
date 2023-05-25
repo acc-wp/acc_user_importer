@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.3 Claude Vessaz
+
+- Remove update of user_nicename field during ID migration. The nicename is used for static URLs and changing it breaks all kind of stuff.
+
 ## 2.0.2 Francois Bessette
 
 - Sleep only 4s since 2M reduced their server throttling to 20 requests per minute

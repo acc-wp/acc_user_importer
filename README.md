@@ -4,7 +4,7 @@ Contributors: Francois Bessette, Claude Vessaz, Raz Peel, Karine Frenette-G
 
 Tags:
 
-Stable tag: 2.0.2
+Stable tag: 2.0.3
 
 License: GPLv2 or later
 
@@ -27,14 +27,14 @@ The plugin provides the following 2 web pages for configuration:
 #### User Settings
 These settings control the operation of the plugin. Remember to click on
 Save Changes after changing parameters!
-- Section for which to import membership: Select the name of the section for which 
+- Section for which to import membership: Select the name of the section for which
 you want to import the membership. This selects the API number to be used when
 requesting membership information.
 - One or more section authentication tokens: enter in this box the API token to be
 used for authentication. More than one token can be entered. Although the
 plugin only operates on one section when it runs (the one selected in the
 above setting), some admin people have to sequentially import members
-from more than one section, and it is a convenience to not have to 
+from more than one section, and it is a convenience to not have to
 change the token string everytime a different section is selected.
 The format is like this:  SECTION1:Token1,SECTION2:Token2,...
 No space before or after the comma.  The plugin only support these
@@ -52,7 +52,7 @@ section names right now, and make sure the spelling and case is exact:
 all membership changes since that date. The field normally shows the
 last run time (in UTC), but you can force a date in ISO 8601 format
 such as 2020-11-23T15:05:00. Note that when after an automatic
-(timer triggered) run, the plugin updates that value, but not when 
+(timer triggered) run, the plugin updates that value, but not when
 the run was manually triggered.
 - Set usernames to: what username to assign new members. Most section
 have decided to standardize on ACC Member Number.
@@ -94,19 +94,19 @@ update, then normally after every 12 hours.
 ### Flow of operation
 - Using the token the plugin contacts the 2M Changed Member API and requests
 for all memberships change since the last run (or the date entered
-in the settings). 
+in the settings).
 - The 2M server replies with a list of members which changed. 100 maximum
 at a time.
 - If needed, the plugin loops and keep requesting until it has the full list
 - Using the token the plugin contacts the 2M Member API and requests for
-detailed information about a list of members.  Up to 50 at a time. 
+detailed information about a list of members.  Up to 50 at a time.
 - The 2M server replies. For each member, it gives information such as
 firsnane, lastname, email, phone, etc. plus a list of memberships relevant
 for the section.
 - the plugin receives the data, and searches for a corresponding member in
 the local Wordpress database. If none is found, a new user is created.
 If one is found, the information is verified and updated if needed.
-- Case of a member that did not renew: his number will show up in the 
+- Case of a member that did not renew: his number will show up in the
 response from the Changed Member API, but he will not have an entry
 in the Member API. The reason is, since this user is no longer part
 of the section club, the section should not really access his personal
@@ -123,7 +123,7 @@ The only caveat is, if a user membership was prematurely terminated,
 this would go unseen by the plugin and the user would still be
 able to connect to the Wordpress site until his normal expiry
 is reached.  We could improve on this eventually.
-- Once all received memberships have been processed, the plugin 
+- Once all received memberships have been processed, the plugin
 does a special operation called expiry processing. It scans
 the whole database of Wordpress users. If a user was "inactive"
 and his expiry date is in the future, a Welcome email is sent
@@ -133,9 +133,9 @@ and the user is set to "inactive".
 
 ### What decides if a user can connect or not to the site?
 The "expiry" field associated with each user is what decides
-if the user can connect. The plugin adds a hooks to Wordpress 
+if the user can connect. The plugin adds a hooks to Wordpress
 and for each connection, verifies the "expiry" date. If
-it is in the past, the connection is rejected.  
+it is in the past, the connection is rejected.
 
 ### Sending of "Welcome" and "Goodbye" emails
 
