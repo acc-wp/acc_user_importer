@@ -726,7 +726,7 @@ class acc_user_importer_Admin {
 			$this->log_dual("Received " . $userInfoString);
 
 			//Validate we have received mandatory fields.
-			if (!is_numeric($userMemberNumber)) {
+			if (empty($userMemberNumber)) {
 				$this->log_dual(" > error, no member number; skip");
 				continue;
 			}
@@ -743,7 +743,7 @@ class acc_user_importer_Admin {
 					break;
 				case 'member_number':
 				default:
-					$loginName = $userMemberNumber;
+					$loginName = sanitize_user($userMemberNumber);
 					break;
 			}
 
@@ -791,10 +791,11 @@ class acc_user_importer_Admin {
 			// setting should be unchecked.  And eventually this piece of code
 			// (7 lines)should be removed.
 			if( is_a( $existingUser, WP_User::class ) && $transitionFromContactID) {
-				if ($accUserData['display_name'] != $existingUser->display_name) {
-					$this->log_dual(" > warning (transition from ContactID): looks like " .
-					    "we found the wrong guy ({$existingUser->display_name}, try by email");
-					$existingUser = false;		//Pretend the search failed.
+				// Check if we have a match with either display name or email. If one matches, we assume the user is the same, but the member number changed.
+				if (!($accUserData['display_name'] == $existingUser->display_name || $accUserData['user_email'] == $existingUser->user_email)) {
+					$this->log_dual(" > error (transition from ContactID): looks like " .
+					    "we have a duplicate member number ({$existingUser->display_name}, skipping ");
+					continue;
 				}
 			}
 
