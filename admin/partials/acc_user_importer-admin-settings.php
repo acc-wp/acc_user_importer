@@ -44,11 +44,47 @@
 	}
 
 	// Define functions to get default values from different files.
-	function accUM_get_login_name_mapping_default() {return 'Firstname Lastname';}
+	function accUM_get_login_name_mapping_default() {return 'member_number';}
+	function accUM_get_section_default() {return 'Ottawa';}
 	function accUM_get_default_role_default() {return 'subscriber';}
 	function accUM_get_default_notif_title() {return 'ACC membership change notification';}
 	function accUM_get_do_expire_role_default() {return 'off';}
+	function accUM_transition_from_contactID_default() {return 'off';}
+	function accUM_readonly_mode_default() {return 'off';}
 	function accUM_get_expired_role_default() {return 'subscriber';}
+
+	// Get the section name as per the settings
+	function accUM_getSectionName ( ) {
+		$options = get_option('accUM_data');
+		if (!isset($options['accUM_section_api_id'])) {
+			$sectionName = accUM_get_section_default();
+		} else {
+			$sectionName = $options['accUM_section_api_id'];
+		}
+		return $sectionName;
+	}
+
+	// Returns true if the database is transitioning from FromContactID usernames.
+	function accUM_get_transitionFromContactID() {
+		$options = get_option('accUM_data');
+		if (!isset($options['accUM_transition_from_contactID'])) {
+			$transitionFromContactID = accUM_transition_from_contactID_default();
+		} else {
+			$transitionFromContactID = $options['accUM_transition_from_contactID'];
+		}
+		return $transitionFromContactID == 'on';
+	}
+
+	// Returns true if the plugin operates in read-only mode (for debug)
+	function accUM_get_readonly_mode() {
+		$options = get_option('accUM_data');
+		if (!isset($options['accUM_readonly_mode'])) {
+			$readonly_mode = accUM_readonly_mode_default();
+		} else {
+			$readonly_mode = $options['accUM_readonly_mode'];
+		}
+		return $readonly_mode == 'on';
+	}
 
 	/*
 	 * Register user settings for options page.
@@ -60,68 +96,88 @@
 		add_settings_section( 'accUM_user_section', 'User Settings', '', 'acc_admin_page' );
 
 		add_settings_field(
-			'accUM_username',				//ID
-			'Username', 					//Title
-			'accUM_text_render',			//Callback
+			'accUM_section_api_id',			//ID
+			'Section for which to import membership',		//Title
+			'accUM_select_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
-				'type' => 'text',
-				'name' => 'accUM_username',
-				'html_tags' => 'required'
+				'name' => 'accUM_section_api_id',
+				'values' => ['SQUAMISH' => 'SQUAMISH',
+							 'CALGARY' => 'CALGARY',
+							 'OTTAWA' => 'OTTAWA',
+							 'MONTRÉAL' => 'MONTRÉAL',
+							 'OUTAOUAIS' => 'OUTAOUAIS',
+							 'VANCOUVER' => 'VANCOUVER'],
+				'default' => accUM_get_section_default(),
 			)
 		);
 
 		add_settings_field(
-			'accUM_password',				//ID
-			'Password', 					//Title
+			'accUM_token',				//ID
+			'One or more section authentication tokens. Section names are in Capitals. ' .
+			'Example with bogus token values: ' .
+			'OUTAOUAIS:K39FKJ5HJDU2,MONTRÉAL:K49G86J345',
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
 				'type' => 'password',
-				'name' => 'accUM_password',
+				'name' => 'accUM_token',
 				'html_tags' => 'required'
 			)
 		);
 
 		add_settings_field(
-			'accUM_token_URI',				//ID
-			'API Token Endpoint',			//Title
+			'accUM_since_date',		//ID
+			"Sync changes since when? This normally shows the last run time (in UTC), " .
+			"but you can force a date in ISO 8601 format such as 2020-11-23T15:05:00.",
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
 				'type' => 'text',
-				'name' => 'accUM_tokenURI',
-				'html_tags' => 'required',
-				'default' => '/Asi.Scheduler_DEV/token'
-			)
-		);
-
-		add_settings_field(
-			'accUM_member_URI',				//ID
-			'API Data Endpoint',			//Title
-			'accUM_text_render',			//Callback
-			'acc_admin_page',				//Page
-			'accUM_user_section',			//Section
-			array(
-				'type' => 'text',
-				'name' => 'accUM_memberURI',
-				'html_tags' => 'required'
+				'name' => 'accUM_since_date',
 			)
 		);
 
 		add_settings_field(
 			'accUM_login_name_mapping',		//ID
-			'When creating a new user, set login name to',	//Title
+			'Set usernames to (Use with caution, this affects login of users, ' .
+			'although they always can login using their email)',
 			'accUM_select_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
 				'name' => 'accUM_login_name_mapping',
-				'values' => ['ContactId' => 'ContactId', 'imis_id' => 'imis_id', 'Firstname Lastname' => 'Firstname Lastname'],
+				'values' => ['member_number' => 'ACC member number', 'Firstname Lastname' => 'Firstname Lastname'],
 				'default' => accUM_get_login_name_mapping_default(),
+			)
+		);
+
+		add_settings_field(
+			'accUM_transition_from_contactID',			//ID
+			'Usernames will transition from ContactID to Interpodia member_number? ' .
+			'Check this box for a safer transition (verifies that member being synced has the right name)',
+			'accUM_chkbox_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_transition_from_contactID',
+				'default' => accUM_transition_from_contactID_default(),
+			)
+		);
+
+		add_settings_field(
+			'accUM_readonly_mode',			//ID
+			'Test mode: do not update Wordpress database. ' .
+			'Check this box to do a normal run but skip the Wordpress users update.',
+			'accUM_chkbox_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_readonly_mode',
+				'default' => accUM_readonly_mode_default(),
 			)
 		);
 
@@ -166,7 +222,7 @@
 
 		add_settings_field(
 			'accUM_notification_emails',	//ID
-			'Who to notify about membership creation/expiry? List of emails, comma separated. Leave blank for no notifications',
+			'Admin to notify about membership creation/expiry? List of emails, comma separated. Leave blank for no notifications',
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
@@ -178,7 +234,7 @@
 
 		add_settings_field(
 			'accUM_notification_title',	//ID
-			'Title of notification email',
+			'Title of admin notification email',
 			'accUM_text_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section

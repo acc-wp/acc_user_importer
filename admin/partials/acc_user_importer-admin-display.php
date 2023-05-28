@@ -9,9 +9,8 @@
 			?>
 		</div>
 		<div>
-			<h2 id="updateStatusTitle">Update Status</h2>
-			<input type="submit" name="debug_status_submit" id="debug_status_submit" class="button button-primary" value="Debug" disabled="disabled">
-			<input type="submit" name="update_status_submit" id="update_status_submit" class="button button-primary" value="Update">
+			<h2 id="updateStatusTitle">Update Log</h2>
+			<input type="submit" name="update_status_submit" id="update_status_submit" class="button button-primary" value="Manual Membership Update">
 			<div type="textarea" name="update_log" id="update_log" contenteditable="false" val="1">
 				Output window ready.
 			</div>

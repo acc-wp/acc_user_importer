@@ -9,7 +9,7 @@
 
 #update_log {
 	width: 96%;
-	height: 300px;
+	height: 700px;
 	background-color: white;
 	margin: 1%;
 	padding: 1%;
@@ -22,7 +22,7 @@
 	margin: 10px 0;
 }
 
-#update_status_submit, #debug_status_submit {
+#update_status_submit {
 	float: right;
 	margin: 2px;
 }
