@@ -4,7 +4,7 @@ Contributors: Francois Bessette, Claude Vessaz, Raz Peel, Karine Frenette-G
 
 Tags:
 
-Stable tag: 2.0.3
+Stable tag: 2.0.4
 
 License: GPLv2 or later
 

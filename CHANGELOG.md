@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.4 Claude Vessaz
+
+- Remove numerical requirement for member numbers
+- Refuse to process any member if the member number matches, but neither email or display name match.
+- Sanitize user name before updating it in the database.
+
 ## 2.0.3 Claude Vessaz
 
 - Remove update of user_nicename field during ID migration. The nicename is used for static URLs and changing it breaks all kind of stuff.
