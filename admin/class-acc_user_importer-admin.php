@@ -359,6 +359,8 @@ class acc_user_importer_Admin {
 	 */
 	private function getChangedMembers() {
 
+		$this->log_dual("ACC User Importer version {$this->version}");
+
 		$options = get_option('accUM_data');
 		$sectionName = accUM_getSectionName();
 		$sectionApiId = $this->getSectionApiID();

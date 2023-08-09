@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.6 Francois Bessette
+
+- Fix minor problem where member expiry is not performed when plugin is manually
+  triggered and there are no changes coming from the national web site.
+
 ## 2.0.5 Francois Bessette
 
 - Fix memory hog causing crash during process_expiry for Montreal section

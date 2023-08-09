@@ -56,7 +56,8 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
 
 				// Get membership data (recursive)
 				if (changeList.length == 0) {
-					logLocalOutput("We are done processing");
+					//No change from National site. Still need to check membership expiry
+					wpProccessExpiry();
 					return normalExit();
 				}
 				getNextDataset(changeList, 0, 3);
