@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.5 Francois Bessette
+
+- Fix memory hog causing crash during process_expiry for Montreal section
+
 ## 2.0.4 Claude Vessaz
 
 - Remove numerical requirement for member numbers

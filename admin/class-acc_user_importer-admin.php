@@ -785,8 +785,8 @@ class acc_user_importer_Admin {
 			// user.  Add an extra step and make sure that the user name is the right one
 			// to ensure we found the right user.  This setting can be left checked
 			// for a few days after transition with no harm, except that a user
-			// would not be able to change his name.  So once the plugin
-			// has done the full import of the membership and all usernames
+			// would not be able to change his name and email (at least not at the same time).
+			// So once the plugin has done the full import of the membership and all usernames
 			// have transitioned to member_number, the accUM_transition_from_contactID
 			// setting should be unchecked.  And eventually this piece of code
 			// (7 lines)should be removed.
@@ -863,7 +863,7 @@ class acc_user_importer_Admin {
 				//But truncate strings to remove the time portion, it is not needed.
 				//The old ACC API used to give a time portion we no longer want.
 				$existingUserExpiryDate = substr($existingUser->expiry, 0, 10);
-				$this->log_dual(" > userMembershipExpiry={$userMembershipExpiry}, existingUserExpiryDate={$existingUserExpiryDate}");
+				//$this->log_dual(" > userMembershipExpiry={$userMembershipExpiry}, existingUserExpiryDate={$existingUserExpiryDate}");
 				if ($userMembershipExpiry < $existingUserExpiryDate) {
 					$this->log_dual(" > warn, received expiry is earlier than local one; skip");
 					continue;
@@ -1061,9 +1061,8 @@ class acc_user_importer_Admin {
 			$this->log_dual("and will update their roles to $expired_role");
 		}
 
-		//create response object
-		$api_response = [];
-		$db_users = get_users(['fields' => 'all_with_meta']);
+		$api_response = [];					//create response object
+		$user_ids = get_users(['fields' => 'ID']);
 		$num_active = 0;
 		$num_inactive = 0;
 		$new_users = [];
@@ -1071,7 +1070,9 @@ class acc_user_importer_Admin {
 		$expired_role_users = [];
 		$restored_role_users = [];
 
-		foreach ( $db_users as $key => $user ) {
+		foreach ( $user_ids as $user_id ) {
+
+			$user = get_userdata($user_id);
 
 			if ($this->is_user_expired($user)) {
 				// User is expired
