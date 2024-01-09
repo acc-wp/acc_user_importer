@@ -645,10 +645,6 @@ class acc_user_importer_Admin {
 		}
 		$this->log_dual("Using $loginNameMapping as login name.");
 
-		// Get the transitionFromContactID setting
-		$transitionFromContactID = accUM_get_transitionFromContactID();
-		$this->log_dual("Usernames " . ($transitionFromContactID ? "":"DO NOT") . "transition from ContactID");
-
 		// Get the readonly_mode setting
 		$readonly_mode = accUM_get_readonly_mode();
 		if ($readonly_mode) {
@@ -778,31 +774,6 @@ class acc_user_importer_Admin {
 
 			// Check if ID or email already exist. Both should be unique
 			$existingUser = get_user_by('login', $loginName);
-
-			// TEMPORARY CODE TO HELP VANCOUVER SECTION TRANSITION TO 2M PLATFORM
-			// Vancouver needs to transition usernames from ContactID to 2M member_number.
-			// The 'Set username to' setting will be set to member_number. During import,
-			// the plugin will try to get users by loginName set to member_number
-			// but the username in the DB will initially set to ContactID.
-			// Since those 2 number spaces are not distinct, it might happen that
-			// a user member_number is the same as someone else ContactID. And so,
-			// the first time the plugin operates on the DB, it could match the wrong
-			// user.  Add an extra step and make sure that the user name is the right one
-			// to ensure we found the right user.  This setting can be left checked
-			// for a few days after transition with no harm, except that a user
-			// would not be able to change his name and email (at least not at the same time).
-			// So once the plugin has done the full import of the membership and all usernames
-			// have transitioned to member_number, the accUM_transition_from_contactID
-			// setting should be unchecked.  And eventually this piece of code
-			// (7 lines)should be removed.
-			if( is_a( $existingUser, WP_User::class ) && $transitionFromContactID) {
-				// Check if we have a match with either display name or email. If one matches, we assume the user is the same, but the member number changed.
-				if (!($accUserData['display_name'] == $existingUser->display_name || $accUserData['user_email'] == $existingUser->user_email)) {
-					$this->log_dual(" > error (transition from ContactID): looks like " .
-					    "we have a duplicate member number ({$existingUser->display_name}, skipping ");
-					continue;
-				}
-			}
 
 			if( !is_a( $existingUser, WP_User::class ) ) {
 				$this->log_dual(" > not found by login");
