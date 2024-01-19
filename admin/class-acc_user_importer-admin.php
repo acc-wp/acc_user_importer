@@ -22,8 +22,8 @@ class acc_user_importer_Admin {
 
 	private $plugin_name;
 	private $version;
-	private $debug_mode = false;
-	private $error_logging = false;
+	private static $debug_mode = false;
+	private static $error_logging = false;
 
 	// List of ACC section membership types.
 	// Obtained from an Interpodia Excel spreadsheet.
@@ -1236,16 +1236,21 @@ class acc_user_importer_Admin {
 	}
 
 
-	public function log_local_output( $v ) {
+	private function log_local_output( $v ) {
+		self::log_local($v);
+	}
+
+	public static function log_local( $v )
+	{
 		static $new_run = true;
 		static $cached_filename = "";
 
-		if ( $this->debug_mode === true ) {
+		if ( self::$debug_mode === true ) {
 			print_r($v);
 			print_r("<br>");
 		}
 
-		if ( $this->error_logging === true ) {
+		if ( self::$error_logging === true ) {
 			error_log(strval($v));
 		}
 
