@@ -286,9 +286,6 @@ class acc_user_importer_Admin {
 
 		}
 
-		// Look for expired members which may have gone unnoticed.
-		//$expiryResult = $this->local_db_check();
-
 		$timestamp_end = date_i18n("Y-m-d-H-i-s");
 		$this->log_local_output("This journey has come to an end.");
 		$this->log_local_output("Start time: " . $timestamp_start);
@@ -339,6 +336,9 @@ class acc_user_importer_Admin {
 				$api_response = $this->proccess_user_data( $memberArray );
 				break;
 
+			// This step is only done when the script is triggered manually.
+			// We could eventually execute it periodically (once after each end 
+			// of month) if we see that it catches some errors.
 			case "processExpiry":
 				$api_response = $this->local_db_check();
 				break;
@@ -650,6 +650,26 @@ class acc_user_importer_Admin {
 			$this->log_dual("New users will be added role $new_user_role_value");
 		}
 
+		// Get the accUM_ex_user_role_action setting
+		if (!isset($options['accUM_ex_user_role_action'])) {
+			$ex_user_role_action = accUM_get_ex_user_role_action_default();
+		} else {
+			$ex_user_role_action = $options['accUM_ex_user_role_action'];
+		}
+
+		// Get the ex_user_role_value setting
+		if (!isset($options['accUM_ex_user_role_value'])) {
+			$ex_user_role_value = accUM_get_ex_user_role_value_default();
+		} else {
+			$ex_user_role_value = $options['accUM_ex_user_role_value'];
+		}
+
+		if ($ex_user_role_action == 'set_role') {
+			$this->log_dual("Expired users will be set with role $ex_user_role_value");
+		} else if ($ex_user_role_action == 'remove_role') {
+			$this->log_dual("Expired users will be removed role $ex_user_role_value");
+		}
+
 		// Get the loginNameMapping setting
 		if (!isset($options['accUM_login_name_mapping'])) {
 			$loginNameMapping = accUM_get_login_name_mapping_default();
@@ -674,6 +694,7 @@ class acc_user_importer_Admin {
 		$updated_users_email = [];
 		$new_active_users = [];
 		$expired_users = [];
+		$warnings = [];
 
 		foreach ( $users as $user ) {
 			//Avoid PHP warnings in case some fields are unpopulated
@@ -877,6 +898,7 @@ class acc_user_importer_Admin {
 				//$this->log_dual(" > userMembershipExpiry={$userMembershipExpiry}, existingUserExpiryDate={$existingUserExpiryDate}");
 				if ($userMembershipExpiry < $existingUserExpiryDate) {
 					$this->log_dual(" > warning, received expiry is earlier than local $existingUserExpiryDate; skip");
+					$warnings[] = "warning, rxd expiry for user {$accUserData['display_name']} is earlier than in local DB\n";
 					continue;
 				}
 
@@ -1029,36 +1051,7 @@ class acc_user_importer_Admin {
 			$this->log_dual(" [" . $id . "] " . var_export($user, true));
 		}
 
-
-		// If option is set and there were membership changes, send email notification
-		// There is no checking done to ensure the notification email addresses are valid.
-		if (!empty($options['accUM_notification_emails']) &&
-			(!empty($new_active_users) || !empty($expired_users))) {
-			$email_addrs = $options['accUM_notification_emails'];
-
-			$title = accUM_get_default_notif_title();
-			if (isset($options['accUM_notification_title'])) {
-				$title = $options['accUM_notification_title'];
-			}
-			$content = "The ACC web site has received the following membership changes:\n\n";
-			$content .= "---new members---\n";
-			foreach ( $new_active_users as $user ) {
-				$content .= $user . "\n";
-			}
-			$content .= "\n---expired members---\n";
-			foreach ( $expired_users as $user ) {
-				$content .= $user . "\n";
-			}
-			$this->log_dual("Sending notification email to: $email_addrs");
-			$this->log_dual("email title=$title");
-			$this->log_dual("email content=$content");
-			$rc = wp_mail($email_addrs, $title, $content, 'Content-Type: text/plain; charset=UTF-8' );
-			if ($rc) {
-				$this->log_dual("Successfully sent notification email to: $email_addrs");
-			} else {
-				$this->log_dual("Failed to send notification email");
-			}
-		}
+		$this->send_admin_email($new_active_users, $expired_users, $warnings);
 
 		$api_response['usersInData'] = count($users);
 		$api_response['newUsers'] = count($new_users);
@@ -1069,7 +1062,6 @@ class acc_user_importer_Admin {
 
 		return $api_response;
 	}
-
 
 	/**
 	 * Returns True if the user is expired.
@@ -1111,7 +1103,6 @@ class acc_user_importer_Admin {
 
 		// Get the new_user_role_value setting
 		if (!isset($options['accUM_new_user_role_value'])) {
-			$this->log_dual("accUM_new_user_role_value is empty");
 			$new_user_role_value = accUM_get_new_user_role_value_default();
 		} else {
 			$new_user_role_value = $options['accUM_new_user_role_value'];
@@ -1126,7 +1117,6 @@ class acc_user_importer_Admin {
 
 		// Get the accUM_ex_user_role_value setting
 		if (!isset($options['accUM_ex_user_role_value'])) {
-			$this->log_dual("accUM_ex_user_role_value is empty");
 			$ex_user_role_value = accUM_get_ex_user_role_value_default();
 		} else {
 			$ex_user_role_value = $options['accUM_ex_user_role_value'];
@@ -1235,6 +1225,7 @@ class acc_user_importer_Admin {
 		$api_response = [];					//create response object
 		$new_users = [];
 		$expired_users = [];
+		$warnings = [];
 		$user_ids = get_users(['fields' => 'ID']);
 
 		foreach ( $user_ids as $user_id ) {
@@ -1251,12 +1242,27 @@ class acc_user_importer_Admin {
 			}
 		}
 
-		// If option is set and there were membership changes, send email notification
-		// There is no checking done to ensure the notification email addresses are valid.
-		if (!empty($options['accUM_notification_emails']) &&
-			(!empty($new_users) || !empty($expired_users))) {
-			$email_addrs = $options['accUM_notification_emails'];
+		$this->send_admin_email($new_users, $expired_users, $warnings);
 
+		$api_response['message'] = "success";
+		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+
+		return $api_response;
+	}
+
+
+	/**
+	 * If the option is configured, send a summary email to the admin.
+	 * The email is only sent if needed (there were new users, expired users or warnings).
+	 * There is no checking done to ensure the notification email addresses are valid.
+	 */
+	private function send_admin_email ($new_users, $expired_users, $warnings) {
+
+		$options = get_option('accUM_data');
+		if (!empty($options['accUM_notification_emails']) &&
+			(!empty($new_users) || !empty($expired_users) || !empty($warnings))) {
+
+			$email_addrs = $options['accUM_notification_emails'];
 			$title = accUM_get_default_notif_title();
 			if (isset($options['accUM_notification_title'])) {
 				$title = $options['accUM_notification_title'];
@@ -1270,6 +1276,11 @@ class acc_user_importer_Admin {
 			foreach ( $expired_users as $user ) {
 				$content .= $user . "\n";
 			}
+			$content .= "\n---warnings---\n";
+			foreach ( $warnings as $warning ) {
+				$content .= $warning . "\n";
+			}
+
 			$this->log_dual("Sending notification email to: $email_addrs");
 			$this->log_dual("email title=$title");
 			$this->log_dual("email content=$content");
@@ -1280,13 +1291,7 @@ class acc_user_importer_Admin {
 				$this->log_dual("Failed to send notification email");
 			}
 		}
-
-		$api_response['message'] = "success";
-		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
-
-		return $api_response;
 	}
-
 
 	/**
 	 * Register the stylesheets for the admin area.
