@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.1.0 Francois Bessette
+
+- Remove "Usernames will transition from ContactID" configuration and associated
+  code. This was just for the 2023-05 IT transition, no longer needed.
+- Add configuration and code to better decide what to do to role when there is
+  a new or expired user. Choices: na, add_role, set_role, remove_role.
+- Remove code which to restore a user previous role when he renews. Too confusing.
+- Print received membership status to log
+- Remove Process_Expiry code which used to be run at the end of membership import.
+  There is no more need to do so since 2mev now signals reliably when members
+  become expired.
+- Enhance code for sending email to admin, for logging
+- During activation phase, if the previous plugin was not 2.1.0, examine
+  the user DB and clean-up the previous_roles variable.
+
 ## 2.0.6 Francois Bessette
 
 - Fix minor problem where member expiry is not performed when plugin is manually
