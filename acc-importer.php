@@ -24,6 +24,7 @@ if ( ! defined( 'WPINC' ) ) {
 define('ACC_BASE_DIR', WP_PLUGIN_DIR . '/' . dirname(plugin_basename(__FILE__)));
 define('ACC_PLUGIN_DIR', plugins_url() . "/acc_user_importer/");
 define('ACC_MAIN_PLUGIN_FILE_URL', __FILE__);
+define('ACC_LOG_DIR', ACC_BASE_DIR . '/logs/');
 
 /**
  * Current plugin version.

@@ -103,11 +103,13 @@ static $acc_logfile = "";
  */
 function acc_pick_new_log_file($prefix) {
 	global $acc_logfile;
-	$log_directory = ACC_BASE_DIR . '/logs/';
 	$log_date = date_i18n("Y-m-d-H-i-s");
-	$acc_logfile = $log_directory . $prefix . $log_date . ".txt";
+	$acc_logfile = ACC_LOG_DIR . $prefix . $log_date . ".txt";
 	//error_log("acc_logfile defined as $acc_logfile");
 	acc_write_log_filename_to_db($acc_logfile);
+
+	acc_enforce_max_log_files();
+
 	return $acc_logfile;
 }
 
@@ -127,6 +129,41 @@ function acc_read_log_filename_from_db () {
 	return $filename;
 }
 
+/*
+ * Delete old log files to ensure it does not grow to infinity
+ */
+function acc_enforce_max_log_files() {
+	$options = get_option('accUM_data');
+	if (!isset($options['accUM_max_log_files'])) {
+		$max_log_files = accUM_get_default_max_log_files();
+	} else {
+		$max_log_files = $options['accUM_max_log_files'];
+	}
+
+	// Get list of files, sorted alphabetically so the latest date is on top
+	$files = scandir(ACC_LOG_DIR, SCANDIR_SORT_DESCENDING);
+	if (is_array($files)) {
+		// Filter to keep only files starting with "log"
+		$files2 = [];
+		foreach ($files as $file) {
+			if (str_starts_with($file, "log")) {
+				$files2[] = $file;
+			}
+		}
+		$count = count($files2);
+		if ($count > ($max_log_files - 1)) {
+			// How many to delete?  Minus one because we are about to add one more file
+			$num_to_delete = $count - $max_log_files - 1;
+			$files_to_delete = array_slice($files2, $max_log_files-1);
+			acc_log("Loc directory contains {$count} files and max set to " .
+					"{$max_log_files}, deleting " . count($files_to_delete));
+			foreach ( $files_to_delete as $file) {
+				unlink(ACC_LOG_DIR . $file);
+			}
+		}
+	}
+}
+
 function acc_log( $v ) {
 	global $acc_logfile;
 	if (empty($acc_logfile)) {
@@ -138,5 +175,4 @@ function acc_log( $v ) {
 		fclose( $log );
 	}
 }
-
 

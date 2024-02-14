@@ -52,7 +52,8 @@
 	function accUM_get_ex_user_role_action_default() {return 'set_role';}	
 	function accUM_readonly_mode_default() {return 'off';}
 	function accUM_get_ex_user_role_value_default() {return 'subscriber';}
-
+	function accUM_get_default_max_log_files() {return 500;}
+	
 	// Get the section name as per the settings
 	function accUM_getSectionName ( ) {
 		$options = get_option('accUM_data');
@@ -232,6 +233,19 @@
 				'type' => 'text',
 				'name' => 'accUM_notification_title',
 				'default' => accUM_get_default_notif_title(),
+				)
+		);
+
+		add_settings_field(
+			'accUM_max_log_files',			//ID
+			'Maximum number of log files to keep',
+			'accUM_text_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'type' => 'number',
+				'name' => 'accUM_max_log_files',
+				'default' => accUM_get_default_max_log_files(),
 				)
 		);
 

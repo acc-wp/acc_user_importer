@@ -98,9 +98,8 @@ class acc_user_importer_Activator {
 	 * plugins/acc_user_importer/logs/log_upgrade_2024-02-13-16-35-04.txt
 	 */
 	private function pick_new_log_filename($prefix) {
-		$log_directory = ACC_BASE_DIR . '/logs/';
 		$log_date = date_i18n("Y-m-d-H-i-s");
-		$log_filename = $log_directory . $prefix . $log_date . ".txt";
+		$log_filename = ACC_LOG_DIR . $prefix . $log_date . ".txt";
 		return $log_filename;
 	}
 
