@@ -22,8 +22,6 @@ class acc_user_importer_Admin {
 
 	private $plugin_name;
 	private $version;
-	private static $debug_mode = false;
-	private static $error_logging = false;
 
 	// List of ACC section membership types.
 	// Obtained from an Interpodia Excel spreadsheet.
@@ -223,12 +221,14 @@ class acc_user_importer_Admin {
 	public function begin_automatic_update() {
 
 		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
+		$logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log 
+		$this->log_dual("Logging to {$logfilename}");
 
 		//force certificate validation - i.e. speed up authentication process
 		add_filter( 'https_local_ssl_verify', '__return_true' );
 
 		$sectionName = accUM_getSectionName();
-		$this->log_local_output("Automatic member update starting for section $sectionName");
+		$this->log_dual("Automatic member update starting for section $sectionName");
 		$timestamp_start = date_i18n("Y-m-d-H-i-s");
 
 		// Take note of the ISO 8601 time of start
@@ -238,19 +238,19 @@ class acc_user_importer_Admin {
 		// Get the full list of changed members
 		$api_response = $this->getChangedMembers();
 		if ( $api_response['message'] != "success") {
-			$this->log_local_output($this->responseErrMsg($api_response));
+			$this->log_dual($this->responseErrMsg($api_response));
 		} else {
 			$done = 0;
 			$changeList = $api_response['results'];
 			$count = count($changeList);
-			$this->log_local_output("Received {$count} membership changes");
+			$this->log_dual("Received {$count} membership changes");
 
 			// Loop for each changed membership
 			while ($done < $count) {
 
 				$api_response = $this->getMemberData($changeList, $done);
 				if ( $api_response['message'] != "success") {
-					$this->log_local_output($this->responseErrMsg($api_response));
+					$this->log_dual($this->responseErrMsg($api_response));
 					break;
 				} else {
 					//We have an array of membership information
@@ -260,7 +260,7 @@ class acc_user_importer_Admin {
 
 					$api_response = $this->proccess_user_data($memberArray);
 					if ( $api_response['message'] != "success") {
-						$this->log_local_output($this->responseErrMsg($api_response));
+						$this->log_dual($this->responseErrMsg($api_response));
 						break;
 					}
 
@@ -279,18 +279,18 @@ class acc_user_importer_Admin {
 			if (is_array($options)) {
 				$options['accUM_since_date'] = $iso_timestamp_start;
 				update_option( 'accUM_data',  $options);
-				$this->log_local_output("On next run, use changed_since={$iso_timestamp_start}");
+				$this->log_dual("On next run, use changed_since={$iso_timestamp_start}");
 			} else {
-				$this->log_local_output("Error getting plugin options");
+				$this->log_dual("Error getting plugin options");
 			}
 
 		}
 
 		$timestamp_end = date_i18n("Y-m-d-H-i-s");
-		$this->log_local_output("This journey has come to an end.");
-		$this->log_local_output("Start time: " . $timestamp_start);
-		$this->log_local_output("End time: " . $timestamp_end);
-		$this->log_local_output("\n\n");
+		$this->log_dual("This journey has come to an end.");
+		$this->log_dual("Start time: " . $timestamp_start);
+		$this->log_dual("End time: " . $timestamp_end);
+		$this->log_dual("\n\n");
 	}
 
 	/**
@@ -320,6 +320,8 @@ class acc_user_importer_Admin {
 		switch ( $_POST['request'] ) {
 
 			case "establish":
+				$logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log 
+				$this->log_dual("Logging to {$logfilename}");
 				$api_response['message'] = "established";
 				break;
 
@@ -1318,86 +1320,8 @@ class acc_user_importer_Admin {
 	 * plugin Update Status window.
 	 */
 	private function log_dual( $string ) {
-		$this->log_local_output($string);
+		acc_log($string);
 		$GLOBALS['acc_logstr'] .= $string . "<br/>";
 	}
 
 
-	private function log_local_output( $v ) {
-		self::log_local($v);
-	}
-
-	public static function log_local( $v )
-	{
-		static $new_run = true;
-		static $cached_filename = "";
-
-		if ( self::$debug_mode === true ) {
-			print_r($v);
-			print_r("<br>");
-		}
-
-		if ( self::$error_logging === true ) {
-			error_log(strval($v));
-		}
-
-		/*
-		 * Create log file. This is called many times during processing,
-		 * so we try to make it efficient. The first time, we scan the directory
-		 * and see how old the latest log is. If new, we append to it, but if
-		 * old, we create a new one so that things are separated logically.
-		 * And the filename is cached for next time around.
-		 * Note: the life of a static variable terminates when the script
-		 * on the server is done executing the client request.
-		 * What I see: after the first batch of 100 members is done, the
-		 * script is done and the static variables are reset.
-		 */
-		//If it's a new run of the script, evaluate which log file to use
-		//and cache it for next time around for efficiency.
-		if ($new_run) {
-			$log_directory = ACC_BASE_DIR . '/logs/';
-			$log_date = date_i18n("Y-m-d-H-i-s");
-			$log_mode = "wb";
-			$log_filename = $log_directory . "log_auto_". $log_date . ".txt";
-
-			//Get list of files, sorted so the latest is on top
-			$files2 = scandir($log_directory, SCANDIR_SORT_DESCENDING);
-
-			foreach ($files2 as $filename) {
-				if (strpos($filename, "log_auto_") === false) {
-					//Not a log file, skip
-				} else {
-					//Found the latest log file.
-					//From filename, extract timestamp and see how long it's been.
-					sscanf($filename, "log_auto_%u-%u-%u-%u-%u-%u.txt", $year,$month,$day,$hour,$min,$sec);
-					$log_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
-					sscanf($log_date, "%u-%u-%u-%u-%u-%u", $year,$month,$day,$hour,$min,$sec);
-					$current_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
-					$elapsed = $current_ts - $log_ts;
-					if ($elapsed < 60) {		//less than 60 seconds old
-						//The log file is very recent, so append to it.
-						$log_mode = "a";
-						$log_filename = $log_directory . $filename;
-					} else {
-						//It's been more than 60s since creation of log file.
-						//We must be in a new run of importation. Create a new file.
-					}
-					break;
-				}
-			}
-			$new_run = false;
-			$cached_filename = $log_filename;
-		} else {
-			//Same run, use the cached filename
-			$log_filename = $cached_filename;
-			$log_mode = "a";
-		}
-
-		$log_content = "\n" . $v;
-		$log = fopen($log_filename, $log_mode);
-		fwrite( $log, $log_content );
-		fclose( $log );
-
-	}
-
-}
