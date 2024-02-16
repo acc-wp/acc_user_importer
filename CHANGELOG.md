@@ -14,6 +14,7 @@
 - Enhance code for sending email to admin, for logging
 - During activation phase, if the previous plugin was not 2.1.0, examine
   the user DB and clean-up the previous_roles variable.
+- Add setting to limit the number of log files
 
 ## 2.0.6 Francois Bessette
 
