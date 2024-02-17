@@ -1324,4 +1324,4 @@ class acc_user_importer_Admin {
 		$GLOBALS['acc_logstr'] .= $string . "<br/>";
 	}
 
-
+}

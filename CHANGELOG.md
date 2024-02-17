@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.1.0 Francois Bessette
+## 2.1.1 Francois Bessette
 
 - Remove "Usernames will transition from ContactID" configuration and associated
   code. This was just for the 2023-05 IT transition, no longer needed.
@@ -15,6 +15,7 @@
 - During activation phase, if the previous plugin was not 2.1.0, examine
   the user DB and clean-up the previous_roles variable.
 - Add setting to limit the number of log files
+- Fix PHP error when no email address entered in the Admin to notify option box.
 
 ## 2.0.6 Francois Bessette
 

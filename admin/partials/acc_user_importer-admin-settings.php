@@ -53,6 +53,7 @@
 	function accUM_readonly_mode_default() {return 'off';}
 	function accUM_get_ex_user_role_value_default() {return 'subscriber';}
 	function accUM_get_default_max_log_files() {return 500;}
+	function accUM_get_notification_emails_default() {return '';}
 	
 	// Get the section name as per the settings
 	function accUM_getSectionName ( ) {
@@ -220,6 +221,7 @@
 			array(
 				'type' => 'text',
 				'name' => 'accUM_notification_emails',
+				'default' => accUM_get_notification_emails_default(),
 			)
 		);
 
