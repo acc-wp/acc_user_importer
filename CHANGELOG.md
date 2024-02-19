@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.1.1 Francois Bessette
+## 2.1.2 Francois Bessette
 
 - Remove "Usernames will transition from ContactID" configuration and associated
   code. This was just for the 2023-05 IT transition, no longer needed.

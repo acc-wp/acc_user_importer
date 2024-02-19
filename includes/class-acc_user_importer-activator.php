@@ -28,8 +28,12 @@ class acc_user_importer_Activator {
 	 */
 	public function activate() {
 		$this->read_previous_plugin_version_from_db();
-		$this->process_upgrade();
-		$this->write_new_plugin_version_to_db();
+
+		if ($this->version != $this->previous_plugin_version) {
+			$this->process_upgrade();
+			$this->write_new_plugin_version_to_db();
+		}
+
 		acc_cron_activate();
 	}
 
@@ -56,6 +60,8 @@ class acc_user_importer_Activator {
 		$options = get_option('accUM_data');
 		$options['accUM_plugin_version'] = $this->version;
 		update_option( 'accUM_data',  $options);
+		//error_log("Updated version# from $this->previous_plugin_version " .
+		//	 	  "to $this->version in DB\n");		//Normally disabled
 	}
 
    /**

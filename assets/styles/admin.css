@@ -7,7 +7,7 @@
 
 ul.log_files strong {
   display: inline-block;
-  width: 75px;
+  width: 100px;
 }
 ul.log_files {
   list-style: disc;
