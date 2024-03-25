@@ -1,7 +1,6 @@
 
 <div class="wrap">
 	<?php 
-	$log_directory  = ACC_BASE_DIR . '/logs/';
 	$cron_options = get_option("cron");
 	$cron_schedules = wp_get_schedules();
 

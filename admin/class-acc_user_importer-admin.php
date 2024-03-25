@@ -22,8 +22,6 @@ class acc_user_importer_Admin {
 
 	private $plugin_name;
 	private $version;
-	private static $debug_mode = false;
-	private static $error_logging = false;
 
 	// List of ACC section membership types.
 	// Obtained from an Interpodia Excel spreadsheet.
@@ -223,12 +221,14 @@ class acc_user_importer_Admin {
 	public function begin_automatic_update() {
 
 		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
+		$logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log 
+		$this->log_dual("Logging to {$logfilename}");
 
 		//force certificate validation - i.e. speed up authentication process
 		add_filter( 'https_local_ssl_verify', '__return_true' );
 
 		$sectionName = accUM_getSectionName();
-		$this->log_local_output("Automatic member update starting for section $sectionName");
+		$this->log_dual("Automatic member update starting for section $sectionName");
 		$timestamp_start = date_i18n("Y-m-d-H-i-s");
 
 		// Take note of the ISO 8601 time of start
@@ -238,19 +238,19 @@ class acc_user_importer_Admin {
 		// Get the full list of changed members
 		$api_response = $this->getChangedMembers();
 		if ( $api_response['message'] != "success") {
-			$this->log_local_output($this->responseErrMsg($api_response));
+			$this->log_dual($this->responseErrMsg($api_response));
 		} else {
 			$done = 0;
 			$changeList = $api_response['results'];
 			$count = count($changeList);
-			$this->log_local_output("Received {$count} membership changes");
+			$this->log_dual("Received {$count} membership changes");
 
 			// Loop for each changed membership
 			while ($done < $count) {
 
 				$api_response = $this->getMemberData($changeList, $done);
 				if ( $api_response['message'] != "success") {
-					$this->log_local_output($this->responseErrMsg($api_response));
+					$this->log_dual($this->responseErrMsg($api_response));
 					break;
 				} else {
 					//We have an array of membership information
@@ -260,7 +260,7 @@ class acc_user_importer_Admin {
 
 					$api_response = $this->proccess_user_data($memberArray);
 					if ( $api_response['message'] != "success") {
-						$this->log_local_output($this->responseErrMsg($api_response));
+						$this->log_dual($this->responseErrMsg($api_response));
 						break;
 					}
 
@@ -279,21 +279,18 @@ class acc_user_importer_Admin {
 			if (is_array($options)) {
 				$options['accUM_since_date'] = $iso_timestamp_start;
 				update_option( 'accUM_data',  $options);
-				$this->log_local_output("On next run, use changed_since={$iso_timestamp_start}");
+				$this->log_dual("On next run, use changed_since={$iso_timestamp_start}");
 			} else {
-				$this->log_local_output("Error getting plugin options");
+				$this->log_dual("Error getting plugin options");
 			}
 
 		}
 
-		// All members have been successfully updated, now look for expired members
-		$expiryResult = $this->proccess_expiry();
-
 		$timestamp_end = date_i18n("Y-m-d-H-i-s");
-		$this->log_local_output("This journey has come to an end.");
-		$this->log_local_output("Start time: " . $timestamp_start);
-		$this->log_local_output("End time: " . $timestamp_end);
-		$this->log_local_output("\n\n");
+		$this->log_dual("This journey has come to an end.");
+		$this->log_dual("Start time: " . $timestamp_start);
+		$this->log_dual("End time: " . $timestamp_end);
+		$this->log_dual("\n\n");
 	}
 
 	/**
@@ -323,6 +320,8 @@ class acc_user_importer_Admin {
 		switch ( $_POST['request'] ) {
 
 			case "establish":
+				$logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log 
+				$this->log_dual("Logging to {$logfilename}");
 				$api_response['message'] = "established";
 				break;
 
@@ -339,8 +338,11 @@ class acc_user_importer_Admin {
 				$api_response = $this->proccess_user_data( $memberArray );
 				break;
 
+			// This step is only done when the script is triggered manually.
+			// We could eventually execute it periodically (once after each end 
+			// of month) if we see that it catches some errors.
 			case "processExpiry":
-				$api_response = $this->proccess_expiry();
+				$api_response = $this->local_db_check();
 				break;
 
 		}
@@ -464,15 +466,6 @@ class acc_user_importer_Admin {
 		return $api_response;
 	}
 
-	/*
-	 * Select the next N entries from the list of changed members.
-	 */
-	private function getChangeListSubset( $changeList, $offset, $numToDo ) {
-		$changeSubset = array_slice($changeList, $offset, $numToDo);
-		$subsetString = implode(",", $changeSubset);
-		return $subsetString;
-	}
-
 	/**
 	 * Request a dataset from the national office API.
 	 * With retries because if we ask too quicky, the API returns error 429
@@ -516,7 +509,10 @@ class acc_user_importer_Admin {
 		$remaining = sizeof($changeList)-$offset;
 		$numToDo = min ($remaining, MEMBER_API_MAX_USERS);
 		$this->log_dual("remaining={$remaining}, will fetch {$numToDo}");
-		$subsetString = $this->getChangeListSubset($changeList, $offset, $numToDo);
+
+		// Select the next N entries from the list of changed members.
+		$changeSubset = array_slice($changeList, $offset, $numToDo);
+		$subsetString = implode(",", $changeSubset);
 
 		$sectionApiId = $this->getSectionApiID();
 		$httpRequest = "https://2mev.com/rest/v2/member-apis/{$sectionApiId}/fetch/?member_number=" . $subsetString;
@@ -608,6 +604,13 @@ class acc_user_importer_Admin {
 		return ($this->membershipPreference[$type2] == $this->membershipPreference[$type1]);
 	}
 
+	/**
+	 * Returns true if the membership status is valid.
+	 */
+	private function validMembershipStatus ( $membershipStatus ) {
+		return ($membershipStatus == "ISSU" || $membershipStatus == "PROC");
+	}
+
 
 	/**
 	 * Update Wordpress database with member information.
@@ -628,14 +631,46 @@ class acc_user_importer_Admin {
 			return $api_response;
 		}
 
-		// Get the default_role setting
-		if (!isset($options['accUM_default_role'])) {
-			$this->log_dual("accUM_default_role is empty");
-			$default_role = accUM_get_default_role_default();
+		// Get the accUM_new_user_role_action setting
+		if (!isset($options['accUM_new_user_role_action'])) {
+			$new_user_role_action = accUM_get_new_user_role_action_default();
 		} else {
-			$default_role = $options['accUM_default_role'];
+			$new_user_role_action = $options['accUM_new_user_role_action'];
 		}
-		$this->log_dual("Using $default_role as default role for new users");
+
+		// Get the new_user_role_value setting
+		if (!isset($options['accUM_new_user_role_value'])) {
+			$this->log_dual("accUM_new_user_role_value is empty");
+			$new_user_role_value = accUM_get_new_user_role_value_default();
+		} else {
+			$new_user_role_value = $options['accUM_new_user_role_value'];
+		}
+
+		if ($new_user_role_action == 'set_role') {
+			$this->log_dual("New users will be set with role $new_user_role_value");
+		} else if ($new_user_role_action == 'add_role') {
+			$this->log_dual("New users will be added role $new_user_role_value");
+		}
+
+		// Get the accUM_ex_user_role_action setting
+		if (!isset($options['accUM_ex_user_role_action'])) {
+			$ex_user_role_action = accUM_get_ex_user_role_action_default();
+		} else {
+			$ex_user_role_action = $options['accUM_ex_user_role_action'];
+		}
+
+		// Get the ex_user_role_value setting
+		if (!isset($options['accUM_ex_user_role_value'])) {
+			$ex_user_role_value = accUM_get_ex_user_role_value_default();
+		} else {
+			$ex_user_role_value = $options['accUM_ex_user_role_value'];
+		}
+
+		if ($ex_user_role_action == 'set_role') {
+			$this->log_dual("Expired users will be set with role $ex_user_role_value");
+		} else if ($ex_user_role_action == 'remove_role') {
+			$this->log_dual("Expired users will be removed role $ex_user_role_value");
+		}
 
 		// Get the loginNameMapping setting
 		if (!isset($options['accUM_login_name_mapping'])) {
@@ -644,10 +679,6 @@ class acc_user_importer_Admin {
 			$loginNameMapping = $options['accUM_login_name_mapping'];
 		}
 		$this->log_dual("Using $loginNameMapping as login name.");
-
-		// Get the transitionFromContactID setting
-		$transitionFromContactID = accUM_get_transitionFromContactID();
-		$this->log_dual("Usernames " . ($transitionFromContactID ? "":"DO NOT") . "transition from ContactID");
 
 		// Get the readonly_mode setting
 		$readonly_mode = accUM_get_readonly_mode();
@@ -663,6 +694,9 @@ class acc_user_importer_Admin {
 		$new_users_email = [];
 		$updated_users = [];
 		$updated_users_email = [];
+		$new_active_users = [];
+		$expired_users = [];
+		$warnings = [];
 
 		foreach ( $users as $user ) {
 			//Avoid PHP warnings in case some fields are unpopulated
@@ -685,9 +719,13 @@ class acc_user_importer_Admin {
 			// We are only interested in memberships for the section the plugin
 			// is operating for. Among those memberships, select the one with
 			// greater date (most in the future).
+			// The membership status is read and printed in the log, however
+			// we only look at the valid_to date in order to decide if a user is
+			// valid or not, which is equivalent according to the API spec.
 			$userMembershipType = "";
 			$userMembershipSection = "";
-			$userMembershipExpiry = "";
+			$userMembershipExpiry = "1900-01-01";
+			$userMembershipStatus = "UNKNOWN_STATUS";
 			foreach ( $receivedMemberships as $membership ) {
 				$mId = $membership['membership_group']['id'];
 				$mSection = $this->membershipTable[$mId]['section'];
@@ -701,11 +739,13 @@ class acc_user_importer_Admin {
 						$userMembershipType = $mType;
 						$userMembershipSection = $mSection;
 						$userMembershipExpiry = $mExpiry;
+						$userMembershipStatus = $membership['identity_membership_status'] ?? '';
 					} else if ($mExpiry > $userMembershipExpiry) {
 						//Found a membership with a later expiry, take note of it.
 						$userMembershipType = $mType;
 						$userMembershipSection = $mSection;
 						$userMembershipExpiry = $mExpiry;
+						$userMembershipStatus = $membership['identity_membership_status'] ?? '';
 						$this->log_dual("> Better expiry date");
 					} else if ($mExpiry == $userMembershipExpiry &&
 					    $this->compareMembershipType($userMembershipType, $mType)) {
@@ -713,6 +753,7 @@ class acc_user_importer_Admin {
 						$userMembershipType = $mType;
 						$userMembershipSection = $mSection;
 						$userMembershipExpiry = $mExpiry;
+						$userMembershipStatus = $membership['identity_membership_status'] ?? '';
 						$this->log_dual("> Same expiry date but better type");
 					}
 				}
@@ -728,6 +769,7 @@ class acc_user_importer_Admin {
 			$userInfoString .= " type:" . $userMembershipType;
 			$userInfoString .= " section:" . $userMembershipSection;
 			$userInfoString .= " expiry:" . $userMembershipExpiry;
+			$userInfoString .= " status:" . $userMembershipStatus;
 			$this->log_dual("Received " . $userInfoString);
 
 			//Validate we have received mandatory fields.
@@ -740,6 +782,15 @@ class acc_user_importer_Admin {
 			if (empty($userFirstName) && empty($userLastName)) {
 				$this->log_dual(" > error, user has no name; skip");
 				continue;
+			}
+
+			// Issue a harmless warning in the log if we see the 2mev API returned discrepancies
+			$membershipExpired = ($userMembershipExpiry < date("Y-m-d"));
+			$membershipStatus = $this->validMembershipStatus($userMembershipStatus);
+			if ($membershipExpired && $membershipStatus) {
+				$this->log_dual("Warning, data discrepancy: membership date expired but status is good!");
+			} else if (!$membershipExpired && !$membershipStatus) {
+				$this->log_dual("Warning, data discrepancy: membership date good but status is bad!");
 			}
 
 			switch($loginNameMapping) {
@@ -778,31 +829,6 @@ class acc_user_importer_Admin {
 
 			// Check if ID or email already exist. Both should be unique
 			$existingUser = get_user_by('login', $loginName);
-
-			// TEMPORARY CODE TO HELP VANCOUVER SECTION TRANSITION TO 2M PLATFORM
-			// Vancouver needs to transition usernames from ContactID to 2M member_number.
-			// The 'Set username to' setting will be set to member_number. During import,
-			// the plugin will try to get users by loginName set to member_number
-			// but the username in the DB will initially set to ContactID.
-			// Since those 2 number spaces are not distinct, it might happen that
-			// a user member_number is the same as someone else ContactID. And so,
-			// the first time the plugin operates on the DB, it could match the wrong
-			// user.  Add an extra step and make sure that the user name is the right one
-			// to ensure we found the right user.  This setting can be left checked
-			// for a few days after transition with no harm, except that a user
-			// would not be able to change his name and email (at least not at the same time).
-			// So once the plugin has done the full import of the membership and all usernames
-			// have transitioned to member_number, the accUM_transition_from_contactID
-			// setting should be unchecked.  And eventually this piece of code
-			// (7 lines)should be removed.
-			if( is_a( $existingUser, WP_User::class ) && $transitionFromContactID) {
-				// Check if we have a match with either display name or email. If one matches, we assume the user is the same, but the member number changed.
-				if (!($accUserData['display_name'] == $existingUser->display_name || $accUserData['user_email'] == $existingUser->user_email)) {
-					$this->log_dual(" > error (transition from ContactID): looks like " .
-					    "we have a duplicate member number ({$existingUser->display_name}, skipping ");
-					continue;
-				}
-			}
 
 			if( !is_a( $existingUser, WP_User::class ) ) {
 				$this->log_dual(" > not found by login");
@@ -863,14 +889,18 @@ class acc_user_importer_Admin {
 				//the 2 memberships, so one overwrites the other. Which one is the best one
 				//is hard to say, but most likely the information in the membership with
 				//latest expiry date is the best, because it is the latest one subscribed
-				//to by the user.
+				//to by the user. On 2024-01-10 I saw a similar case where a member in 2M
+				//moved to a new member_number. And the API returned 2 records, one with
+				//valid membership and another with expired membership. In such case the
+				//special rule prevents the expired record to overwrite the valid one.
 				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
 				//But truncate strings to remove the time portion, it is not needed.
 				//The old ACC API used to give a time portion we no longer want.
 				$existingUserExpiryDate = substr($existingUser->expiry, 0, 10);
 				//$this->log_dual(" > userMembershipExpiry={$userMembershipExpiry}, existingUserExpiryDate={$existingUserExpiryDate}");
 				if ($userMembershipExpiry < $existingUserExpiryDate) {
-					$this->log_dual(" > warn, received expiry is earlier than local one; skip");
+					$this->log_dual(" > warning, received expiry is earlier than local $existingUserExpiryDate; skip");
+					$warnings[] = "warning, rxd expiry for user {$accUserData['display_name']} is earlier than in local DB\n";
 					continue;
 				}
 
@@ -884,48 +914,58 @@ class acc_user_importer_Admin {
 				}
 
 				// If fields changed, then update the user in the database.
-				if (!$readonly_mode && !empty($updatedFields)) {
-					// Passing in the $existingUser object with the updated values will persist to the database.
-					$updateResp = wp_update_user($existingUser);
-					if ( is_wp_error($updateResp) ) {
-						$this->log_dual(" > error, failed to update user");
-						$this->log_dual(" > WP:" . $updateResp->get_error_message());
-						continue;
-					}
-					$this->log_dual(" > updated user #" . $updateResp);
-
-					//Update meta fields
-					foreach ($accUserMetaData as $field => $value) {
-						if (in_array($field, $updatedFields)) {
-							update_user_meta($existingUser->ID, $field, $value);
+				if (!$readonly_mode) {
+					if (!empty($updatedFields)) {
+						// Passing in the $existingUser object with the updated values will persist to the database.
+						$updateResp = wp_update_user($existingUser);
+						if ( is_wp_error($updateResp) ) {
+							$this->log_dual(" > error, failed to update user");
+							$this->log_dual(" > WP:" . $updateResp->get_error_message());
+							continue;
 						}
+						$this->log_dual(" > updated user #" . $updateResp);
+
+						//Update meta fields
+						foreach ($accUserMetaData as $field => $value) {
+							if (in_array($field, $updatedFields)) {
+								update_user_meta($existingUser->ID, $field, $value);
+							}
+						}
+
+						$updated_users[] = $accUserData['display_name'];
+						$updated_users_email[] = $userEmail;
 					}
 
-					$updated_users[] = $accUserData['display_name'];
-					$updated_users_email[] = $userEmail;
-				}
+					//Special code is needed to handle a login_name change. wp_update_user()
+					//does not change the login_name or the user_nicename.  This is not
+					//something we want to happen often. But it will happen in the case
+					//where a child record is received before the parent, with the same
+					//email address. Another solution to that would be a pre-processing
+					//step where we re-order the array of incoming registrations,
+					//so that the parent records are received first.
+					if ($loginName != $existingUser->user_login) {
+						$userID = $existingUser->ID;
+						$this->log_dual("> user {$userID} username changed from
+							{$existingUser->user_login} to {$loginName}, update database");
 
-				//Special code is needed to handle a login_name change. wp_update_user()
-				//does not change the login_name or the user_nicename.  This is not
-				//something we want to happen often. But it will happen in the case
-				//where a child record is received before the parent, with the same
-				//email address. Another solution to that would be a pre-processing
-				//step where we re-order the array of incoming registrations,
-				//so that the parent records are received first.
-				if (!$readonly_mode && $loginName != $existingUser->user_login) {
-					$userID = $existingUser->ID;
-					$this->log_dual("> user {$userID} username changed from
-						{$existingUser->user_login} to {$loginName}, update database");
+						global $wpdb;
+						$wpdb->update($wpdb->users,
+									['user_login' => $loginName],
+									['ID' => $existingUser->ID]);
+					}
 
-					global $wpdb;
-					$wpdb->update($wpdb->users,
-								  ['user_login' => $loginName],
-								  ['ID' => $existingUser->ID]);
-				}
+					// Trigger hook if expiry date changed (updated membership)
+					if (in_array('expiry', $updatedFields)) {
+						do_action('acc_membership_renewal', $existingUser->ID);
+					}
 
-				// Trigger hook if expiry date changed (updated membership)
-				if (!$readonly_mode && in_array('expiry', $updatedFields)) {
-					do_action('acc_membership_renewal', $existingUser->ID);
+					// Check for actions (ex: send welcome or goodbye email)
+					$outcome = $this->checkForUserStateChange($existingUser->ID);
+					if ($outcome == "active") {
+						$new_active_users[] = "$existingUser->display_name  ($existingUser->user_email)";
+					} else if ($outcome == "inactive") {
+						$expired_users[] = "$existingUser->display_name  ($existingUser->user_email)";
+					}
 				}
 
 				// All done with updating the user
@@ -941,36 +981,50 @@ class acc_user_importer_Admin {
 				continue;
 			}
 
-			if ($readonly_mode) continue;	// Skip the rest if we are in read-only test mode
+			if (!$readonly_mode) {	// Skip the rest if we are in read-only test mode
 
-			//--------CREATE NEW USER-----
-			$this->log_dual(" > email not found on any other users");
-			$new_users[] = $accUserData['display_name'];
-			$new_users_email[] = $userEmail ;
-			$accUserData["user_pass"] = wp_generate_password(20);
-			$accUserData["role"] = $default_role;
-			$accUserData["user_nicename"] = $accUserData['display_name'];  //WP will sanitize
-			$accUserData["user_login"] = $loginName;
+				// Skip the rest if the user does not have a valid membership (ex: expired already)
+				if (!$this->validMembershipStatus($userMembershipStatus)) continue;
 
-			// Insert new user
-			$userID = wp_insert_user( $accUserData );
-			if ( is_wp_error($userID) ) {
-				$this->log_dual(" > error, failed to create user");
-				$this->log_dual(" > WP:" . $userID->get_error_message());
-				continue;
+				//--------CREATE NEW USER-----
+				$this->log_dual(" > email not found on any other users");
+				$new_users[] = $accUserData['display_name'];
+				$new_users_email[] = $userEmail ;
+				$accUserData["user_pass"] = wp_generate_password(20);
+				$accUserData["role"] = $new_user_role_value;
+				$accUserData["user_nicename"] = $accUserData['display_name'];  //WP will sanitize
+				$accUserData["user_login"] = $loginName;
+
+				// Insert new user
+				$userID = wp_insert_user( $accUserData );
+				if ( is_wp_error($userID) ) {
+					$this->log_dual(" > error, failed to create user");
+					$this->log_dual(" > WP:" . $userID->get_error_message());
+					continue;
+				}
+
+				$this->log_dual(" > Created new user #" . $userID);
+
+				//Insert meta fields.
+				//Indicate this user was inactive. Will transition to active in checkForUserStateChange.
+				$accUserMetaData['acc_status'] = 'inactive';
+				foreach ($accUserMetaData as $field => $value) {
+					update_user_meta($userID, $field, $value);
+				}
+
+				// Execute hooks for new membership
+				do_action('acc_new_membership', $userID);
+
+				// Check for actions (ex: send welcome or goodbye email)
+				$outcome = $this->checkForUserStateChange($userID);
+				if ($outcome == "active") {
+					$new_active_users[] = "{$accUserData['display_name']} ({$accUserData['user_email']})";
+				} else if ($outcome == "inactive") {
+					$expired_users[] = "{$accUserData['display_name']} ({$accUserData['user_email']})";
+				}
+
 			}
 
-			$this->log_dual(" > Created new user #" . $userID);
-
-			//Insert meta fields.
-			//Indicate this user was inactive. Will transition to active in proccess_expiry.
-			$accUserMetaData['acc_status'] = 'inactive';
-			foreach ($accUserMetaData as $field => $value) {
-				update_user_meta($userID, $field, $value);
-			}
-
-			// Execute hooks for new membership
-			do_action('acc_new_membership', $userID);
 		} //end user loop
 
 		//Outcome summary
@@ -984,12 +1038,22 @@ class acc_user_importer_Admin {
 		foreach ( $updated_users as $id => $user ) {
 			$this->log_dual("  " . $user . " (" . $updated_users_email[$id] . ")");
 		}
+		$this->log_dual("--" . count($new_active_users) . " members transitioned to Active:");
+		foreach ( $new_active_users as $user ) {
+			$this->log_dual("  " . $user);
+		}
+		$this->log_dual("--" . count($expired_users) . " members Expired:");
+		foreach ( $expired_users as $user ) {
+			$this->log_dual("  " . $user);
+		}
 		if (count($update_errors) != 0) {
 			$this->log_dual("--Errors updating " . count($update_errors) . " accounts:");
 		}
 		foreach ( $update_errors as $id => $user ) {
 			$this->log_dual(" [" . $id . "] " . var_export($user, true));
 		}
+
+		$this->send_admin_email($new_active_users, $expired_users, $warnings);
 
 		$api_response['usersInData'] = count($users);
 		$api_response['newUsers'] = count($new_users);
@@ -1000,7 +1064,6 @@ class acc_user_importer_Admin {
 
 		return $api_response;
 	}
-
 
 	/**
 	 * Returns True if the user is expired.
@@ -1023,153 +1086,185 @@ class acc_user_importer_Admin {
 
 
 	/**
-	 * Go over our local user database and see who has an expired membership.
+	 * See if it's a new valid user or a user that expired. If so, we might have actions
+	 * to take, such as sending emails.
 	 */
-	private function proccess_expiry () {
+	private function checkForUserStateChange ($user_id) {
+
+		$outcome = "na";
+
+		// Get user-configurable option values
+		$options = get_option('accUM_data');
+
+		// Get the accUM_new_user_role_action setting
+		if (!isset($options['accUM_new_user_role_action'])) {
+			$new_user_role_action = accUM_get_new_user_role_action_default();
+		} else {
+			$new_user_role_action = $options['accUM_new_user_role_action'];
+		}
+
+		// Get the new_user_role_value setting
+		if (!isset($options['accUM_new_user_role_value'])) {
+			$new_user_role_value = accUM_get_new_user_role_value_default();
+		} else {
+			$new_user_role_value = $options['accUM_new_user_role_value'];
+		}
+
+		// What should we do to ex-users role?
+		if (!isset($options['accUM_ex_user_role_action'])) {
+			$ex_user_role_action = accUM_get_ex_user_role_action_default();
+		} else {
+			$ex_user_role_action = $options['accUM_ex_user_role_action'];
+		}
+
+		// Get the accUM_ex_user_role_value setting
+		if (!isset($options['accUM_ex_user_role_value'])) {
+			$ex_user_role_value = accUM_get_ex_user_role_value_default();
+		} else {
+			$ex_user_role_value = $options['accUM_ex_user_role_value'];
+		}
+
+		$user = get_userdata($user_id);
+		if( !is_a( $user, WP_User::class ) ) {
+			$this->log_dual("Error when checking for user state, userid $user_id is invalid");
+			return $outcome;
+		}
+
+
+		if ($this->is_user_expired($user)) {
+			// User is expired
+			if (!empty($user->acc_status)) {
+				if ($user->acc_status == 'active') {
+					// User was active, now expired.
+					update_user_meta($user->ID, 'acc_status', 'inactive');
+					$this->log_dual("user $user->ID $user->display_name transitioned to " .
+									"inactive, send goodbye email if enabled");
+					acc_send_goodbye_email($user->ID);
+					do_action("acc_member_goodbye", $user->ID);		//action hook
+					$outcome = "inactive";
+
+					// If needed, change the user role to the expired role.
+					// Do not change roles of administrators to prevent lockout.
+					$user_roles = $user->roles;
+					if ($ex_user_role_action == 'set_role' &&
+						!in_array('administrator', $user_roles, true) && 
+						(count($user_roles) != 1 ||
+						!in_array($ex_user_role_value, $user_roles, true))) {
+						$this->log_dual("Changing user $user->ID $user->display_name role to $ex_user_role_value");
+						$user->set_role($ex_user_role_value);
+					} elseif ($ex_user_role_action == 'remove_role' &&
+						!in_array('administrator', $user_roles, true) &&
+						in_array($ex_user_role_value, $user_roles, true)) {
+						$this->log_dual("Removing role $ex_user_role_value from user $user->ID $user->display_name");
+						$user->remove_role($ex_user_role_value);
+					}
+				}
+			} else {
+				// User did not have a acc_status field. Must be the first time this
+				// new plugin executes. Set the field but do not send email.
+				update_user_meta($user->ID, 'acc_status', 'inactive');
+				$this->log_dual("Initial update of user $user->ID $user->display_name to inactive");
+			}
+
+		} else {
+			// User has a valid membership
+			if (!empty($user->acc_status)) {
+				if ($user->acc_status == 'inactive') {
+					// User was inactive, now active.
+					update_user_meta($user->ID, 'acc_status', 'active');
+					$this->log_dual("user $user->ID $user->display_name transitioned to " .
+									"active, send welcome email if enabled");
+					acc_send_welcome_email($user->ID);
+					do_action("acc_member_welcome", $user->ID);		//action hook
+					$outcome = "active";
+
+					// If needed, change the user role to the new member role.
+					$user_roles = $user->roles;
+					if ($new_user_role_action == 'set_role' &&
+						(count($user_roles) != 1 ||
+						!in_array($new_user_role_value, $user_roles, true))) {
+						$this->log_dual("Changing user $user->ID $user->display_name role to $new_user_role_value");
+						$user->set_role($new_user_role_value);
+					} elseif ($new_user_role_action == 'add_role' &&
+						!in_array($new_user_role_value, $user_roles, true)) {
+						$this->log_dual("Adding role $new_user_role_value to user $user->ID $user->display_name");
+						$user->add_role($new_user_role_value);
+					}
+				}
+			} else {
+				// User did not have a acc_status field. Must be the first time this
+				// new plugin executes. Set the field but do not send email.
+				update_user_meta($user->ID, 'acc_status', 'active');
+				$this->log_dual("Initial update of user $user->ID $user->display_name to active");
+			}
+		}
+
+		return $outcome;
+	}
+
+
+	/**
+	 * Go over our local user database and do some sanity checks. 
+	 * This is mainly to cover the case where the 2mev API would fail
+	 * to notify us of a change.  This would cause expired users to go
+	 * unnoticed and potentially with the wrong role.  If the periodic
+	 * membership sync works fine, this function will find nothing to do.
+	 * 
+	 * What we do: we basically check for expired users and if any are
+	 * found, we potentially send the goodbye email and change the role
+	 * (as per config).
+	 */
+	private function local_db_check () {
 
 		$readonly_mode = accUM_get_readonly_mode();
 		if ($readonly_mode) {
-			$this->log_dual("Read-only test mode, do not check for user expiry");
+			$this->log_dual("Read-only test mode, skipping local DB check");
 			$api_response['message'] = "success";
 			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
 			return $api_response;
 		}
 
-		// Get user-configurable option values
-		$options = get_option('accUM_data');
-
-		// Get the default_role setting
-		if (!isset($options['accUM_default_role'])) {
-			$this->log_dual("accUM_default_role is empty");
-			$default_role = accUM_get_default_role_default();
-		} else {
-			$default_role = $options['accUM_default_role'];
-		}
-
-		// Get the accUM_do_expire_role setting
-		if (!isset($options['accUM_do_expire_role'])) {
-			$do_expire_role = accUM_get_do_expire_role_default();
-		} else {
-			$do_expire_role = $options['accUM_do_expire_role'];
-		}
-
-		// Get the accUM_expired_role setting
-		if (!isset($options['accUM_expired_role'])) {
-			$this->log_dual("accUM_expired_role is empty");
-			$expired_role = accUM_get_expired_role_default();
-		} else {
-			$expired_role = $options['accUM_expired_role'];
-		}
-
-		$this->log_dual("Now looking for expired members.");
-		if ($do_expire_role == 'on') {
-			$this->log_dual("and will update their roles to $expired_role");
-		}
-
 		$api_response = [];					//create response object
-		$user_ids = get_users(['fields' => 'ID']);
-		$num_active = 0;
-		$num_inactive = 0;
 		$new_users = [];
 		$expired_users = [];
-		$expired_role_users = [];
-		$restored_role_users = [];
+		$warnings = [];
+		$user_ids = get_users(['fields' => 'ID']);
 
 		foreach ( $user_ids as $user_id ) {
 
-			$user = get_userdata($user_id);
+			$outcome = $this->checkForUserStateChange($user_id);
+			if ($outcome == "active" || $outcome == "inactive") {
+				$user = get_userdata($user_id);
 
-			if ($this->is_user_expired($user)) {
-				// User is expired
-				$num_inactive++;
-				if (!empty($user->acc_status)) {
-					if ($user->acc_status == 'active') {
-						// User was active, now expired.
-						update_user_meta($user->ID, 'acc_status', 'inactive');
-						$this->log_dual("user $user->ID $user->display_name transitioned to " .
-							            "inactive, send goodbye email if enabled");
-						acc_send_goodbye_email($user->ID);
-						do_action("acc_member_goodbye", $user->ID);		//action hook
-						$expired_users[] = "$user->display_name  ($user->user_email)";
-					}
-				} else {
-					// User did not have a acc_status field. Must be the first time this
-					// new plugin executes. Set the field but do not send email.
-					update_user_meta($user->ID, 'acc_status', 'inactive');
-					$this->log_dual("Initial update of user $user->ID $user->display_name to inactive");
-				}
-
-				// If needed, change the user role to the expired role.
-				// Do not change roles of administrators to prevent lockout.
-				$user_roles = $user->roles;
-				if ($do_expire_role == 'on' &&
-					!in_array('administrator', $user_roles, true) &&
-					!in_array($expired_role, $user_roles, true)) {
-					$this->log_dual("Changing user $user->ID $user->display_name role to $expired_role");
-					$expired_role_users[] = "$user->display_name  ($user->user_email)";
-					// Save previous user roles (a user may have many roles)
-					update_user_meta($user->ID, 'previous_roles', $user_roles);
-					// Set role to expired role
-					$user->set_role($expired_role);
-				}
-
-			} else {
-				// User has a valid membership
-				$num_active++;
-				if (!empty($user->acc_status)) {
-					if ($user->acc_status == 'inactive') {
-						// User was inactive, now active.
-						update_user_meta($user->ID, 'acc_status', 'active');
-						$this->log_dual("user $user->ID $user->display_name transitioned to " .
-							            "active, send welcome email if enabled");
-						acc_send_welcome_email($user->ID);
-						do_action("acc_member_welcome", $user->ID);		//action hook
-						$new_users[] = "$user->display_name  ($user->user_email)";
-					}
-				} else {
-					// User did not have a acc_status field. Must be the first time this
-					// new plugin executes. Set the field but do not send email.
-					update_user_meta($user->ID, 'acc_status', 'active');
-					$this->log_dual("Initial update of user $user->ID $user->display_name to active");
-				}
-
-				// If needed, restore the previously saved member role. If we dont have a saved
-				// previous role, pick the default role for a new member.
-				if ($do_expire_role == 'on' &&
-					in_array($expired_role, $user->roles, true)) {
-					$restored_role_users[] = "$user->display_name  ($user->user_email)";
-
-					if (empty($user->previous_roles)) {
-						$previous_roles = [$default_role];
-						$this->log_dual("Restoring user $user->ID $user->display_name role from $expired_role to default");
-					} else {
-						$previous_roles = $user->previous_roles;
-						$this->log_dual("Restoring user $user->ID $user->display_name role from $expired_role to previous");
-					}
-
-					$first_role = true;
-					foreach ($previous_roles as $role) {
-						if ($first_role) {
-							$user->set_role($role);
-							$first_role = false;
-							$this->log_dual("Restored role $role");
-						} else {
-							$user->add_role($role);
-							$this->log_dual("Restored role $role");
-						}
-					}
+				if ($outcome == "active") {
+					$new_users[] = "$user->display_name  ($user->user_email)";
+				} else if ($outcome == "inactive") {
+					$expired_users[] = "$user->display_name  ($user->user_email)";
 				}
 			}
 		}
 
-		$this->log_dual("Active members=$num_active, inactive members=$num_inactive");
+		$this->send_admin_email($new_users, $expired_users, $warnings);
 
-		// If option is set and there were membership changes, send email notification
-		// There is no checking done to ensure the notification email addresses are valid.
+		$api_response['message'] = "success";
+		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+
+		return $api_response;
+	}
+
+
+	/**
+	 * If the option is configured, send a summary email to the admin.
+	 * The email is only sent if needed (there were new users, expired users or warnings).
+	 * There is no checking done to ensure the notification email addresses are valid.
+	 */
+	private function send_admin_email ($new_users, $expired_users, $warnings) {
+
+		$options = get_option('accUM_data');
 		if (!empty($options['accUM_notification_emails']) &&
-			(!empty($new_users) || !empty($expired_users))) {
-			$email_addrs = $options['accUM_notification_emails'];
+			(!empty($new_users) || !empty($expired_users) || !empty($warnings))) {
 
+			$email_addrs = $options['accUM_notification_emails'];
 			$title = accUM_get_default_notif_title();
 			if (isset($options['accUM_notification_title'])) {
 				$title = $options['accUM_notification_title'];
@@ -1183,14 +1278,11 @@ class acc_user_importer_Admin {
 			foreach ( $expired_users as $user ) {
 				$content .= $user . "\n";
 			}
-			$content .= "\n---members which had their roles changed to expired role---\n";
-			foreach ( $expired_role_users as $user ) {
-				$content .= $user . "\n";
+			$content .= "\n---warnings---\n";
+			foreach ( $warnings as $warning ) {
+				$content .= $warning . "\n";
 			}
-			$content .= "\n---members which had their roles restored because they renewed---\n";
-			foreach ( $restored_role_users as $user ) {
-				$content .= $user . "\n";
-			}
+
 			$this->log_dual("Sending notification email to: $email_addrs");
 			$this->log_dual("email title=$title");
 			$this->log_dual("email content=$content");
@@ -1201,13 +1293,7 @@ class acc_user_importer_Admin {
 				$this->log_dual("Failed to send notification email");
 			}
 		}
-
-		$api_response['message'] = "success";
-		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
-
-		return $api_response;
 	}
-
 
 	/**
 	 * Register the stylesheets for the admin area.
@@ -1234,86 +1320,8 @@ class acc_user_importer_Admin {
 	 * plugin Update Status window.
 	 */
 	private function log_dual( $string ) {
-		$this->log_local_output($string);
+		acc_log($string);
 		$GLOBALS['acc_logstr'] .= $string . "<br/>";
-	}
-
-
-	private function log_local_output( $v ) {
-		self::log_local($v);
-	}
-
-	public static function log_local( $v )
-	{
-		static $new_run = true;
-		static $cached_filename = "";
-
-		if ( self::$debug_mode === true ) {
-			print_r($v);
-			print_r("<br>");
-		}
-
-		if ( self::$error_logging === true ) {
-			error_log(strval($v));
-		}
-
-		/*
-		 * Create log file. This is called many times during processing,
-		 * so we try to make it efficient. The first time, we scan the directory
-		 * and see how old the latest log is. If new, we append to it, but if
-		 * old, we create a new one so that things are separated logically.
-		 * And the filename is cached for next time around.
-		 * Note: the life of a static variable terminates when the script
-		 * on the server is done executing the client request.
-		 * What I see: after the first batch of 100 members is done, the
-		 * script is done and the static variables are reset.
-		 */
-		//If it's a new run of the script, evaluate which log file to use
-		//and cache it for next time around for efficiency.
-		if ($new_run) {
-			$log_directory = ACC_BASE_DIR . '/logs/';
-			$log_date = date_i18n("Y-m-d-H-i-s");
-			$log_mode = "wb";
-			$log_filename = $log_directory . "log_auto_". $log_date . ".txt";
-
-			//Get list of files, sorted so the latest is on top
-			$files2 = scandir($log_directory, SCANDIR_SORT_DESCENDING);
-
-			foreach ($files2 as $filename) {
-				if (strpos($filename, "log_auto_") === false) {
-					//Not a log file, skip
-				} else {
-					//Found the latest log file.
-					//From filename, extract timestamp and see how long it's been.
-					sscanf($filename, "log_auto_%u-%u-%u-%u-%u-%u.txt", $year,$month,$day,$hour,$min,$sec);
-					$log_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
-					sscanf($log_date, "%u-%u-%u-%u-%u-%u", $year,$month,$day,$hour,$min,$sec);
-					$current_ts = $sec + 60*($min + 60*($hour + 24*($day +31*($month + 12*$year))));
-					$elapsed = $current_ts - $log_ts;
-					if ($elapsed < 60) {		//less than 60 seconds old
-						//The log file is very recent, so append to it.
-						$log_mode = "a";
-						$log_filename = $log_directory . $filename;
-					} else {
-						//It's been more than 60s since creation of log file.
-						//We must be in a new run of importation. Create a new file.
-					}
-					break;
-				}
-			}
-			$new_run = false;
-			$cached_filename = $log_filename;
-		} else {
-			//Same run, use the cached filename
-			$log_filename = $cached_filename;
-			$log_mode = "a";
-		}
-
-		$log_content = "\n" . $v;
-		$log = fopen($log_filename, $log_mode);
-		fwrite( $log, $log_content );
-		fclose( $log );
-
 	}
 
 }

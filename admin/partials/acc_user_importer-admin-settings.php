@@ -46,13 +46,15 @@
 	// Define functions to get default values from different files.
 	function accUM_get_login_name_mapping_default() {return 'member_number';}
 	function accUM_get_section_default() {return 'Ottawa';}
-	function accUM_get_default_role_default() {return 'subscriber';}
+	function accUM_get_new_user_role_action_default() {return 'set_role';}
+	function accUM_get_new_user_role_value_default() {return 'subscriber';}
 	function accUM_get_default_notif_title() {return 'ACC membership change notification';}
-	function accUM_get_do_expire_role_default() {return 'off';}
-	function accUM_transition_from_contactID_default() {return 'off';}
+	function accUM_get_ex_user_role_action_default() {return 'set_role';}	
 	function accUM_readonly_mode_default() {return 'off';}
-	function accUM_get_expired_role_default() {return 'subscriber';}
-
+	function accUM_get_ex_user_role_value_default() {return 'subscriber';}
+	function accUM_get_default_max_log_files() {return 500;}
+	function accUM_get_notification_emails_default() {return '';}
+	
 	// Get the section name as per the settings
 	function accUM_getSectionName ( ) {
 		$options = get_option('accUM_data');
@@ -63,18 +65,7 @@
 		}
 		return $sectionName;
 	}
-
-	// Returns true if the database is transitioning from FromContactID usernames.
-	function accUM_get_transitionFromContactID() {
-		$options = get_option('accUM_data');
-		if (!isset($options['accUM_transition_from_contactID'])) {
-			$transitionFromContactID = accUM_transition_from_contactID_default();
-		} else {
-			$transitionFromContactID = $options['accUM_transition_from_contactID'];
-		}
-		return $transitionFromContactID == 'on';
-	}
-
+	
 	// Returns true if the plugin operates in read-only mode (for debug)
 	function accUM_get_readonly_mode() {
 		$options = get_option('accUM_data');
@@ -156,19 +147,6 @@
 		);
 
 		add_settings_field(
-			'accUM_transition_from_contactID',			//ID
-			'Usernames will transition from ContactID to Interpodia member_number? ' .
-			'Check this box for a safer transition (verifies that member being synced has the right name)',
-			'accUM_chkbox_render',			//Callback
-			'acc_admin_page',				//Page
-			'accUM_user_section',			//Section
-			array(
-				'name' => 'accUM_transition_from_contactID',
-				'default' => accUM_transition_from_contactID_default(),
-			)
-		);
-
-		add_settings_field(
 			'accUM_readonly_mode',			//ID
 			'Test mode: do not update Wordpress database. ' .
 			'Check this box to do a normal run but skip the Wordpress users update.',
@@ -181,42 +159,56 @@
 			)
 		);
 
+		add_settings_field(
+			'accUM_new_user_role_action',	//ID
+			'When creating a new user, what should I do with role?',
+			'accUM_select_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_new_user_role_action',
+				'values' => ['set_role' => 'Set role', 'add_role' => 'Add role', 'nc' => 'Do not change role'],
+				'default' => accUM_get_new_user_role_action_default(),
+			)
+		);
+
 		$roles = wp_roles()->get_names();
 		add_settings_field(
-			'accUM_default_role',			//ID
-			'When creating a new user, set role to',	//Title
+			'accUM_new_user_role_value',	//ID
+			'role value?',					//Title
 			'accUM_select_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
-				'name' => 'accUM_default_role',
+				'name' => 'accUM_new_user_role_value',
 				'values' => $roles,
-				'default' => accUM_get_default_role_default(),
+				'default' => accUM_get_new_user_role_value_default(),
 			)
 		);
 
 		add_settings_field(
-			'accUM_do_expire_role',			//ID
-			'Should plugin modify the role when a member becomes expired?',	//Title
-			'accUM_chkbox_render',			//Callback
-			'acc_admin_page',				//Page
-			'accUM_user_section',			//Section
-			array(
-				'name' => 'accUM_do_expire_role',
-				'default' => accUM_get_do_expire_role_default(),
-			)
-		);
-
-		add_settings_field(
-			'accUM_expired_role',			//ID
-			'Set role of expired members to',	//Title
+			'accUM_ex_user_role_action',	//ID
+			'When expiring a user, what should I do with role?',
 			'accUM_select_render',			//Callback
 			'acc_admin_page',				//Page
 			'accUM_user_section',			//Section
 			array(
-				'name' => 'accUM_expired_role',
+				'name' => 'accUM_ex_user_role_action',
+				'values' => ['set_role' => 'Set role', 'remove_role' => 'Remove role', 'nc' => 'Do not change role'],
+				'default' => accUM_get_ex_user_role_action_default(),
+			)
+		);
+
+		add_settings_field(
+			'accUM_ex_user_role_value',		//ID
+			'role value?',					//Title
+			'accUM_select_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_ex_user_role_value',
 				'values' => $roles,
-				'default' => accUM_get_expired_role_default(),
+				'default' => accUM_get_ex_user_role_value_default(),
 			)
 		);
 
@@ -229,6 +221,7 @@
 			array(
 				'type' => 'text',
 				'name' => 'accUM_notification_emails',
+				'default' => accUM_get_notification_emails_default(),
 			)
 		);
 
@@ -242,6 +235,19 @@
 				'type' => 'text',
 				'name' => 'accUM_notification_title',
 				'default' => accUM_get_default_notif_title(),
+				)
+		);
+
+		add_settings_field(
+			'accUM_max_log_files',			//ID
+			'Maximum number of log files to keep',
+			'accUM_text_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'type' => 'number',
+				'name' => 'accUM_max_log_files',
+				'default' => accUM_get_default_max_log_files(),
 				)
 		);
 

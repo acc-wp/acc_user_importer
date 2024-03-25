@@ -90,5 +90,89 @@ function acc_send_goodbye_email($user_id) {
 }
 
 
+static $acc_logfile = "";
 
+/*
+ * Generate a new log filename, based on the current day and time. Ex:
+ * plugins/acc_user_importer/logs/log_upgrade_2024-02-13-16-35-04.txt
+ * This is stored in a global variable for convenience so that
+ * each log statement does not have to specifically refer to that file.
+ * On top of that, we store it to the plugin DB because the static var
+ * is periodically re-init to NULL by Wordpress (in-between http requests,
+ * I think).
+ */
+function acc_pick_new_log_file($prefix) {
+	global $acc_logfile;
+	$log_date = date_i18n("Y-m-d-H-i-s");
+	$acc_logfile = ACC_LOG_DIR . $prefix . $log_date . ".txt";
+	//error_log("acc_logfile defined as $acc_logfile");
+	acc_write_log_filename_to_db($acc_logfile);
+
+	acc_enforce_max_log_files();
+
+	return $acc_logfile;
+}
+
+// Write the current log filename as a plugin DB option.
+function acc_write_log_filename_to_db ($filename) {
+	$options = get_option('accUM_data');
+	$options['log_filename'] = $filename;
+	update_option( 'accUM_data',  $options);
+	//error_log("wrote filename to DB");
+}
+
+// Get the log filename stored in the DB.
+function acc_read_log_filename_from_db () {
+	$options = get_option('accUM_data');
+	$filename = $options['log_filename'];
+	//error_log("read $filename from DB");
+	return $filename;
+}
+
+/*
+ * Delete old log files to ensure it does not grow to infinity
+ */
+function acc_enforce_max_log_files() {
+	$options = get_option('accUM_data');
+	if (!isset($options['accUM_max_log_files'])) {
+		$max_log_files = accUM_get_default_max_log_files();
+	} else {
+		$max_log_files = $options['accUM_max_log_files'];
+	}
+
+	// Get list of files, sorted alphabetically so the latest date is on top
+	$files = scandir(ACC_LOG_DIR, SCANDIR_SORT_DESCENDING);
+	if (is_array($files)) {
+		// Filter to keep only files starting with "log"
+		$files2 = [];
+		foreach ($files as $file) {
+			if (str_starts_with($file, "log")) {
+				$files2[] = $file;
+			}
+		}
+		$count = count($files2);
+		if ($count > ($max_log_files - 1)) {
+			// How many to delete?  Minus one because we are about to add one more file
+			$num_to_delete = $count - $max_log_files - 1;
+			$files_to_delete = array_slice($files2, $max_log_files-1);
+			acc_log("Loc directory contains {$count} files and max set to " .
+					"{$max_log_files}, deleting " . count($files_to_delete));
+			foreach ( $files_to_delete as $file) {
+				unlink(ACC_LOG_DIR . $file);
+			}
+		}
+	}
+}
+
+function acc_log( $v ) {
+	global $acc_logfile;
+	if (empty($acc_logfile)) {
+		$acc_logfile = acc_read_log_filename_from_db();
+	}
+	if (!empty($acc_logfile)) {
+		$log = fopen($acc_logfile, "a");
+		fwrite( $log, $v . "\n");
+		fclose( $log );
+	}
+}
 
