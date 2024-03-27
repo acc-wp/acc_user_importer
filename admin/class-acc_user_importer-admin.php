@@ -742,6 +742,13 @@ class acc_user_importer_Admin {
 				continue;
 			}
 
+			//Safety check in case member is not a member of this section
+			if (empty($userMembershipSection))
+			{
+				$this->log_dual("> error, user is not a member of this section; skip");
+				continue;
+			}
+
 			switch($loginNameMapping) {
 				case 'Firstname Lastname':
 					$loginName = "$userFirstName $userLastName";

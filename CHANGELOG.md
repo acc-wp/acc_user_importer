@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.7 Keith Dunwoody
+
+- Add sanity check for member being a member of the section being imported.  The API has recently
+  been returning Prince George member numbers for the Vancouver section.
+- Add mapping for student memberships for Vancouver section
+
 ## 2.0.6 Francois Bessette
 
 - Fix minor problem where member expiry is not performed when plugin is manually
