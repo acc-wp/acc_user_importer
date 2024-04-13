@@ -8,8 +8,8 @@
  * Plugin Name:       ACC User Importer
  * Plugin URI:        https://github.com/acc-wp/acc_user_importer
  * Description:       A plugin for synchronizing users from the <a href="http://alpineclubofcanada.ca">Alpine Club of Canada</a> national office.
- * Version:           2.1.2
- * Author:            Francois Bessette, Claude Vessaz, Raz Peel, Karine Frenette Gaufre
+ * Version:           2.1.3
+ * Author:            Francois Bessette, Claude Vessaz, Raz Peel, Karine Frenette Gaufre, Keith Dunwoody
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain:       acc_user_importer
@@ -29,7 +29,7 @@ define('ACC_LOG_DIR', ACC_BASE_DIR . '/logs/');
 /**
  * Current plugin version.
  */
-define( 'ACC_USER_IMPORTER_VERSION', '2.1.2' );
+define( 'ACC_USER_IMPORTER_VERSION', '2.1.3' );
 
 
 /**

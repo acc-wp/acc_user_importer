@@ -784,6 +784,13 @@ class acc_user_importer_Admin {
 				continue;
 			}
 
+			//Safety check in case member is not a member of this section
+			if (empty($userMembershipSection))
+			{
+				$this->log_dual("> error, user is not a member of this section; skip");
+				continue;
+			}
+
 			// Issue a harmless warning in the log if we see the 2mev API returned discrepancies
 			$membershipExpired = ($userMembershipExpiry < date("Y-m-d"));
 			$membershipStatus = $this->validMembershipStatus($userMembershipStatus);

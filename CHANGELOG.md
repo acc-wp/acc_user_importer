@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.1.3 Francois Bessette
+- Merged 2.0.7 change from Keith
+
 ## 2.1.2 Francois Bessette
 
 - Remove "Usernames will transition from ContactID" configuration and associated
@@ -16,6 +19,12 @@
   the user DB and clean-up the previous_roles variable.
 - Add setting to limit the number of log files
 - Fix PHP error when no email address entered in the Admin to notify option box.
+
+## 2.0.7 Keith Dunwoody
+
+- Add sanity check for member being a member of the section being imported.  The API has recently
+  been returning Prince George member numbers for the Vancouver section.
+- Add mapping for student memberships for Vancouver section
 
 ## 2.0.6 Francois Bessette
 
