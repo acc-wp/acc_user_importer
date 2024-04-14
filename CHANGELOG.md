@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.1.4 Francois Bessette
+- Add option to doublecheck for expired users in local DB.
+
 ## 2.1.3 Francois Bessette
 - Merged 2.0.7 change from Keith
 

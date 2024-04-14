@@ -51,6 +51,7 @@
 	function accUM_get_default_notif_title() {return 'ACC membership change notification';}
 	function accUM_get_ex_user_role_action_default() {return 'set_role';}	
 	function accUM_readonly_mode_default() {return 'off';}
+	function accUM_verify_expiry_default() {return 'off';}
 	function accUM_get_ex_user_role_value_default() {return 'subscriber';}
 	function accUM_get_default_max_log_files() {return 500;}
 	function accUM_get_notification_emails_default() {return '';}
@@ -75,6 +76,17 @@
 			$readonly_mode = $options['accUM_readonly_mode'];
 		}
 		return $readonly_mode == 'on';
+	}
+
+	// Returns true if we need to scan the DB looking for expired users
+	function accUM_get_verify_expiry() {
+		$options = get_option('accUM_data');
+		if (!isset($options['accUM_verify_expiry'])) {
+			$setting = accUM_verify_expiry_default();
+		} else {
+			$setting = $options['accUM_verify_expiry'];
+		}
+		return $setting == 'on';
 	}
 
 	/*
@@ -156,6 +168,18 @@
 			array(
 				'name' => 'accUM_readonly_mode',
 				'default' => accUM_readonly_mode_default(),
+			)
+		);
+
+		add_settings_field(
+			'accUM_verify_expiry',			//ID
+			'Also check user expiry in local DB',
+			'accUM_chkbox_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'name' => 'accUM_verify_expiry',
+				'default' => accUM_verify_expiry_default(),
 			)
 		);
 

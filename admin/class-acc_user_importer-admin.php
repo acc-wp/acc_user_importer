@@ -286,6 +286,9 @@ class acc_user_importer_Admin {
 
 		}
 
+		// All members have been successfully updated, now look for expired members
+		$expiryResult = $this->local_db_check();
+
 		$timestamp_end = date_i18n("Y-m-d-H-i-s");
 		$this->log_dual("This journey has come to an end.");
 		$this->log_dual("Start time: " . $timestamp_start);
@@ -338,9 +341,6 @@ class acc_user_importer_Admin {
 				$api_response = $this->proccess_user_data( $memberArray );
 				break;
 
-			// This step is only done when the script is triggered manually.
-			// We could eventually execute it periodically (once after each end 
-			// of month) if we see that it catches some errors.
 			case "processExpiry":
 				$api_response = $this->local_db_check();
 				break;
@@ -1060,7 +1060,8 @@ class acc_user_importer_Admin {
 			$this->log_dual(" [" . $id . "] " . var_export($user, true));
 		}
 
-		$this->send_admin_email($new_active_users, $expired_users, $warnings);
+		$operation = "The ACC web site has received the following membership changes:";
+		$this->send_admin_email($operation, $new_active_users, $expired_users, $warnings);
 
 		$api_response['usersInData'] = count($users);
 		$api_response['newUsers'] = count($new_users);
@@ -1217,11 +1218,19 @@ class acc_user_importer_Admin {
 	 * unnoticed and potentially with the wrong role.  If the periodic
 	 * membership sync works fine, this function will find nothing to do.
 	 * 
-	 * What we do: we basically check for expired users and if any are
-	 * found, we potentially send the goodbye email and change the role
-	 * (as per config).
+	 * What we do:
+	 * -we check for expired users that are still marked active, and if any are
+	 *  found, we potentially send the goodbye email and change the role.
+	 * -we check for valid users that are marked inactive, and if any are
+	 *  found, we potentially send the welcome email and change the role.
+	 *  This scenario can probably only happen if someone manually
+	 *  adds a user in the local Wordpress database.
+	 * -We check for suspicious user expiry dates (no expiry date, or
+	 *  an expiry date more than 1 year 1 month from now) and log warnings.
 	 */
 	private function local_db_check () {
+
+		$api_response = [];					//create response object
 
 		$readonly_mode = accUM_get_readonly_mode();
 		if ($readonly_mode) {
@@ -1231,27 +1240,60 @@ class acc_user_importer_Admin {
 			return $api_response;
 		}
 
-		$api_response = [];					//create response object
+		$verify_expiry = accUM_get_verify_expiry();
+		if ($verify_expiry) {
+			$this->log_dual("Checking local DB, as stated in configuration");
+		} else {
+			$this->log_dual("Skipping local DB sanity check, as per configuration");
+			$api_response['message'] = "success";
+			$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
+			return $api_response;
+		}
+
 		$new_users = [];
 		$expired_users = [];
 		$warnings = [];
+		$num_active = 0;
+		$num_inactive = 0;
+		$more_than_a_year_from_now = acc_now_plus_N_days(400);
 		$user_ids = get_users(['fields' => 'ID']);
 
 		foreach ( $user_ids as $user_id ) {
+			$user = get_userdata($user_id);
+
+			//Sanity check: raise a warning if user has no or weird expiry date.
+			if (empty($user->expiry)) {
+				$warnings[] = "$user->display_name ($user->user_login, $user->user_email) has no membership expiry!";
+			} else if ($user->expiry > $more_than_a_year_from_now) {
+				$warnings[] = "$user->display_name ($user->user_login, $user->user_email) has expiry=$user->expiry!";
+			}
 
 			$outcome = $this->checkForUserStateChange($user_id);
-			if ($outcome == "active" || $outcome == "inactive") {
-				$user = get_userdata($user_id);
+			if ($outcome == "active") {
+				$new_users[] = "$user->display_name  ($user->user_email)";
+			} else if ($outcome == "inactive") {
+				$expired_users[] = "$user->display_name  ($user->user_email)";
+			}
 
-				if ($outcome == "active") {
-					$new_users[] = "$user->display_name  ($user->user_email)";
-				} else if ($outcome == "inactive") {
-					$expired_users[] = "$user->display_name  ($user->user_email)";
-				}
+			//count active and inactive
+			if ($user->acc_status == 'active') {
+				$num_active++;
+			} else if ($user->acc_status == 'inactive') {
+				$num_inactive++;
 			}
 		}
 
-		$this->send_admin_email($new_users, $expired_users, $warnings);
+		//Give a summary
+		$this->log_dual("Check of local DB made " . count($new_users) . " users active");
+		$this->log_dual("Check of local DB made " . count($expired_users) . " users inactive");
+		$this->log_dual("Number of   active members = $num_active");
+		$this->log_dual("Number of inactive members = $num_inactive");
+		foreach ( $warnings as $warning ) {
+			$this->log_dual("Warning: $warning");
+		}
+
+		$operation = "The ACC web site local DB check made the following changes:";
+		$this->send_admin_email($operation, $new_users, $expired_users, $warnings);
 
 		$api_response['message'] = "success";
 		$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
@@ -1265,18 +1307,18 @@ class acc_user_importer_Admin {
 	 * The email is only sent if needed (there were new users, expired users or warnings).
 	 * There is no checking done to ensure the notification email addresses are valid.
 	 */
-	private function send_admin_email ($new_users, $expired_users, $warnings) {
+	private function send_admin_email ($operation, $new_users, $expired_users, $warnings) {
 
 		$options = get_option('accUM_data');
 		if (!empty($options['accUM_notification_emails']) &&
-			(!empty($new_users) || !empty($expired_users) || !empty($warnings))) {
+			(!empty($new_users) || !empty($expired_users))) {
 
 			$email_addrs = $options['accUM_notification_emails'];
 			$title = accUM_get_default_notif_title();
 			if (isset($options['accUM_notification_title'])) {
 				$title = $options['accUM_notification_title'];
 			}
-			$content = "The ACC web site has received the following membership changes:\n\n";
+			$content = $operation . "\n\n";
 			$content .= "---new members---\n";
 			foreach ( $new_users as $user ) {
 				$content .= $user . "\n";

@@ -176,3 +176,12 @@ function acc_log( $v ) {
 	}
 }
 
+// Returns the current date plus the specified number of days.
+// The format will be a string like "2026-04-28".
+function acc_now_plus_N_days ($days) {
+		$date = new DateTime(); 					// Get the current date
+		$period = "P" . $days . "D";
+		$date->add(new DateInterval($period));    	//Add N days
+		$return_string = $date->format('Y-m-d');
+		return($return_string);
+	}

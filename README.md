@@ -59,6 +59,11 @@ have decided to standardize on ACC Member Number.
 - Test mode (do not actually update the local Wordpress database).
 If you enable this option, the plugin will run and will display the
 received data, but will not update the local Wordpress database.
+- Also doublecheck for expired users in local DB? If this option is
+checked, then after syncing the received data from the 2M API,
+an additional step is done: the local database is scanned,
+looking for expired users. This is a safeguard in case 2M forgets
+to notify us of an expired user.
 - When creating a new user, how to change role?
 You have the choice to take no action, set role to a value or add a
 role to the member.
@@ -128,7 +133,7 @@ prematurely, the section will not know about it (no email, no
 role change, but there will be a warning in the plugin log). 
 The user will be able to access the local web site
 until the original expiry date is reached.
-- When the update is triggered manually, there is an additional
+- If the option is set, there is an additional
 step to ensure sanity of the database. It scans
 the whole database of Wordpress users. If a user was "inactive"
 and his expiry date is in the future, a Welcome email is sent
