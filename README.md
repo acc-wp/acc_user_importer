@@ -56,6 +56,14 @@ such as 2020-11-23T15:05:00. Note that when after an automatic
 the run was manually triggered.
 - Set usernames to: what username to assign new members. Most section
 have decided to standardize on ACC Member Number.
+- Usernames will transition from ContactID? Only to be used by the
+Vancouver section, where members currently have ContactID as their usernames.
+Selecting this option adds a safety check in case the incoming ACC
+member number matches the ContactID of an unrelated member.
+The option is meant to be used only for the transition to the 2M system.
+Leaving the option enabled has the drawback that if a user changes
+his name and email at the same time, the plugin would no
+longer be able to find it and update it in the database.
 - Test mode (do not actually update the local Wordpress database).
 If you enable this option, the plugin will run and will display the
 received data, but will not update the local Wordpress database.
