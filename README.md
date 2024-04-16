@@ -121,9 +121,9 @@ the local Wordpress database. If none is found, a new user is created.
 If one is found, the information is verified and updated if needed.
 - Case of a member that did not renew: his number will show up in the
 response from the Changed Member API, but in the data sent by the
-Members API, the valid_to date will be in the past, and the 
-identity_membership_status will typically show "EXP". The plugin
-code just looks at the valid_to date, which should be fine.
+Members API, the identity_membership_status will be EXP (for expired).
+The valid_to date will typically also be in the past, but the plugin
+relies on the membership_status value to declare a user expired or not.
 - One case the plugin struggles with: sometimes a user moves from
 one membership to another (ex: lapsed adult membership, renewed
 family membership).  When this happens, there may be 2 records
@@ -150,24 +150,28 @@ and his expiry date is in the past, a Goodbye email is sent
 and the user is set to "inactive".  This is a safety net
 to catch cases which may have gone out of sync.
 
+### A note regarding the membership status
+- PROC: stands for processing, which typically means the user has paid
+  for his membership but has not signed the waiver yet.
+- ISSU: stands for issued, this is a valid membership.
+- EXP: membership is expired.
+
 ### What decides if a user can connect or not to the site?
-The "expiry" field associated with each user is what decides
-if the user can connect. The plugin adds a hooks to Wordpress
-and for each connection, verifies the "expiry" date. If
-it is in the past, the connection is rejected.
+The plugin adds a hooks to Wordpress. Each time a user tries to login,
+the plugin verifies the following:
+- if membership status is PROC, the user is not allowed. An error message
+  hints that the waiver probably needs to be signed.
+- if membership status is EXP or the expiry date has been reached,
+  the user is not allowed. An error message says to renew the membership.
 
 ### Sending of "Welcome" and "Goodbye" emails
 
 There are checkboxes to control whether a Welcome and Goodbye email are sent to a new or expired member.
 Sending of a Welcome email is done whenever a new user account is created, or whenever an expired user renews its membership.
-Sending of a Goodbye email is done whenever a member 'expiry' date is in the past. To help with expiry detection and avoid sending an email on every run
-of the plugin, in the database each user has a meta variable called `acc_status`. The `acc_status` is set according to the user `expiry` date:
-
-| user expiry                    | user acc_status |
-| ------------------------------ | --------------- |
-| in the future                  | active          |
-| in the past (or field not set) | inactive        |
-
+Sending of a Goodbye email is done whenever a membership status is not valid.
+To help with expiry detection and avoid sending an email on every run of the plugin,
+in the database each user has a meta variable called `acc_status` which helps
+detecting if there was a status change or not. 
 An email is sent whenever the acc_status state changes. When upgrading an existing installation, we don't want to flood all users with Welcome/Goodbye emails.  So when the plugin runs, it will avoid sending emails for existing users that do not have such variable yet in the database. But it will create the acc_status variable, and from the non will send emails on state changes. Assuming the email checkbox is set, of course.
 
 
