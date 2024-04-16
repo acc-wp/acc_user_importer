@@ -45,7 +45,8 @@ class acc_user_importer_Public {
 		$fields[ 'membership_type' ] = __( 'Membership Type' );
 		$fields[ 'expiry' ] = __( 'Expiry' );
 		$fields[ 'city' ] = __( 'City' );
-		$fields[ 'acc_status' ] = __( 'ACC Status' );
+		$fields[ 'membership_status' ] = __( 'ACC Membership Status (ex:ISSU,PROC,EXP)' );
+		$fields[ 'acc_status' ] = __( 'Internal status' );
 		
 		//remove useless fields
 		unset($fields['aim']);

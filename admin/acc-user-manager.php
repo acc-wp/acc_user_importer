@@ -27,8 +27,29 @@ function acc_cron_deactivate() {
 }
 
 /**
- * User is trying to login. Check user expiry date, and if too old,
- * don't allow him to login.
+ * Returns true if the membership status is valid.
+ * ISSU means ISSUED
+ * PROC means Processing. The member has a paid membership, however he probably
+ * has not signed the waiver yet, so should not be allowed to participate to activities.
+ * In this function, we consider this a valid membership because we do not want
+ * to send goodbye emails for such cases.
+ */
+function acc_validMembershipStatus ( $membershipStatus ) {
+	return ($membershipStatus == "ISSU" || $membershipStatus == "PROC");
+}
+
+
+/**
+ * Returns true if the membership status is in PROCessing state.
+ */
+function acc_MembershipStatusIsProc ( $membershipStatus ) {
+	return ($membershipStatus == "PROC");
+}
+
+
+/**
+ * User is trying to login.
+ * Prevent user login if membership is PROC, EXP or expiry date is passed.
  */
 function acc_validate_user_login(WP_User $user) {
 
@@ -37,10 +58,38 @@ function acc_validate_user_login(WP_User $user) {
 		return $user;
 	}
 
-	$expiry= get_user_meta( $user->ID, 'expiry', 'true' );
-	if(empty($expiry) || $expiry < date("Y-m-d")){
+	// Case where membership is in PROC state. We output a specific error.
+	$status= get_user_meta( $user->ID, 'membership_status', 'true' );
+	if (!empty($status) && acc_MembershipStatusIsProc($status)){
 		$error = new WP_Error();
-		$error->add( 403, 'Oops. Your membership has expired, please renew your membership at <a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. Please note that it can take up to three days until the membership data is updated.' );
+		$msg = 'Oops. Your membership is in Processing state, which means ' .
+		'a requirement is still missing. Maybe your membership renewed automatically but you did not sign the new waiver yet? ' .
+		'Please check your membership at <a href="https://2mev.com/#!/login">https://2mev.com/#!/login</a> ' .
+		'and make the corrections needed. This will allow you to login and register to activities. ' .
+		'Note: it may take 24 hours for the update to be propagated to our local website. <br><br>' .
+		'Il semble que votre abonnement ne soit pas complet. Peut-être que votre abonnement s\'est renouvelé ' .
+		'automatiquement mais que vous n\'avez pas encore signé le nouveau ' .
+		'formulaire d\'acceptation des risques (à signer chaque année)? Vérifiez l\'état de votre abonnement au ' .
+		'<a href="https://2mev.com/#!/login">https://2mev.com/#!/login</a> afin de pouvoir vous connecter ' .
+		'et participer aux activités. Allouez 24h pour que les changements se propagent au site web local.';
+		$error->add( 403, $msg);
+		return $error;
+	}
+
+	// Case where membership is not ISSU, or expiry date is passed. In theory, just
+	// checking for not ISSU should be enough. But I have seen weird cases where 2M forgot to 
+	// notify us of a user expiry, and checking the expiry date here acts as a safeguard.
+	$expiry= get_user_meta( $user->ID, 'expiry', 'true' );
+	if ((!empty($status) && !acc_validMembershipStatus($status)) ||
+		empty($expiry) || $expiry < date("Y-m-d")) {
+		$error = new WP_Error();
+		$msg = 'Oops. Looks like your membership has expired. Please renew your membership at ' .
+		'<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ' .
+		'Allow 24 hours for the change to propagate to the local web site.<br><br>' .
+		'Il semble que votre abonnement soit échu. Renouvelez votre abonnement au ' .
+		'<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ' .
+		'et allouez 24 heures pour que le changement se propage au site web local.';
+		$error->add( 403, $msg);
 		return $error;
 	}
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.0 Francois Bessette
+- Save membership status in user database. The primary condition for a
+  valid user is now based on his membership status rather than the expiry date.
+- Do not allow user to login if his membership is in PROC state.
+  Give appropriate login error message.
+- Display membership status in user profile page.
+- During local DB check, give warnings for users with PROC membership status.
+
 ## 2.1.4 Francois Bessette
 - Add option to doublecheck for expired users in local DB.
 

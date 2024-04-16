@@ -605,14 +605,6 @@ class acc_user_importer_Admin {
 	}
 
 	/**
-	 * Returns true if the membership status is valid.
-	 */
-	private function validMembershipStatus ( $membershipStatus ) {
-		return ($membershipStatus == "ISSU" || $membershipStatus == "PROC");
-	}
-
-
-	/**
 	 * Update Wordpress database with member information.
 	 * This is where most of the work gets done.
 	 */
@@ -707,6 +699,7 @@ class acc_user_importer_Admin {
 			//We are ignoring date of birth for now.
 			$userFirstName= $user["first_name"] ?? '';
 			$userLastName= $user["last_name"] ?? '';
+			$userFullName= $userFirstName . " " . $userLastName;
 			//$userContactId = $user['member_number'] ?? '';
 			//FIXME what should we do with the new system 'id'?
 			//Should we overwrite imis_id with this new field?
@@ -797,11 +790,13 @@ class acc_user_importer_Admin {
 
 			// Issue a harmless warning in the log if we see the 2mev API returned discrepancies
 			$membershipExpired = ($userMembershipExpiry < date("Y-m-d"));
-			$membershipStatus = $this->validMembershipStatus($userMembershipStatus);
+			$membershipStatus = acc_validMembershipStatus($userMembershipStatus);
 			if ($membershipExpired && $membershipStatus) {
 				$this->log_dual("Warning, data discrepancy: membership date expired but status is good!");
+				$warnings[] = "Warning, rxd data discrepancy for $userFullName: membership date expired but status is good!\n";
 			} else if (!$membershipExpired && !$membershipStatus) {
 				$this->log_dual("Warning, data discrepancy: membership date good but status is bad!");
+				$warnings[] = "Warning, rxd data discrepancy for $userFullName: good membership date but status is bad!\n";
 			}
 
 			switch($loginNameMapping) {
@@ -835,7 +830,7 @@ class acc_user_importer_Admin {
 				'membership_type' => $userMembershipType,
 				'expiry' => $userMembershipExpiry,
 				'nickname' => $userFirstName . " " . $userLastName,
-				//'imis_id' => $userImisId,
+				'membership_status' => $userMembershipStatus,
 			];
 
 			// Check if ID or email already exist. Both should be unique
@@ -1020,7 +1015,7 @@ class acc_user_importer_Admin {
 			if (!$readonly_mode) {	// Skip the rest if we are in read-only test mode
 
 				// Skip the rest if the user does not have a valid membership (ex: expired already)
-				if (!$this->validMembershipStatus($userMembershipStatus)) continue;
+				if (!acc_validMembershipStatus($userMembershipStatus)) continue;
 
 				//--------CREATE NEW USER-----
 				$this->log_dual(" > email not found on any other users");
@@ -1104,20 +1099,32 @@ class acc_user_importer_Admin {
 
 	/**
 	 * Returns True if the user is expired.
-	 * If the user has no 'expiry' field, it is considered as active.
-	 * Most likely an admin.
+	 * The user is consider valid if its membership_status is PROC or ISSU.
+	 * For backward compatibility, if user has no membership_status, we
+	 * the check the 'expiry' date.  If there is no expiry, the user is
+	 * considered as valid.	 The user is most likely an admin, and his account was
+	 * created manually.
 	 */
 	private function is_user_expired ($user) {
-		if (empty($user->expiry)) {
-			$this->log_dual("user $user->ID $user->display_name has no expiry, consider active");
-			return false;
+
+		if (!empty($user->membership_status)) {
+			$expired = !acc_validMembershipStatus($user->membership_status);
+			// $exp_string = $expired ? "expired" : "not expired";
+			// $this->log_dual("user $user->ID $user->display_name has membership_status, $exp_string");
+			return $expired;
 		}
 
-		if ($user->expiry < date("Y-m-d")) {
-			//$this->log_dual("user $user->ID $user->display_name expiry=$user->expiry is expired");
-			return true;
+		if (!empty($user->expiry)) {
+			if ($user->expiry < date("Y-m-d")) {
+				// $this->log_dual("user $user->ID $user->display_name expiry=$user->expiry is expired");
+				return true;
+			} else {
+				// $this->log_dual("user $user->ID $user->display_name expiry=$user->expiry is not expired");
+				return false;
+			}
 		}
-		//$this->log_dual("user $user->ID $user->display_name expiry=$user->expiry is valid");
+
+		// $this->log_dual("user $user->ID $user->display_name has no expiry, consider active");
 		return false;
 	}
 
@@ -1284,6 +1291,8 @@ class acc_user_importer_Admin {
 		$warnings = [];
 		$num_active = 0;
 		$num_inactive = 0;
+		$num_processing = 0;
+		$processing_email_list = "";
 		$more_than_a_year_from_now = acc_now_plus_N_days(400);
 		$user_ids = get_users(['fields' => 'ID']);
 
@@ -1295,6 +1304,14 @@ class acc_user_importer_Admin {
 				$warnings[] = "$user->display_name ($user->user_login, $user->user_email) has no membership expiry!";
 			} else if ($user->expiry > $more_than_a_year_from_now) {
 				$warnings[] = "$user->display_name ($user->user_login, $user->user_email) has expiry=$user->expiry!";
+			}
+
+			//Give warning for users having a 'PROC' membership status
+			if (!empty($user->membership_status) &&
+				acc_MembershipStatusIsProc($user->membership_status)) {
+				$warnings[] = "$user->display_name ($user->user_login, $user->user_email) has membership in PROC state";
+				$processing_email_list .= $user->display_name . " &lt" . $user->user_email. "&gt, ";
+				$num_processing++;
 			}
 
 			$outcome = $this->checkForUserStateChange($user_id);
@@ -1315,11 +1332,13 @@ class acc_user_importer_Admin {
 		//Give a summary
 		$this->log_dual("Check of local DB made " . count($new_users) . " users active");
 		$this->log_dual("Check of local DB made " . count($expired_users) . " users inactive");
-		$this->log_dual("Number of   active members = $num_active");
+		$this->log_dual("Number of active members = $num_active");
 		$this->log_dual("Number of inactive members = $num_inactive");
+		$this->log_dual("Number of members in PROC state = $num_processing");
 		foreach ( $warnings as $warning ) {
 			$this->log_dual("Warning: $warning");
 		}
+		$this->log_dual("<br>Email list of users in PROC state = $processing_email_list<br>");
 
 		$operation = "The ACC web site local DB check made the following changes:";
 		$this->send_admin_email($operation, $new_users, $expired_users, $warnings);
