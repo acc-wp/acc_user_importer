@@ -1,5 +1,36 @@
 # Changelog
 
+## 2.2.0 Francois Bessette
+- Save membership status in user database. The primary condition for a
+  valid user is now based on his membership status rather than the expiry date.
+- Do not allow user to login if his membership is in PROC state.
+  Give appropriate login error message.
+- Display membership status in user profile page.
+- During local DB check, give warnings for users with PROC membership status.
+
+## 2.1.4 Francois Bessette
+- Add option to doublecheck for expired users in local DB.
+
+## 2.1.3 Francois Bessette
+- Merged 2.0.7 change from Keith
+
+## 2.1.2 Francois Bessette
+
+- Remove "Usernames will transition from ContactID" configuration and associated
+  code. This was just for the 2023-05 IT transition, no longer needed.
+- Add configuration and code to better decide what to do to role when there is
+  a new or expired user. Choices: na, add_role, set_role, remove_role.
+- Remove code which to restore a user previous role when he renews. Too confusing.
+- Print received membership status to log
+- Remove Process_Expiry code which used to be run at the end of membership import.
+  There is no more need to do so since 2mev now signals reliably when members
+  become expired.
+- Enhance code for sending email to admin, for logging
+- During activation phase, if the previous plugin was not 2.1.0, examine
+  the user DB and clean-up the previous_roles variable.
+- Add setting to limit the number of log files
+- Fix PHP error when no email address entered in the Admin to notify option box.
+
 ## 2.0.7 Keith Dunwoody
 
 - Add sanity check for member being a member of the section being imported.  The API has recently

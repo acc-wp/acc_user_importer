@@ -71,6 +71,10 @@ class acc_user_importer {
 		 */
 		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'public/class-acc_user_importer-public.php';
 
+		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'includes/class-acc_user_importer-activator.php';
+
+		new acc_user_importer_Activator($this->get_plugin_name(), $this->get_version());
+
 		$this->loader = new acc_user_importer_Loader();
 
 	}

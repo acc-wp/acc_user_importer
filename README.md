@@ -67,10 +67,19 @@ longer be able to find it and update it in the database.
 - Test mode (do not actually update the local Wordpress database).
 If you enable this option, the plugin will run and will display the
 received data, but will not update the local Wordpress database.
-- What role to assign new members
-- Should plugin modify the role when a member becomes expired?
-This option allows to change the permissions given to a user
-that is no longer member.
+- Also doublecheck for expired users in local DB? If this option is
+checked, then after syncing the received data from the 2M API,
+an additional step is done: the local database is scanned,
+looking for expired users. This is a safeguard in case 2M forgets
+to notify us of an expired user.
+- When creating a new user, how to change role?
+You have the choice to take no action, set role to a value or add a
+role to the member.
+- Role value?  Value related to the previous choice.
+- When expiring a user, how to change role?
+You have the choice to take no action, set role to a value or remove a
+role from the member.
+- Role value?  Value related to the previous choice.
 - Admin to notify: Enter an email or a list of emails (comma separated)
 to be notified whenever the plugin adds or expires members.
 Normally an admin email account. Leave blank for no notifications.
@@ -105,54 +114,64 @@ at a time.
 - Using the token the plugin contacts the 2M Member API and requests for
 detailed information about a list of members.  Up to 50 at a time.
 - The 2M server replies. For each member, it gives information such as
-firsnane, lastname, email, phone, etc. plus a list of memberships relevant
+firstnane, lastname, email, phone, etc. plus a list of memberships relevant
 for the section.
 - the plugin receives the data, and searches for a corresponding member in
 the local Wordpress database. If none is found, a new user is created.
 If one is found, the information is verified and updated if needed.
 - Case of a member that did not renew: his number will show up in the
-response from the Changed Member API, but he will not have an entry
-in the Member API. The reason is, since this user is no longer part
-of the section club, the section should not really access his personal
-information and does not need to.  The absence of the user
-means he is no longer a member.  CUrrently the plugin is not super wise.
-It does not know that the user was in the Changed Member and is missing
-in the Member API. The plugin simply processes what it receives, and
-since that user is missing, nothing is done. Normally, this is fine
-since the user should be missing when the membership expiry is
-reached. Doing nothing simply means that the user account will still
-live in the Wordpress site, however as soon as his membership expiry date
-is reached, he will not be able to connect.
-The only caveat is, if a user membership was prematurely terminated,
-this would go unseen by the plugin and the user would still be
-able to connect to the Wordpress site until his normal expiry
-is reached.  We could improve on this eventually.
-- Once all received memberships have been processed, the plugin
-does a special operation called expiry processing. It scans
+response from the Changed Member API, but in the data sent by the
+Members API, the identity_membership_status will be EXP (for expired).
+The valid_to date will typically also be in the past, but the plugin
+relies on the membership_status value to declare a user expired or not.
+- One case the plugin struggles with: sometimes a user moves from
+one membership to another (ex: lapsed adult membership, renewed
+family membership).  When this happens, there may be 2 records
+received for the same person, one valid and one invalid. Since
+the plugin processes each record totally independantly, it has no
+idea that 2 changes for the same person is happening and it could
+potentially process the expired membership last, leaving the
+member as invalid in the local database. The chosen solution is to
+never bring back a membership expiry date. So if a received
+record indicates that the membership expiry date should be 
+moved backward in time, we just skip this record, assuming
+it does not represent the latest information.  The limitation is:
+if somehow on the national side a user membership is cancelled
+prematurely, the section will not know about it (no email, no
+role change, but there will be a warning in the plugin log). 
+The user will be able to access the local web site
+until the original expiry date is reached.
+- If the option is set, there is an additional
+step to ensure sanity of the database. It scans
 the whole database of Wordpress users. If a user was "inactive"
 and his expiry date is in the future, a Welcome email is sent
 and the user is set to "active".  If a user was "active"
 and his expiry date is in the past, a Goodbye email is sent
-and the user is set to "inactive".
+and the user is set to "inactive".  This is a safety net
+to catch cases which may have gone out of sync.
+
+### A note regarding the membership status
+- PROC: stands for processing, which typically means the user has paid
+  for his membership but has not signed the waiver yet.
+- ISSU: stands for issued, this is a valid membership.
+- EXP: membership is expired.
 
 ### What decides if a user can connect or not to the site?
-The "expiry" field associated with each user is what decides
-if the user can connect. The plugin adds a hooks to Wordpress
-and for each connection, verifies the "expiry" date. If
-it is in the past, the connection is rejected.
+The plugin adds a hooks to Wordpress. Each time a user tries to login,
+the plugin verifies the following:
+- if membership status is PROC, the user is not allowed. An error message
+  hints that the waiver probably needs to be signed.
+- if membership status is EXP or the expiry date has been reached,
+  the user is not allowed. An error message says to renew the membership.
 
 ### Sending of "Welcome" and "Goodbye" emails
 
 There are checkboxes to control whether a Welcome and Goodbye email are sent to a new or expired member.
 Sending of a Welcome email is done whenever a new user account is created, or whenever an expired user renews its membership.
-Sending of a Goodbye email is done whenever a member 'expiry' date is in the past. To help with expiry detection and avoid sending an email on every run
-of the plugin, in the database each user has a meta variable called `acc_status`. The `acc_status` is set according to the user `expiry` date:
-
-| user expiry                    | user acc_status |
-| ------------------------------ | --------------- |
-| in the future                  | active          |
-| in the past (or field not set) | inactive        |
-
+Sending of a Goodbye email is done whenever a membership status is not valid.
+To help with expiry detection and avoid sending an email on every run of the plugin,
+in the database each user has a meta variable called `acc_status` which helps
+detecting if there was a status change or not. 
 An email is sent whenever the acc_status state changes. When upgrading an existing installation, we don't want to flood all users with Welcome/Goodbye emails.  So when the plugin runs, it will avoid sending emails for existing users that do not have such variable yet in the database. But it will create the acc_status variable, and from the non will send emails on state changes. Assuming the email checkbox is set, of course.
 
 
@@ -186,32 +205,20 @@ An email is sent whenever the acc_status state changes. When upgrading an existi
 ## Road Map
 Here are some ideas that could be implemented, sorted by likelihood.
 - setting: enable/disable automatic operation (Cron job)
-- setting: email addresses to notify about new and expired members
 - setting: email addresses to notify about plugin operation
 - setting: disable access for expired members
 - setting: email addresses to never expire (ex: webmaster)
-- Send summary email to an admin email. Sent only when triggered by cron,
- this way we can aggregate all information into 1 email.
- What info would admin want to know in summary email?
-	- number of received records
-	- list of new members
-	- list of expired members
-	- errors encountered by plugin (by type)
-	- number of active/inactive members in local db
 - there is already a Wordpress setting (see General) for default role when creating
  a user. Use this setting and get rid of default_role ACC setting.
 - keep only N most recent log files
 - add a action and filter hook when receiving new users. This way someone could
  decide to filter out some people, or reformat phone numbers, etc.
-- give warning about weird cases. Example: a member that is no longer part of
- 	the imported list, but still have an expiry date in the future.
 - option to automatically delete inactive members
 - option to provide a grace period (keep member access for N days after its membership is expired)
 
 
 ## Contact
 * https://github.com/francoisbessette
-* https://github.com/cloetzi
 
 ## Acknowledgements
 

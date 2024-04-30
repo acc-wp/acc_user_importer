@@ -1,12 +1,11 @@
 <?php 
-	$log_directory  = ACC_BASE_DIR . '/logs/';
 	$log_folder 	= ACC_PLUGIN_DIR . '/logs/';
 	$log_list = "";
 
 
 	//PHP to delete log files
 	if(!empty($_GET["acc_nonce"]) && check_admin_referer( 'trash-log', 'acc_nonce' ) === 1) {
-		$file_to_delete = $log_directory . $_GET["log"];
+		$file_to_delete = ACC_LOG_DIR . $_GET["log"];
 		if(file_exists($file_to_delete))
 			unlink($file_to_delete);
 	}
@@ -18,7 +17,7 @@
 	<ul class="log_files">
 
 <?php 
-	chdir($log_directory);
+	chdir(ACC_LOG_DIR);
 	array_multisort(array_map('basename', ($files = glob("*.txt"))), SORT_DESC, $files);
 	foreach($files as $filename)
 	{
