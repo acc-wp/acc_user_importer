@@ -710,6 +710,7 @@ class acc_user_importer_Admin {
 			$userCellPhone = $user["phone_number"] ?? '';
 			$userMemberNumber = $user["member_number"] ?? '';
 			$receivedMemberships = $user['memberships'];
+			$this->log_dual("");
 			$this->log_dual(json_encode($user));
 
 			// It is possible for the user to have multiple memberships.
@@ -882,8 +883,8 @@ class acc_user_importer_Admin {
 					// then adult2, then childs. So naturally the owner of the
 					// account would be the first to be created.
 					if ($accUserData['display_name'] != $existingUser->display_name) {
-						$this->log_dual(" > found by email existing userId {$existingUser->ID} named
-									   {$existingUser->display_name}. Collision!");
+						$this->log_dual(" > found by email existing userId {$existingUser->ID} named " .
+									   "{$existingUser->display_name}. Collision!");
 						//Collision, and names are different
 						if ($this->compareMembershipType($userMembershipType,
 											             $existingUser->membership_type)) {
@@ -976,13 +977,20 @@ class acc_user_importer_Admin {
 					//so that the parent records are received first.
 					if ($loginName != $existingUser->user_login) {
 						$userID = $existingUser->ID;
-						$this->log_dual("> user {$userID} username changed from
-							{$existingUser->user_login} to {$loginName}, update database");
 
 						global $wpdb;
-						$wpdb->update($wpdb->users,
+						$result = $wpdb->update($wpdb->users,
 									['user_login' => $loginName],
 									['ID' => $existingUser->ID]);
+						if ($result === false) {
+							$result_str = " failed";
+						} else {
+							$result_str = " success";
+						}
+						$this->log_dual("> user {$userID} username changed from " .
+							"{$existingUser->user_login} to {$loginName}, update database $result_str");
+						//Erase user cache so that future access gets the right data.
+						clean_user_cache($userID);
 					}
 
 					// Trigger hook if expiry date changed (updated membership)
