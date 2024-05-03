@@ -695,6 +695,7 @@ class acc_user_importer_Admin {
 		$warnings = [];
 
 		foreach ( $users as $user ) {
+			$userFoundByEmail = false;
 			//Avoid PHP warnings in case some fields are unpopulated
 			//We are ignoring date of birth for now.
 			$userFirstName= $user["first_name"] ?? '';
@@ -882,6 +883,7 @@ class acc_user_importer_Admin {
 					// seems we would receive the membership of adult1 first,
 					// then adult2, then childs. So naturally the owner of the
 					// account would be the first to be created.
+					$userFoundByEmail = true;
 					if ($accUserData['display_name'] != $existingUser->display_name) {
 						$this->log_dual(" > found by email existing userId {$existingUser->ID} named " .
 									   "{$existingUser->display_name}. Collision!");
@@ -916,21 +918,21 @@ class acc_user_importer_Admin {
 
 				//Introduce a special rule to NOT update a user if the incoming data has
 				//a expiry date earlier than the one in the local DB. This is because
-				//sometimes a user has 2 memberships, one family and one personal, with
+				//sometimes a user has 2 distinct membership numbers, with
 				//different information in each. When the plugin runs, it receives asynchronously
 				//the 2 memberships, so one overwrites the other. Which one is the best one
 				//is hard to say, but most likely the information in the membership with
 				//latest expiry date is the best, because it is the latest one subscribed
-				//to by the user. On 2024-01-10 I saw a similar case where a member in 2M
-				//moved to a new member_number. And the API returned 2 records, one with
-				//valid membership and another with expired membership. In such case the
-				//special rule prevents the expired record to overwrite the valid one.
+				//to by the user. One such example was received on @2024-01-01-17-15-06.
+				//The below logic will ensure the membership with the best expiry will win
+				//the database, and the other one will 'find by email' the user, but will
+				//not overwrite the data.
 				//I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
 				//But truncate strings to remove the time portion, it is not needed.
 				//The old ACC API used to give a time portion we no longer want.
 				$existingUserExpiryDate = substr($existingUser->expiry, 0, 10);
 				//$this->log_dual(" > userMembershipExpiry={$userMembershipExpiry}, existingUserExpiryDate={$existingUserExpiryDate}");
-				if ($userMembershipExpiry < $existingUserExpiryDate) {
+				if ($userFoundByEmail && ($userMembershipExpiry < $existingUserExpiryDate)) {
 					$this->log_dual(" > warning, received expiry is earlier than local $existingUserExpiryDate; skip");
 					$warnings[] = "warning, rxd expiry for user {$accUserData['display_name']} is earlier than in local DB\n";
 					continue;

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.2 Francois Bessette
+- Enhance logic to prioritize parent memberships over child memberships,
+  while allowing a membership to be shortened.
+
 ## 2.2.1 Francois Bessette
 - Fix bug found by Jacques where a received child data would overwrite its
   parent. This was caused by the user_login (typically ACC membership number)
