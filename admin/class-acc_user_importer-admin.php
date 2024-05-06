@@ -214,6 +214,12 @@ class acc_user_importer_Admin {
 		return("Error: " . ($api_response['errorMessage'] ? $api_response['errorMessage'] : 'Unknown.'));
 	}
 
+	private function returnApiError($errorString) {
+		$api_response['message'] = "error";
+		$api_response['log'] = $GLOBALS['acc_logstr'];
+		$api_response['errorMessage'] = $errorString;
+		return $api_response;
+	}
 
 	/**
 	 * This is the user import loop (when triggered by a timer)
@@ -367,6 +373,29 @@ class acc_user_importer_Admin {
 		$options = get_option('accUM_data');
 		$sectionName = accUM_getSectionName();
 		$sectionApiId = $this->getSectionApiID();
+
+		// There is a plugin setting to specify a list of users to sync.
+		// If it contains something, then instead of asking 2M for a list of
+		// members with changes, we take the user-provided list.
+		$syncList = accUM_get_sync_list();
+		if (!empty($syncList)) {
+			$this->log_dual("Will sync the following list of users indicated in the plugin settings:");
+			$this->log_dual("$syncList");
+			$changeList = explode(",", $syncList);
+			$count = count($changeList);
+			if ($count == 0 || in_array(0, $changeList)) {
+				// Invalid list
+				return $this->returnApiError("The plugin settings has an invalid list of members to sync");;
+			}
+
+			$this->log_dual("total count=" . $count);
+			$this->log_dual("total members=" . json_encode($changeList));
+			$api_response['count'] = $count;
+			$api_response['results'] = $changeList;
+			$api_response['message'] = "success";
+			$api_response['log'] = $GLOBALS['acc_logstr'];
+			return $api_response;
+		}
 
 		// Read token from user settings. Avoid printing token it is sensitive data
 		$access_token=$this->getSectionToken();

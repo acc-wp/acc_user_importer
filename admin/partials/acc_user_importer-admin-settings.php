@@ -56,6 +56,7 @@
 	function accUM_get_ex_user_role_value_default() {return 'subscriber';}
 	function accUM_get_default_max_log_files() {return 500;}
 	function accUM_get_notification_emails_default() {return '';}
+	function accUM_get_sync_list_default() {return '';}
 	
 	// Get the section name as per the settings
 	function accUM_getSectionName ( ) {
@@ -99,6 +100,17 @@
 			$setting = $options['accUM_verify_expiry'];
 		}
 		return $setting == 'on';
+	}
+
+	// Returns true if we need to scan the DB looking for expired users
+	function accUM_get_sync_list() {
+		$options = get_option('accUM_data');
+		if (!isset($options['accUM_sync_list'])) {
+			$setting = accUM_get_sync_list_default();
+		} else {
+			$setting = $options['accUM_sync_list'];
+		}
+		return $setting;
 	}
 
 	/*
@@ -153,6 +165,19 @@
 			array(
 				'type' => 'text',
 				'name' => 'accUM_since_date',
+			)
+		);
+
+		add_settings_field(
+			'accUM_sync_list',				//ID
+			"Sync this comma-separated list of ACC member numbers",
+			'accUM_text_render',			//Callback
+			'acc_admin_page',				//Page
+			'accUM_user_section',			//Section
+			array(
+				'type' => 'text',
+				'name' => 'accUM_sync_list',
+				'default' => accUM_get_sync_list_default(),
 			)
 		);
 

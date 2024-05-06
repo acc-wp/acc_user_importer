@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.2.3 Francois Bessette
+- Add an option to sync a specified list of comma-separated memberships.
+
 ## 2.2.2 Francois Bessette
 - Enhance logic to prioritize parent memberships over child memberships,
   while allowing a membership to be shortened.
