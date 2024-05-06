@@ -4,8 +4,6 @@ Contributors: Francois Bessette, Claude Vessaz, Raz Peel, Karine Frenette-G
 
 Tags:
 
-Stable tag: 2.2.10
-
 License: GPLv2 or later
 
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -68,6 +66,9 @@ Save Changes after changing parameters!
   such as 2020-11-23T15:05:00. Note that when after an automatic
   (timer triggered) run, the plugin updates that value, but not when
   the run was manually triggered.
+- Sync this comma-separated list of ACC member numbers: if member numbers
+  are entered in this box, the plugin will just sync the data for those
+  members instead of asking 2M for the list of members who have changes.
 - Set usernames to: what username to assign new members. Most section
   have decided to standardize on ACC Member Number.
 - Usernames will transition from ContactID? Only to be used by the

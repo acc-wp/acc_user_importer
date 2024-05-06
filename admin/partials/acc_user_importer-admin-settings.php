@@ -95,6 +95,10 @@ function accUM_get_notification_emails_default()
 {
     return "";
 }
+function accUM_get_sync_list_default()
+{
+    return "";
+}
 
 // Get the section name as per the settings
 function accUM_getSectionName()
@@ -142,6 +146,18 @@ function accUM_get_verify_expiry()
         $setting = $options["accUM_verify_expiry"];
     }
     return $setting == "on";
+}
+
+// Returns true if we need to scan the DB looking for expired users
+function accUM_get_sync_list()
+{
+    $options = get_option("accUM_data");
+    if (!isset($options["accUM_sync_list"])) {
+        $setting = accUM_get_sync_list_default();
+    } else {
+        $setting = $options["accUM_sync_list"];
+    }
+    return $setting;
 }
 
 /*
@@ -208,6 +224,26 @@ function accUM_settings_init()
         [
             "type" => "text",
             "name" => "accUM_since_date",
+            "help" =>
+                "The date gets updated when the plugin runs automatically, " .
+                "but not when it runs manually with the Update button",
+        ]
+    );
+
+    add_settings_field(
+        "accUM_sync_list", //ID
+        "Only sync this comma-separated list of ACC member numbers",
+        "accUM_text_render", //Callback
+        "acc_admin_page", //Page
+        "accUM_user_section", //Section
+        [
+            "type" => "text",
+            "name" => "accUM_sync_list",
+            "default" => accUM_get_sync_list_default(),
+            "help" =>
+                "Normally blank. Enter member numbers to manually sync those members " .
+                "using the Update button. Dont forget to clear the box afterward to " .
+                "ensure normal automatic sync.",
         ]
     );
 
@@ -399,6 +435,13 @@ function accUM_text_render($args)
     }
 
     $html .= " value=\"$input_value\"";
+
+    //if there is help text to display when hovering
+    if (!empty($args["help"])) {
+        $help = $args["help"];
+        $html .= " title=\"$help\"";
+    }
+
     $html .= "/>";
 
     echo $html;
