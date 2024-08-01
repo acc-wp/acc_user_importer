@@ -154,14 +154,19 @@ class acc_user_importer_Admin {
 		'1906' => ['section' => 'NEWFOUNDLAND & LABRADOR', 'type' => 'child'],
 	);
 
-	//FIXME only the first 5 APIs have been created, the rest are bogus numbers
+	//TODO Intentially omitted FQME, which maps to 10.
 	private $sectionApiId = array (
 			'SQUAMISH' => '1',
 			'CALGARY' => '2',
 			'MONTRÉAL' => '3',
 			'OUTAOUAIS' => '4',
 			'OTTAWA' => '5',
-			'VANCOUVER' => '6');
+			'VANCOUVER' => '6'
+			'ROCKY MOUNTAIN' => '7'
+			'EDMONTON' => '8'
+			'TORONTO' => '9'
+			'YUKON' => '11'
+			'BUGABOOS' => '12');
 
 	public function __construct( $plugin_name, $version ) {
 
@@ -221,7 +226,7 @@ class acc_user_importer_Admin {
 	public function begin_automatic_update() {
 
 		$GLOBALS['acc_logstr'] = "";		//Clear the API response log string
-		$logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log 
+		$logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log
 		$this->log_dual("Logging to {$logfilename}");
 
 		//force certificate validation - i.e. speed up authentication process
@@ -323,7 +328,7 @@ class acc_user_importer_Admin {
 		switch ( $_POST['request'] ) {
 
 			case "establish":
-				$logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log 
+				$logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log
 				$this->log_dual("Logging to {$logfilename}");
 				$api_response['message'] = "established";
 				break;
@@ -1201,7 +1206,7 @@ class acc_user_importer_Admin {
 					// Do not change roles of administrators to prevent lockout.
 					$user_roles = $user->roles;
 					if ($ex_user_role_action == 'set_role' &&
-						!in_array('administrator', $user_roles, true) && 
+						!in_array('administrator', $user_roles, true) &&
 						(count($user_roles) != 1 ||
 						!in_array($ex_user_role_value, $user_roles, true))) {
 						$this->log_dual("Changing user $user->ID $user->display_name role to $ex_user_role_value");
@@ -1258,12 +1263,12 @@ class acc_user_importer_Admin {
 
 
 	/**
-	 * Go over our local user database and do some sanity checks. 
+	 * Go over our local user database and do some sanity checks.
 	 * This is mainly to cover the case where the 2mev API would fail
 	 * to notify us of a change.  This would cause expired users to go
 	 * unnoticed and potentially with the wrong role.  If the periodic
 	 * membership sync works fine, this function will find nothing to do.
-	 * 
+	 *
 	 * What we do:
 	 * -we check for expired users that are still marked active, and if any are
 	 *  found, we potentially send the goodbye email and change the role.
