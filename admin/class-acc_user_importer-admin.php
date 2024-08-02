@@ -161,11 +161,11 @@ class acc_user_importer_Admin {
 			'MONTRÉAL' => '3',
 			'OUTAOUAIS' => '4',
 			'OTTAWA' => '5',
-			'VANCOUVER' => '6'
-			'ROCKY MOUNTAIN' => '7'
-			'EDMONTON' => '8'
-			'TORONTO' => '9'
-			'YUKON' => '11'
+			'VANCOUVER' => '6',
+			'ROCKY MOUNTAIN' => '7',
+			'EDMONTON' => '8',
+			'TORONTO' => '9',
+			'YUKON' => '11',
 			'BUGABOOS' => '12');
 
 	public function __construct( $plugin_name, $version ) {
