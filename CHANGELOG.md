@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.2.4 Terence Goldberg
+- Including additional sections.
+
 ## 2.2.2 Francois Bessette
 - Enhance logic to prioritize parent memberships over child memberships,
   while allowing a membership to be shortened.
