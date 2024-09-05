@@ -39,14 +39,20 @@ change the token string everytime a different section is selected.
 The format is like this:  SECTION1:Token1,SECTION2:Token2,...
 No space before or after the comma.  The plugin only support these
 section names right now, and make sure the spelling and case is exact:
+
 | Valid Section Names   |
 | ----------- |
-| SQUAMISH      |
-| CALGARY      |
-| MONTRÉAL      |
-| OUTAOUAIS      |
-| OTTAWA      |
+| SQUAMISH   |
+| CALGARY   |
+| MONTRÉAL   |
+| OUTAOUAIS   |
+| OTTAWA   |
 | VANCOUVER   |
+| ROCKY MOUNTAIN   |
+| EDMONTON   |
+| TORONTO   |
+| YUKON   |
+| BUGABOOS   |
 
 - Sync changes since when? On the next run, the plugin will request for
 all membership changes since that date. The field normally shows the
@@ -133,12 +139,12 @@ idea that 2 changes for the same person is happening and it could
 potentially process the expired membership last, leaving the
 member as invalid in the local database. The chosen solution is to
 never bring back a membership expiry date. So if a received
-record indicates that the membership expiry date should be 
+record indicates that the membership expiry date should be
 moved backward in time, we just skip this record, assuming
 it does not represent the latest information.  The limitation is:
 if somehow on the national side a user membership is cancelled
 prematurely, the section will not know about it (no email, no
-role change, but there will be a warning in the plugin log). 
+role change, but there will be a warning in the plugin log).
 The user will be able to access the local web site
 until the original expiry date is reached.
 - If the option is set, there is an additional
@@ -171,7 +177,7 @@ Sending of a Welcome email is done whenever a new user account is created, or wh
 Sending of a Goodbye email is done whenever a membership status is not valid.
 To help with expiry detection and avoid sending an email on every run of the plugin,
 in the database each user has a meta variable called `acc_status` which helps
-detecting if there was a status change or not. 
+detecting if there was a status change or not.
 An email is sent whenever the acc_status state changes. When upgrading an existing installation, we don't want to flood all users with Welcome/Goodbye emails.  So when the plugin runs, it will avoid sending emails for existing users that do not have such variable yet in the database. But it will create the acc_status variable, and from the non will send emails on state changes. Assuming the email checkbox is set, of course.
 
 
