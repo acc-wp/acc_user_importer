@@ -51,8 +51,10 @@ function acc_MembershipStatusIsProc ( $membershipStatus ) {
  * User is trying to login.
  * Prevent user login if membership is PROC, EXP or expiry date is passed.
  */
-function acc_validate_user_login(WP_User $user) {
+function acc_validate_user_login($user) {
 
+	if ($user instanceof WP_User) {
+		error_log('acc_validate_user_login with user object');
 	//Never block an admin
 	if (in_array("administrator", $user->roles)) {
 		return $user;
@@ -77,7 +79,7 @@ function acc_validate_user_login(WP_User $user) {
 	}
 
 	// Case where membership is not ISSU, or expiry date is passed. In theory, just
-	// checking for not ISSU should be enough. But I have seen weird cases where 2M forgot to 
+	// checking for not ISSU should be enough. But I have seen weird cases where 2M forgot to
 	// notify us of a user expiry, and checking the expiry date here acts as a safeguard.
 	$expiry= get_user_meta( $user->ID, 'expiry', 'true' );
 	if ((!empty($status) && !acc_validMembershipStatus($status)) ||
@@ -92,8 +94,11 @@ function acc_validate_user_login(WP_User $user) {
 		$error->add( 403, $msg);
 		return $error;
 	}
-
+}else{
+	error_log('acc_validate_user_login error: ' . $user->get_error_message());
+}
 	return $user;
+
 }
 
 
