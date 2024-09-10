@@ -2,6 +2,13 @@
 
 add_filter( 'wp_authenticate_user', 'acc_validate_user_login' );
 
+add_filter( 'um_custom_authenticate_error_codes', 'acc_um_custom_authenticate_error_codes' );
+
+function acc_um_custom_authenticate_error_codes( $third_party_codes ) {
+      $third_party_codes[] = "membership_validation_error";
+ return $third_party_codes;
+}
+
 
 /**
  * On plugin activation, schedule CRON job.
@@ -54,7 +61,6 @@ function acc_MembershipStatusIsProc ( $membershipStatus ) {
 function acc_validate_user_login($user) {
 
 	if ($user instanceof WP_User) {
-		error_log('acc_validate_user_login with user object');
 	//Never block an admin
 	if (in_array("administrator", $user->roles)) {
 		return $user;
@@ -74,7 +80,7 @@ function acc_validate_user_login($user) {
 		'formulaire d\'acceptation des risques (à signer chaque année)? Vérifiez l\'état de votre abonnement au ' .
 		'<a href="https://2mev.com/#!/login">https://2mev.com/#!/login</a> afin de pouvoir vous connecter ' .
 		'et participer aux activités. Allouez 24h pour que les changements se propagent au site web local.';
-		$error->add( 403, $msg);
+		$error->add( "membership_validation_error", $msg);
 		return $error;
 	}
 
@@ -91,14 +97,11 @@ function acc_validate_user_login($user) {
 		'Il semble que votre abonnement soit échu. Renouvelez votre abonnement au ' .
 		'<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ' .
 		'et allouez 24 heures pour que le changement se propage au site web local.';
-		$error->add( 403, $msg);
+		$error->add( "membership_validation_error", $msg);
 		return $error;
 	}
-}else{
-	error_log('acc_validate_user_login error: ' . $user->get_error_message());
 }
 	return $user;
-
 }
 
 

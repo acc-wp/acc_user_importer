@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.2.9 Terence Goldberg
+- Fix: Fixing the display of custom membership validation errors during login so that the error is displayed correctly using Ultimate Member forms. 
+
 ## 2.2.4 Terence Goldberg
 - Including additional sections.
 
