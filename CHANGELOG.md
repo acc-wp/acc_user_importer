@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.10 Terence Goldberg
+
+- Update: Adding prettier commit hooks to improve code formatting.
+
 ## 2.2.9 Terence Goldberg
 
 - Fix: Fixing the display of custom membership validation errors during login so that the error is displayed correctly using Ultimate Member forms.

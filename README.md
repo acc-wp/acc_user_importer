@@ -4,13 +4,18 @@ Contributors: Francois Bessette, Claude Vessaz, Raz Peel, Karine Frenette-G
 
 Tags:
 
-Stable tag: 2.2.9
+Stable tag: 2.2.10
 
 License: GPLv2 or later
 
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
 Repository: https://github.com/acc-wp/acc_user_importer
+
+## Getting started
+
+1. Install node version 18.18 or higher.
+2. Run `yarn install` to install packages.
 
 ## Description
 
