@@ -2,6 +2,13 @@
 
 add_filter( 'wp_authenticate_user', 'acc_validate_user_login' );
 
+add_filter( 'um_custom_authenticate_error_codes', 'acc_um_custom_authenticate_error_codes' );
+
+function acc_um_custom_authenticate_error_codes( $third_party_codes ) {
+	$third_party_codes[] = "membership_validation_error";
+	return $third_party_codes;
+}
+
 
 /**
  * On plugin activation, schedule CRON job.
@@ -51,8 +58,9 @@ function acc_MembershipStatusIsProc ( $membershipStatus ) {
  * User is trying to login.
  * Prevent user login if membership is PROC, EXP or expiry date is passed.
  */
-function acc_validate_user_login(WP_User $user) {
+function acc_validate_user_login($user) {
 
+	if ($user instanceof WP_User) {
 	//Never block an admin
 	if (in_array("administrator", $user->roles)) {
 		return $user;
@@ -72,12 +80,12 @@ function acc_validate_user_login(WP_User $user) {
 		'formulaire d\'acceptation des risques (à signer chaque année)? Vérifiez l\'état de votre abonnement au ' .
 		'<a href="https://2mev.com/#!/login">https://2mev.com/#!/login</a> afin de pouvoir vous connecter ' .
 		'et participer aux activités. Allouez 24h pour que les changements se propagent au site web local.';
-		$error->add( 403, $msg);
+		$error->add( "membership_validation_error", $msg);
 		return $error;
 	}
 
 	// Case where membership is not ISSU, or expiry date is passed. In theory, just
-	// checking for not ISSU should be enough. But I have seen weird cases where 2M forgot to 
+	// checking for not ISSU should be enough. But I have seen weird cases where 2M forgot to
 	// notify us of a user expiry, and checking the expiry date here acts as a safeguard.
 	$expiry= get_user_meta( $user->ID, 'expiry', 'true' );
 	if ((!empty($status) && !acc_validMembershipStatus($status)) ||
@@ -89,10 +97,10 @@ function acc_validate_user_login(WP_User $user) {
 		'Il semble que votre abonnement soit échu. Renouvelez votre abonnement au ' .
 		'<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ' .
 		'et allouez 24 heures pour que le changement se propage au site web local.';
-		$error->add( 403, $msg);
+		$error->add( "membership_validation_error", $msg);
 		return $error;
 	}
-
+}
 	return $user;
 }
 
