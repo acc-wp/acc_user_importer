@@ -1,2 +1,4 @@
 logs/*
 acc_user_importer-*.zip
+
+/node_modules
