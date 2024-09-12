@@ -1,1 +1,1 @@
-npx eslint . --fix && npx pretty-quick --staged
+npx pretty-quick --staged

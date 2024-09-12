@@ -1,9 +1,6 @@
 {
   "dependencies": {},
   "devDependencies": {
-    "@eslint/js": "^9.10.0",
-    "eslint": "^9.10.0",
-    "globals": "^15.9.0",
     "husky": "^9.1.6",
     "prettier": "^3.3.3",
     "pretty-quick": "^4.0.0"
