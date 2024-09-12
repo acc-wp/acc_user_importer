@@ -9,13 +9,12 @@
  * @link       https://www.facebook.com/razpeel
  */
 
-class acc_user_importer_Deactivator {
-
-	/**
-	 * Deactivation scripts.
-	 */
-	public static function deactivate() {
-
-	}
-
+class acc_user_importer_Deactivator
+{
+    /**
+     * Deactivation scripts.
+     */
+    public static function deactivate()
+    {
+    }
 }
