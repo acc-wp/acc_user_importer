@@ -1,21 +1,26 @@
 # Changelog
 
 ## 2.2.9 Terence Goldberg
-- Fix: Fixing the display of custom membership validation errors during login so that the error is displayed correctly using Ultimate Member forms. 
+
+- Fix: Fixing the display of custom membership validation errors during login so that the error is displayed correctly using Ultimate Member forms.
 
 ## 2.2.4 Terence Goldberg
+
 - Including additional sections.
 
 ## 2.2.2 Francois Bessette
+
 - Enhance logic to prioritize parent memberships over child memberships,
   while allowing a membership to be shortened.
 
 ## 2.2.1 Francois Bessette
+
 - Fix bug found by Jacques where a received child data would overwrite its
   parent. This was caused by the user_login (typically ACC membership number)
   being changed but not really taking effect because of wordpress DB caching.
 
 ## 2.2.0 Francois Bessette
+
 - Save membership status in user database. The primary condition for a
   valid user is now based on his membership status rather than the expiry date.
 - Do not allow user to login if his membership is in PROC state.
@@ -24,9 +29,11 @@
 - During local DB check, give warnings for users with PROC membership status.
 
 ## 2.1.4 Francois Bessette
+
 - Add option to doublecheck for expired users in local DB.
 
 ## 2.1.3 Francois Bessette
+
 - Merged 2.0.7 change from Keith
 
 ## 2.1.2 Francois Bessette
@@ -48,7 +55,7 @@
 
 ## 2.0.7 Keith Dunwoody
 
-- Add sanity check for member being a member of the section being imported.  The API has recently
+- Add sanity check for member being a member of the section being imported. The API has recently
   been returning Prince George member numbers for the Vancouver section.
 - Add mapping for student memberships for Vancouver section
 
