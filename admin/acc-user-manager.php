@@ -7,7 +7,7 @@ add_filter( 'um_custom_authenticate_error_codes', 'acc_um_custom_authenticate_er
 function acc_um_custom_authenticate_error_codes( $third_party_codes ) {
 	$third_party_codes[] = "membership_validation_error";
 	return $third_party_codes;
-}
+} 
 
 
 /**
