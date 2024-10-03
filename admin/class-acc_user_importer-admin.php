@@ -62,6 +62,7 @@ class acc_user_importer_Admin {
 		'1828' => ['section' => 'VANCOUVER', 'type' => 'family2'],
 		'1826' => ['section' => 'VANCOUVER', 'type' => 'child'],
 		'2326' => ['section' => 'VANCOUVER', 'type' => 'student_club'],
+		'2593' => ['section' => 'VANCOUVER', 'type' => 'student_club'],
 		'1784' => ['section' => 'VANCOUVER ISLAND', 'type' => 'adult'],
 		'1783' => ['section' => 'VANCOUVER ISLAND', 'type' => 'youth'],
 		'1787' => ['section' => 'VANCOUVER ISLAND', 'type' => 'family1'],
