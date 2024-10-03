@@ -3,10 +3,10 @@
 	<form id="acc_admin_page" method="post" action="options.php">
 		<div>
 			<?php
-				settings_fields ( 'acc_admin_page' );
-				do_settings_sections ( 'acc_admin_page' );
-				submit_button();
-			?>
+   settings_fields("acc_admin_page");
+   do_settings_sections("acc_admin_page");
+   submit_button();
+   ?>
 		</div>
 		<div>
 			<h2 id="updateStatusTitle">Update Log</h2>

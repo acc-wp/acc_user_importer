@@ -1,0 +1,17 @@
+{
+  "dependencies": {},
+  "devDependencies": {
+    "@prettier/plugin-php": "^0.22.2",
+    "husky": "^9.1.6",
+    "prettier": "^3.3.3",
+    "pretty-quick": "^4.0.0"
+  },
+  "scripts": {
+    "prepare": "husky"
+  },
+  "prettier": {
+    "plugins": [
+      "@prettier/plugin-php"
+    ]
+  }
+}
