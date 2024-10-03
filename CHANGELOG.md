@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.11 Keith Dunwoody
+
+- Add 2024/2025 Student Outdoor Club group number
+
 ## 2.2.10 Terence Goldberg
 
 - Update: Adding prettier commit hooks to improve code formatting.
