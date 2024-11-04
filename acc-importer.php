@@ -32,7 +32,7 @@ define("ACC_LOG_DIR", ACC_BASE_DIR . "/logs/");
 /**
  * Current plugin version.
  */
-define("ACC_USER_IMPORTER_VERSION", "2.2.10");
+define("ACC_USER_IMPORTER_VERSION", "2.2.11");
 
 /**
  * Plugin deactivation.
