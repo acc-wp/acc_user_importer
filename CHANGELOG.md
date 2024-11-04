@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.12 Francois Bessette
+
+- Add an option to sync a specified list of comma-separated memberships.
+
 ## 2.2.11 Keith Dunwoody
 
 - Add 2024/2025 Student Outdoor Club group number
