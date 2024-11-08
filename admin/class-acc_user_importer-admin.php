@@ -1478,6 +1478,74 @@ class acc_user_importer_Admin
     }
 
     /**
+     * Returns true if the user membership expired a while back and it is time
+     * to delete it from the database.  This comparison is just based on the
+     * user expiry date. We dont take into account the membership status.
+     * Returns false if user->expiry does not exist.
+     * Asssumes that the specified $user object contains the metadata.
+     */
+    private function acc_is_time_to_delete_user($user, $days_before_delete)
+    {
+        if ($user instanceof WP_User) {
+            //Never delete an admin
+            if (in_array("administrator", $user->roles)) {
+                return false;
+            }
+
+            if (isset($user->expiry)) {
+                $expiry = new DateTime($user->expiry);
+                $expiry_ts = $expiry->getTimestamp();
+
+                $now = new DateTime("now");
+                $now_ts = $now->getTimestamp();
+
+                $days_since_expiry = intval(
+                    ($now_ts - $expiry_ts) / (60 * 60 * 24)
+                );
+                if ($days_since_expiry >= $days_before_delete) {
+                    $this->log_dual(
+                        "Need to delete $user->display_name ($user->ID) " .
+                            "expired $days_since_expiry days ago"
+                    );
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * List content owned by a user we might be deleting.
+     */
+    private function acc_list_content($old_user_id)
+    {
+        $old_user_posts = get_posts([
+            "author" => $old_user_id,
+            "post_type" => "any",
+            "post_status" => "any",
+            "posts_per_page" => -1, //All posts
+        ]);
+
+        $count = count($old_user_posts);
+        if ($count != 0) {
+            $this->log_dual("User $old_user_id owns $count posts");
+        }
+
+        foreach ($old_user_posts as $post) {
+            if ($post->post_type == "attachment") {
+                $this->log_dual(
+                    " post $post->ID type=$post->post_type date=$post->post_date guid=$post->guid"
+                );
+            } else {
+                $this->log_dual(
+                    " post $post->ID type=$post->post_type date=$post->post_date title=$post->post_title"
+                );
+            }
+        }
+    }
+
+    /**
      * Go over our local user database and do some sanity checks.
      * This is mainly to cover the case where the 2mev API would fail
      * to notify us of a change.  This would cause expired users to go
@@ -1508,7 +1576,9 @@ class acc_user_importer_Admin
 
         $verify_expiry = accUM_get_verify_expiry();
         if ($verify_expiry) {
+            $this->log_dual("=============================================");
             $this->log_dual("Checking local DB, as stated in configuration");
+            $this->log_dual("=============================================");
         } else {
             $this->log_dual(
                 "Skipping local DB sanity check, as per configuration"
@@ -1518,6 +1588,35 @@ class acc_user_importer_Admin
             return $api_response;
         }
 
+        //When should we delete expired users? Who will now own the content?
+        $days_before_delete = accUM_get_when_2_delete_ex_user();
+        $this->log_dual(
+            "Will delete users expired for more than $days_before_delete days"
+        );
+
+        $new_owner = "";
+        $new_owner_error = false;
+        $new_owner_login = accUM_get_new_owner();
+        if (empty($new_owner_login)) {
+            //User did not specify a new owner, so delete content
+            $this->log_dual("and will delete their published content");
+        } else {
+            $new_owner = get_user_by("login", $new_owner_login);
+            if ($new_owner instanceof WP_User) {
+                $this->log_dual(
+                    "and transfer content to $new_owner->user_nicename ($new_owner->ID)"
+                );
+            } else {
+                $new_owner_error = true;
+                $this->log_dual(
+                    "Error in config, invalid new content owner " .
+                        "($new_owner_login). Skipping delete of expired users."
+                );
+                $warnings[] = "Error in config, invalid new content owner ($new_owner_login)";
+            }
+        }
+
+        $deleted_users = [];
         $new_users = [];
         $expired_users = [];
         $warnings = [];
@@ -1530,6 +1629,30 @@ class acc_user_importer_Admin
 
         foreach ($user_ids as $user_id) {
             $user = get_userdata($user_id);
+
+            //Delete users which have been expired long enough
+            if ($this->acc_is_time_to_delete_user($user, $days_before_delete)) {
+                if (!$new_owner_error) {
+                    $this->acc_list_content($user->ID);
+                    if ($new_owner instanceof WP_User) {
+                        //User specified a new content owner
+                        $rc = wp_delete_user($user->ID, $new_owner->ID);
+                    } else {
+                        $rc = wp_delete_user($user->ID);
+                    }
+                    if ($rc) {
+                        $this->log_dual(
+                            "Successfully deleted $user->display_name ($user->ID)"
+                        );
+                        $deleted_users[] = "$user->display_name  ($user->user_email)";
+                        continue; //User no longer exists, skip rest of loop
+                    } else {
+                        $this->log_dual(
+                            "Failed to delete $user->display_name ($user->ID)"
+                        );
+                    }
+                }
+            }
 
             //Sanity check: raise a warning if user has no or weird expiry date.
             if (empty($user->expiry)) {
@@ -1572,6 +1695,10 @@ class acc_user_importer_Admin
             "Check of local DB made " .
                 count($expired_users) .
                 " users inactive"
+        );
+        $deleted_cnt = count($deleted_users);
+        $this->log_dual(
+            "Check of local DB deleted $deleted_cnt obsolete users"
         );
         $this->log_dual("Number of active members = $num_active");
         $this->log_dual("Number of inactive members = $num_inactive");
