@@ -87,6 +87,14 @@ function accUM_get_ex_user_role_value_default()
 {
     return "subscriber";
 }
+function accUM_get_when_2_delete_ex_user_default()
+{
+    return 9999;
+}
+function accUM_get_new_owner_default()
+{
+    return "";
+}
 function accUM_get_default_max_log_files()
 {
     return 500;
@@ -148,7 +156,7 @@ function accUM_get_verify_expiry()
     return $setting == "on";
 }
 
-// Returns true if we need to scan the DB looking for expired users
+// Returns the configured list of users to synchronize
 function accUM_get_sync_list()
 {
     $options = get_option("accUM_data");
@@ -156,6 +164,30 @@ function accUM_get_sync_list()
         $setting = accUM_get_sync_list_default();
     } else {
         $setting = $options["accUM_sync_list"];
+    }
+    return $setting;
+}
+
+// Returns the number of days before deleting an expired user.
+function accUM_get_when_2_delete_ex_user()
+{
+    $options = get_option("accUM_data");
+    if (!isset($options["accUM_when_2_delete_ex_user"])) {
+        $setting = accUM_get_when_2_delete_ex_user_default();
+    } else {
+        $setting = $options["accUM_when_2_delete_ex_user"];
+    }
+    return $setting;
+}
+
+// Returns the new content owner when a user is deletec.
+function accUM_get_new_owner()
+{
+    $options = get_option("accUM_data");
+    if (!isset($options["accUM_new_owner"])) {
+        $setting = accUM_get_new_owner_default();
+    } else {
+        $setting = $options["accUM_new_owner"];
     }
     return $setting;
 }
@@ -291,18 +323,6 @@ function accUM_settings_init()
     );
 
     add_settings_field(
-        "accUM_verify_expiry", //ID
-        "Also check user expiry in local DB",
-        "accUM_chkbox_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
-        [
-            "name" => "accUM_verify_expiry",
-            "default" => accUM_verify_expiry_default(),
-        ]
-    );
-
-    add_settings_field(
         "accUM_new_user_role_action", //ID
         "When creating a new user, what should I do with role?",
         "accUM_select_render", //Callback
@@ -360,6 +380,54 @@ function accUM_settings_init()
             "name" => "accUM_ex_user_role_value",
             "values" => $roles,
             "default" => accUM_get_ex_user_role_value_default(),
+        ]
+    );
+
+    add_settings_field(
+        "accUM_verify_expiry", //ID
+        "Also check user expiry in local DB",
+        "accUM_chkbox_render", //Callback
+        "acc_admin_page", //Page
+        "accUM_user_section", //Section
+        [
+            "name" => "accUM_verify_expiry",
+            "default" => accUM_verify_expiry_default(),
+        ]
+    );
+
+    add_settings_field(
+        "accUM_when_2_delete_ex_user", //ID
+        "How many days before deleting an expired user from database?  0 to delete right away.",
+        "accUM_text_render", //Callback
+        "acc_admin_page", //Page
+        "accUM_user_section", //Section
+        [
+            "type" => "number",
+            "name" => "accUM_when_2_delete_ex_user",
+            "default" => accUM_get_when_2_delete_ex_user_default(),
+            "help" =>
+                "Enter the number of days after which to delete the user data.",
+        ]
+    );
+
+    add_settings_field(
+        "accUM_new_owner", //ID
+        "when deleting a user, who will become the new content owner?",
+        "accUM_text_render", //Callback
+        "acc_admin_page", //Page
+        "accUM_user_section", //Section
+        [
+            "type" => "text",
+            "name" => "accUM_new_owner",
+            "default" => accUM_get_new_owner_default(),
+            "help" =>
+                "Enter the new owner login name. Suggestion: manually " .
+                "create a dummy user (example: 'ex-member') to receive " .
+                "ownership of content for users we need to delete, " .
+                "and enter its login name here. The plugin will reassign " .
+                "posts, pages, articles, events. Leaving this box " .
+                "empty will delete the user content along with the user, " .
+                "and you might end up with missing pages or broken links.",
         ]
     );
 

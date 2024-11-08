@@ -95,6 +95,19 @@ Save Changes after changing parameters!
   You have the choice to take no action, set role to a value or remove a
   role from the member.
 - Role value? Value related to the previous choice.
+- How many days before deleting an expired user from database?
+  In order to protect members personal information, it is good practice to eventually
+  delete the data of people who are no longer with the club.
+  Enter the number of days the data should be kept in the database
+  after a member leaves. 0=delete right away, 1=one day, etc.
+- When deleting a user, who will become the new content owner?
+  Enter the new owner login name. Suggestion: manually
+  create a dummy user (example: 'ex-member') to receive
+  ownership of content for users we need to delete,
+  and enter its login name here. The plugin will reassign
+  posts, pages, articles, events. Leaving this box
+  empty will delete the user content along with the user.
+  and you might end up with missing pages or broken links.
 - Admin to notify: Enter an email or a list of emails (comma separated)
   to be notified whenever the plugin adds or expires members.
   Normally an admin email account. Leave blank for no notifications.
@@ -173,6 +186,20 @@ Recent log files. The log file can be downloaded.
   for his membership but has not signed the waiver yet.
 - ISSU: stands for issued, this is a valid membership.
 - EXP: membership is expired.
+
+### Deletion of outdated members
+
+- If you do not want to delete expired members in the database even
+  if they are expired for several years, enter a big integer number such as
+  9999 in the "How many days before deleting" configuration.
+- If you have manually-entered administrative accounts for webmasters,
+  content creators, etc and want to protect their account from being deleted,
+  just make sure they either do not have an expiry date or have one that
+  is far in the future such as 2099-01-01.
+- If the "who will become the new content owner" box is empty,
+  the content is deleted along with outdated members. If the box contains
+  something but that user cannot be found, the plugin generates an error
+  in the log but does not proceed with the delete.
 
 ### What decides if a user can connect or not to the site?
 
