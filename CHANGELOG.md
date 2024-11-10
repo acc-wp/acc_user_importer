@@ -2,7 +2,7 @@
 
 ## 2.2.13 Francois Bessette
 
-- Add 2 options to control delete of expired members from the database.
+- Add options to control delete of expired members from the database.
 
 ## 2.2.12 Francois Bessette
 

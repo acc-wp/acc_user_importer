@@ -82,11 +82,6 @@ Save Changes after changing parameters!
 - Test mode (do not actually update the local Wordpress database).
   If you enable this option, the plugin will run and will display the
   received data, but will not update the local Wordpress database.
-- Also doublecheck for expired users in local DB? If this option is
-  checked, then after syncing the received data from the 2M API,
-  an additional step is done: the local database is scanned,
-  looking for expired users. This is a safeguard in case 2M forgets
-  to notify us of an expired user.
 - When creating a new user, how to change role?
   You have the choice to take no action, set role to a value or add a
   role to the member.
@@ -95,6 +90,15 @@ Save Changes after changing parameters!
   You have the choice to take no action, set role to a value or remove a
   role from the member.
 - Role value? Value related to the previous choice.
+- Also check user expiry in local DB? If this option is
+  checked, then after syncing the received data from the 2M API,
+  an additional step is done: the local database is scanned,
+  looking for expired users. This is a safeguard in case 2M forgets
+  to notify us of an expired user.
+- Delete expired user accounts after a while? Enable feature
+  where obsolete user accounts are deleted after a while. This
+  logic requires the above "Also check user expiry" option
+  and enable the next 2 options.
 - How many days before deleting an expired user from database?
   In order to protect members personal information, it is good practice to eventually
   delete the data of people who are no longer with the club.

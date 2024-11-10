@@ -1588,31 +1588,34 @@ class acc_user_importer_Admin
             return $api_response;
         }
 
-        //When should we delete expired users? Who will now own the content?
-        $days_before_delete = accUM_get_when_2_delete_ex_user();
-        $this->log_dual(
-            "Will delete users expired for more than $days_before_delete days"
-        );
+        $delete_ex_users = accUM_get_delete_ex_users();
+        if ($delete_ex_users) {
+            //When should we delete expired users? Who will now own the content?
+            $days_before_delete = accUM_get_when_2_delete_ex_user();
+            $this->log_dual(
+                "Will delete users expired for more than $days_before_delete days"
+            );
 
-        $new_owner = "";
-        $new_owner_error = false;
-        $new_owner_login = accUM_get_new_owner();
-        if (empty($new_owner_login)) {
-            //User did not specify a new owner, so delete content
-            $this->log_dual("and will delete their published content");
-        } else {
-            $new_owner = get_user_by("login", $new_owner_login);
-            if ($new_owner instanceof WP_User) {
-                $this->log_dual(
-                    "and transfer content to $new_owner->user_nicename ($new_owner->ID)"
-                );
+            $new_owner = "";
+            $new_owner_error = false;
+            $new_owner_login = accUM_get_new_owner();
+            if (empty($new_owner_login)) {
+                //User did not specify a new owner, so delete content
+                $this->log_dual("and will delete their published content");
             } else {
-                $new_owner_error = true;
-                $this->log_dual(
-                    "Error in config, invalid new content owner " .
-                        "($new_owner_login). Skipping delete of expired users."
-                );
-                $warnings[] = "Error in config, invalid new content owner ($new_owner_login)";
+                $new_owner = get_user_by("login", $new_owner_login);
+                if ($new_owner instanceof WP_User) {
+                    $this->log_dual(
+                        "and transfer content to $new_owner->user_nicename ($new_owner->ID)"
+                    );
+                } else {
+                    $new_owner_error = true;
+                    $this->log_dual(
+                        "Error in config, invalid new content owner " .
+                            "($new_owner_login). Skipping delete of expired users."
+                    );
+                    $warnings[] = "Error in config, invalid new content owner ($new_owner_login)";
+                }
             }
         }
 
@@ -1631,7 +1634,10 @@ class acc_user_importer_Admin
             $user = get_userdata($user_id);
 
             //Delete users which have been expired long enough
-            if ($this->acc_is_time_to_delete_user($user, $days_before_delete)) {
+            if (
+                $delete_ex_users &&
+                $this->acc_is_time_to_delete_user($user, $days_before_delete)
+            ) {
                 if (!$new_owner_error) {
                     $this->acc_list_content($user->ID);
                     if ($new_owner instanceof WP_User) {

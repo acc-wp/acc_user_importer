@@ -83,13 +83,17 @@ function accUM_verify_expiry_default()
 {
     return "off";
 }
+function accUM_get_delete_ex_users_default()
+{
+    return "off";
+}
 function accUM_get_ex_user_role_value_default()
 {
     return "subscriber";
 }
 function accUM_get_when_2_delete_ex_user_default()
 {
-    return 9999;
+    return 365;
 }
 function accUM_get_new_owner_default()
 {
@@ -152,6 +156,18 @@ function accUM_get_verify_expiry()
         $setting = accUM_verify_expiry_default();
     } else {
         $setting = $options["accUM_verify_expiry"];
+    }
+    return $setting == "on";
+}
+
+// Returns true if we need to delete old expired users from database
+function accUM_get_delete_ex_users()
+{
+    $options = get_option("accUM_data");
+    if (!isset($options["accUM_delete_ex_users"])) {
+        $setting = accUM_get_delete_ex_users_default();
+    } else {
+        $setting = $options["accUM_delete_ex_users"];
     }
     return $setting == "on";
 }
@@ -228,6 +244,7 @@ function accUM_settings_init()
                 "BUGABOOS" => "BUGABOOS",
             ],
             "default" => accUM_get_section_default(),
+            "help" => "Select one",
         ]
     );
 
@@ -396,8 +413,21 @@ function accUM_settings_init()
     );
 
     add_settings_field(
+        "accUM_delete_ex_users", //ID
+        "Delete expired user accounts after a while",
+        "accUM_chkbox_render", //Callback
+        "acc_admin_page", //Page
+        "accUM_user_section", //Section
+        [
+            "name" => "accUM_delete_ex_users",
+            "default" => accUM_get_delete_ex_users_default(),
+            "help" => "Requires 'Also check user expiry' option.",
+        ]
+    );
+
+    add_settings_field(
         "accUM_when_2_delete_ex_user", //ID
-        "How many days before deleting an expired user from database?  0 to delete right away.",
+        "How many days before deleting expired users from database?",
         "accUM_text_render", //Callback
         "acc_admin_page", //Page
         "accUM_user_section", //Section
@@ -406,13 +436,13 @@ function accUM_settings_init()
             "name" => "accUM_when_2_delete_ex_user",
             "default" => accUM_get_when_2_delete_ex_user_default(),
             "help" =>
-                "Enter the number of days after which to delete the user data.",
+                "Enter the number of days after which to delete the user account.",
         ]
     );
 
     add_settings_field(
         "accUM_new_owner", //ID
-        "when deleting a user, who will become the new content owner?",
+        "When deleting a user, who will become the new content owner?",
         "accUM_text_render", //Callback
         "acc_admin_page", //Page
         "accUM_user_section", //Section
@@ -525,7 +555,13 @@ function accUM_select_render($args)
         $select_value = $options[$input_name];
     }
 
-    $html = "<select id=\"$input_name\" name=\"accUM_data[$input_name]\">";
+    //if there is help text to display when hovering
+    $help = "";
+    if (!empty($args["help"])) {
+        $help = $args["help"];
+    }
+
+    $html = "<select id=\"$input_name\" name=\"accUM_data[$input_name] \" title=\"$help\">";
 
     //Fill columns
     if ($args["values"]) {
@@ -559,6 +595,13 @@ function accUM_chkbox_render($args)
     $html = "<input type=\"checkbox\"";
     $html .= " id=\"$input_name\"";
     $html .= " name=\"accUM_data[$input_name]\"";
+
+    //if there is help text to display when hovering
+    if (!empty($args["help"])) {
+        $help = $args["help"];
+        $html .= " title=\"$help\"";
+    }
+
     $html .= checked("on", $select_value, false) . " />";
     echo $html;
 }
