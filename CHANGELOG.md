@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.13 Francois Bessette
+
+- Add options to control delete of expired members from the database.
+
 ## 2.2.12 Francois Bessette
 
 - Add an option to sync a specified list of comma-separated memberships.
