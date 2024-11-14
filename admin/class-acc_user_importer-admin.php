@@ -156,21 +156,6 @@ class acc_user_importer_Admin
         "1906" => ["section" => "NEWFOUNDLAND & LABRADOR", "type" => "child"],
     ];
 
-    //TODO Intentially omitted FQME, which maps to 10.
-    private $sectionApiId = [
-        "SQUAMISH" => "1",
-        "CALGARY" => "2",
-        "MONTRÉAL" => "3",
-        "OUTAOUAIS" => "4",
-        "OTTAWA" => "5",
-        "VANCOUVER" => "6",
-        "ROCKY MOUNTAIN" => "7",
-        "EDMONTON" => "8",
-        "TORONTO" => "9",
-        "YUKON" => "11",
-        "BUGABOOS" => "12",
-    ];
-
     public function __construct($plugin_name, $version)
     {
         $this->plugin_name = $plugin_name;
@@ -184,7 +169,7 @@ class acc_user_importer_Admin
     // Get the section API ID
     private function getSectionApiID()
     {
-        return $this->sectionApiId[accUM_getSectionName()];
+        return acc_get_section_api_id(accUM_getSectionName());
     }
 
     /*
@@ -776,7 +761,7 @@ class acc_user_importer_Admin
 
         // Get the readonly_mode setting
         $readonly_mode = accUM_get_readonly_mode();
-        if ($readonly_mode) {
+        if ($readonly_mode == "on") {
             $this->log_dual(
                 "Read-only test mode, will not update user database"
             );
@@ -1569,7 +1554,7 @@ class acc_user_importer_Admin
         $api_response = []; //create response object
 
         $readonly_mode = accUM_get_readonly_mode();
-        if ($readonly_mode) {
+        if ($readonly_mode == "on") {
             $this->log_dual("Read-only test mode, skipping local DB check");
             $api_response["message"] = "success";
             $api_response["log"] = $GLOBALS["acc_logstr"]; //Return the big log string
@@ -1577,7 +1562,7 @@ class acc_user_importer_Admin
         }
 
         $verify_expiry = accUM_get_verify_expiry();
-        if ($verify_expiry) {
+        if ($verify_expiry == "on") {
             $this->log_dual("=============================================");
             $this->log_dual("Checking local DB, as stated in configuration");
             $this->log_dual("=============================================");
@@ -1591,7 +1576,7 @@ class acc_user_importer_Admin
         }
 
         $delete_ex_users = accUM_get_delete_ex_users();
-        if ($delete_ex_users) {
+        if ($delete_ex_users == "on") {
             //When should we delete expired users? Who will now own the content?
             $days_before_delete = accUM_get_when_2_delete_ex_user();
             $this->log_dual(

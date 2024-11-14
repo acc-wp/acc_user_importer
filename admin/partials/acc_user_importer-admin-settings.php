@@ -3,11 +3,55 @@
 /**
  * Provide a admin area view for the plugin
  *
- * @link       https://www.facebook.com/razpeel
  *
  * @package    acc_user_importer
  * @subpackage acc_user_importer/admin/partials
  */
+
+/**
+ * Variables in wp_options table where we store our plugin settings.
+ */
+const ACCUM_GEN = "accUM_gen"; //The general settings
+const ACCUM_SEC = "accUM_sec"; //The per-section settings
+
+/**
+ * Returns an associative array of section names and API ID.
+ * Intentially omitted FQME, which maps to 10.
+ */
+function acc_get_section_apis()
+{
+    $acc_section_apis = [
+        "SQUAMISH" => "1",
+        "CALGARY" => "2",
+        "MONTRÉAL" => "3",
+        "OUTAOUAIS" => "4",
+        "OTTAWA" => "5",
+        "VANCOUVER" => "6",
+        "ROCKY MOUNTAIN" => "7",
+        "EDMONTON" => "8",
+        "TORONTO" => "9",
+        "YUKON" => "11",
+        "BUGABOOS" => "12",
+    ];
+    return $acc_section_apis;
+}
+
+/**
+ * Returns an array of section names
+ */
+function acc_get_supported_sections()
+{
+    return array_keys(acc_get_section_apis());
+}
+
+/**
+ * Returns the API ID for the specified section
+ */
+function acc_get_section_api_id($section)
+{
+    $section_apis = acc_get_section_apis();
+    return $section_apis[$section];
+}
 
 /*
  * List menu page in the Wordpress admin.
@@ -15,9 +59,9 @@
 add_action("admin_menu", "accUM_add_menu_page");
 function accUM_add_menu_page()
 {
-    add_users_page(
-        "ACC Administration", //Title
-        "ACC Admin", //Menu Title
+    add_menu_page(
+        "ACC Administration", //Title of the page in the browser tab
+        "ACC User Importer", //Menu Title
         "edit_users", //Capability
         "acc_admin_page", //Slug
         "accUM_render_options_pages" //Callback
@@ -50,10 +94,6 @@ function acc_email_settings()
 function accUM_get_login_name_mapping_default()
 {
     return "member_number";
-}
-function accUM_get_section_default()
-{
-    return "Ottawa";
 }
 function accUM_get_new_user_role_action_default()
 {
@@ -112,125 +152,325 @@ function accUM_get_sync_list_default()
     return "";
 }
 
+/*-------------------------Get functions-------------------------------
+ * Get functions.
+ * Used during automatic import and also by the functions that render
+ * settings.  Here is where the default values are specified for
+ * when the setting has not been touched by the user.
+ *-------------------------------------------------------------------*/
+
+//Return the number of sections we will import
+function accUM_get_num_sections()
+{
+    $options = get_option(ACCUM_GEN);
+    if (!isset($options["accUM_section_list"])) {
+        return 0;
+    }
+    return count($options["accUM_section_list"]);
+}
+
+//Return an array of sections selected for import
+function accUM_get_section_list()
+{
+    $options = get_option(ACCUM_GEN);
+    if (isset($options) && isset($options["accUM_section_list"])) {
+        return $options["accUM_section_list"];
+    }
+    return null;
+}
+
+//Returns "on" if section is imported
+function accUM_is_section_imported($section)
+{
+    $options = get_option(ACCUM_GEN);
+    if (
+        isset($options) &&
+        isset($options["accUM_section_list"]) &&
+        isset($options["accUM_section_list"][$section])
+    ) {
+        $value = $options["accUM_section_list"][$section];
+        error_log("in " . __FUNCTION__ . " returning $value");
+        return $value;
+    }
+    return "off";
+}
+
+// Sync changes since when?
+function accUM_get_since_date()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "since_date";
+    if (!isset($options[$key])) {
+        return null;
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+// Returns the configured list of users to synchronize
+function accUM_get_sync_list()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "accUM_sync_list";
+    if (!isset($options[$key])) {
+        return null;
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+// Returns the configured login name mapping
+function accUM_get_login_name_mapping()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "accUM_login_name_mapping";
+    if (!isset($options[$key])) {
+        return "member_number";
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+//Returns "on" if transition from Contact ID is selected
+function accUM_get_transition_from_contactID()
+{
+    $options = get_option(ACCUM_GEN);
+    if (isset($options["accUM_transition_from_contactID"])) {
+        $value = $options["accUM_transition_from_contactID"];
+        //error_log("in " . __FUNCTION__ . " returning $value");
+        return $value;
+    }
+    return "off";
+}
+
+// Returns true if the database is transitioning from FromContactID usernames.
+function accUM_get_transitionFromContactID()
+{
+    return accUM_get_transition_from_contactID() == "on";
+}
+
+// Returns "on" if the plugin operates in read-only mode (for debug)
+function accUM_get_readonly_mode()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "accUM_readonly_mode";
+    if (!isset($options[$key])) {
+        return "off";
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+// Returns "on" if the plugin should scan the DB looking for expired members
+function accUM_get_verify_expiry()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "accUM_verify_expiry";
+    if (!isset($options[$key])) {
+        return "off";
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+// Returns "on" if the plugin should delete obsolete users during
+// the DB scan.
+function accUM_get_delete_ex_users()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "accUM_delete_ex_users";
+    if (!isset($options[$key])) {
+        return "off";
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+// After how many days should an expired user be deleted?
+function accUM_get_when_2_delete_ex_user()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "when_2_delete_ex_user";
+    if (!isset($options[$key])) {
+        return 365;
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+// When deleting a user, who should become the new content owner?
+function accUM_get_new_owner()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "new_owner";
+    if (!isset($options[$key])) {
+        return "";
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+// Who (email addresses) to send notification emails to?
+function accUM_get_notification_emails()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "notification_emails";
+    if (!isset($options[$key])) {
+        return "";
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+// Title of the email?
+function accUM_get_notification_title()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "notification_title";
+    if (!isset($options[$key])) {
+        return "ACC membership change notification";
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+// How many log files should we keep max.
+function accUM_get_max_log_files()
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "max_log_files";
+    if (!isset($options[$key])) {
+        return 500;
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+//-----------get functions with a section parameter----------------
+
+// Returns true if the import is disabled for this section
+function accUM_get_section_disable($section)
+{
+    if (!in_array($section, acc_get_supported_sections())) {
+        //error_log("in " . __FUNCTION__ . " section $section is invalid");
+        return true;
+    }
+    $options = get_option(ACCUM_SEC);
+    if (!isset($options[$section]["disable"])) {
+        error_log(
+            "in " . __FUNCTION__ . " returning false for section $section"
+        );
+        return false;
+    }
+    return $options[$section]["disable"];
+}
+
+// Returns the section authentication token
+function accUM_get_section_token($section)
+{
+    $options = get_option(ACCUM_SEC);
+    $key = "token";
+    if (!isset($options[$section][$key])) {
+        return null;
+    }
+    $value = $options[$section][$key];
+    return $value;
+}
+
+// Returns what to do with the role of a new user.
+function accUM_get_new_user_role_action($section)
+{
+    $options = get_option(ACCUM_SEC);
+    $key = "accUM_new_user_role_action";
+    if (!isset($options[$section][$key])) {
+        return "set_role";
+    }
+    $value = $options[$section][$key];
+    return $value;
+}
+
+// Returns what role to use for a new user.
+function accUM_get_new_user_role_value($section)
+{
+    $options = get_option(ACCUM_SEC);
+    $key = "accUM_new_user_role_value";
+    if (!isset($options[$section][$key])) {
+        return "subscriber";
+    }
+    $value = $options[$section][$key];
+    return $value;
+}
+
+// Returns what to do with the role of a new user.
+function accUM_get_ex_user_role_action($section)
+{
+    $options = get_option(ACCUM_SEC);
+    $key = "accUM_ex_user_role_action";
+    if (!isset($options[$section][$key])) {
+        return "set_role";
+    }
+    $value = $options[$section][$key];
+    return $value;
+}
+
+// Returns what role to use for a new user.
+function accUM_get_ex_user_role_value($section)
+{
+    $options = get_option(ACCUM_SEC);
+    $key = "accUM_ex_user_role_value";
+    if (!isset($options[$section][$key])) {
+        return "subscriber";
+    }
+    $value = $options[$section][$key];
+    return $value;
+}
+
+//----FIXME this needs to change-------
 // Get the section name as per the settings
+// Leave as-is for now
 function accUM_getSectionName()
 {
     $options = get_option("accUM_data");
     if (!isset($options["accUM_section_api_id"])) {
-        $sectionName = accUM_get_section_default();
+        $sectionName = "Ottawa";
     } else {
         $sectionName = $options["accUM_section_api_id"];
     }
     return $sectionName;
 }
 
-// Returns true if the database is transitioning from FromContactID usernames.
-function accUM_get_transitionFromContactID()
-{
-    $options = get_option("accUM_data");
-    if (!isset($options["accUM_transition_from_contactID"])) {
-        $transitionFromContactID = accUM_transition_from_contactID_default();
-    } else {
-        $transitionFromContactID = $options["accUM_transition_from_contactID"];
-    }
-    return $transitionFromContactID == "on";
+/*****************************************************************************
+ * Register plugin settings
+ ****************************************************************************/
+if (!has_action("admin_init", "accUM_settings_init")) {
+    add_action("admin_init", "accUM_settings_init");
 }
-
-// Returns true if the plugin operates in read-only mode (for debug)
-function accUM_get_readonly_mode()
-{
-    $options = get_option("accUM_data");
-    if (!isset($options["accUM_readonly_mode"])) {
-        $readonly_mode = accUM_readonly_mode_default();
-    } else {
-        $readonly_mode = $options["accUM_readonly_mode"];
-    }
-    return $readonly_mode == "on";
-}
-
-// Returns true if we need to scan the DB looking for expired users
-function accUM_get_verify_expiry()
-{
-    $options = get_option("accUM_data");
-    if (!isset($options["accUM_verify_expiry"])) {
-        $setting = accUM_verify_expiry_default();
-    } else {
-        $setting = $options["accUM_verify_expiry"];
-    }
-    return $setting == "on";
-}
-
-// Returns true if we need to delete old expired users from database
-function accUM_get_delete_ex_users()
-{
-    $options = get_option("accUM_data");
-    if (!isset($options["accUM_delete_ex_users"])) {
-        $setting = accUM_get_delete_ex_users_default();
-    } else {
-        $setting = $options["accUM_delete_ex_users"];
-    }
-    return $setting == "on";
-}
-
-// Returns the configured list of users to synchronize
-function accUM_get_sync_list()
-{
-    $options = get_option("accUM_data");
-    if (!isset($options["accUM_sync_list"])) {
-        $setting = accUM_get_sync_list_default();
-    } else {
-        $setting = $options["accUM_sync_list"];
-    }
-    return $setting;
-}
-
-// Returns the number of days before deleting an expired user.
-function accUM_get_when_2_delete_ex_user()
-{
-    $options = get_option("accUM_data");
-    if (!isset($options["accUM_when_2_delete_ex_user"])) {
-        $setting = accUM_get_when_2_delete_ex_user_default();
-    } else {
-        $setting = $options["accUM_when_2_delete_ex_user"];
-    }
-    return $setting;
-}
-
-// Returns the new content owner when a user is deletec.
-function accUM_get_new_owner()
-{
-    $options = get_option("accUM_data");
-    if (!isset($options["accUM_new_owner"])) {
-        $setting = accUM_get_new_owner_default();
-    } else {
-        $setting = $options["accUM_new_owner"];
-    }
-    return $setting;
-}
-
-/*
- * Register user settings for options page.
- */
-add_action("admin_init", "accUM_settings_init");
 function accUM_settings_init()
 {
-    //define sections
+    //---------Define general settings---------------
+    register_setting("acc_general_group", ACCUM_GEN, "accUM_sanitize_data");
+    //register_setting("acc_general_group", "accUM_data", "accUM_sanitize_data");
+
     add_settings_section(
-        "accUM_user_section",
-        "User Settings",
+        "accUM_general_section",
+        "General Settings",
         "",
-        "acc_admin_page"
+        "accUM_general_section1"
     );
 
     add_settings_field(
-        "accUM_section_api_id", //ID
-        "Section for which to import membership", //Title
-        "accUM_select_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_section_list", //ID
+        "List of sections to import",
+        "accUM_chkboxes_render", //Callback
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
-            "name" => "accUM_section_api_id",
-            "values" => [
+            "id" => "accUM_section_list",
+            "name" => ACCUM_GEN . "[accUM_section_list]",
+            "get" => "accUM_is_section_imported",
+            "get_args" => [],
+            "help" => "Select the sections to import membership from.",
+            "items" => [
                 "SQUAMISH" => "SQUAMISH",
                 "CALGARY" => "CALGARY",
                 "OTTAWA" => "OTTAWA",
@@ -243,23 +483,6 @@ function accUM_settings_init()
                 "YUKON" => "YUKON",
                 "BUGABOOS" => "BUGABOOS",
             ],
-            "default" => accUM_get_section_default(),
-            "help" => "Select one",
-        ]
-    );
-
-    add_settings_field(
-        "accUM_token", //ID
-        "One or more section authentication tokens. Section names are in Capitals. " .
-            "Example with bogus token values: " .
-            "OUTAOUAIS:K39FKJ5HJDU2,MONTRÉAL:K49G86J345",
-        "accUM_text_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
-        [
-            "type" => "password",
-            "name" => "accUM_token",
-            "html_tags" => "required",
         ]
     );
 
@@ -268,11 +491,14 @@ function accUM_settings_init()
         "Sync changes since when? This normally shows the last run time (in UTC), " .
             "but you can force a date in ISO 8601 format such as 2020-11-23T15:05:00.",
         "accUM_text_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
+            "id" => "accUM_since_date",
+            "get" => "accUM_get_since_date",
+            "get_args" => [],
+            "name" => ACCUM_GEN . "[since_date]",
             "type" => "text",
-            "name" => "accUM_since_date",
             "help" =>
                 "The date gets updated when the plugin runs automatically, " .
                 "but not when it runs manually with the Update button",
@@ -283,12 +509,14 @@ function accUM_settings_init()
         "accUM_sync_list", //ID
         "Only sync this comma-separated list of ACC member numbers",
         "accUM_text_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
+            "id" => "accUM_sync_list",
+            "name" => ACCUM_GEN . "[accUM_sync_list]",
+            "get" => "accUM_get_sync_list",
+            "get_args" => [],
             "type" => "text",
-            "name" => "accUM_sync_list",
-            "default" => accUM_get_sync_list_default(),
             "help" =>
                 "Normally blank. Enter member numbers to manually sync those members " .
                 "using the Update button. Dont forget to clear the box afterward to " .
@@ -301,15 +529,17 @@ function accUM_settings_init()
         "Set usernames to (Use with caution, this affects login of users, " .
             "although they always can login using their email)",
         "accUM_select_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
-            "name" => "accUM_login_name_mapping",
-            "values" => [
+            "id" => "accUM_login_name_mapping",
+            "name" => ACCUM_GEN . "[accUM_login_name_mapping]",
+            "get" => "accUM_get_login_name_mapping",
+            "get_args" => [],
+            "items" => [
                 "member_number" => "ACC member number",
                 "Firstname Lastname" => "Firstname Lastname",
             ],
-            "default" => accUM_get_login_name_mapping_default(),
         ]
     );
 
@@ -317,110 +547,64 @@ function accUM_settings_init()
         "accUM_transition_from_contactID", //ID
         "Usernames will transition from ContactID to Interpodia member_number? " .
             "Check this box for a safer transition (verifies that member being synced has the right name)",
-        "accUM_chkbox_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_chkboxes_render", //Callback
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
-            "name" => "accUM_transition_from_contactID",
-            "default" => accUM_transition_from_contactID_default(),
+            "id" => "accUM_transition_from_contactID",
+            "name" => ACCUM_GEN . "[accUM_transition_from_contactID]",
+            "get" => "accUM_get_transition_from_contactID",
+            "get_args" => [],
+            "help" => "This option should normally be left unchecked.",
         ]
     );
 
     add_settings_field(
         "accUM_readonly_mode", //ID
-        "Test mode: do not update Wordpress database. " .
-            "Check this box to do a normal run but skip the Wordpress users update.",
-        "accUM_chkbox_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "Test mode: do not update Wordpress user database",
+        "accUM_chkboxes_render", //Callback
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
-            "name" => "accUM_readonly_mode",
-            "default" => accUM_readonly_mode_default(),
-        ]
-    );
-
-    add_settings_field(
-        "accUM_new_user_role_action", //ID
-        "When creating a new user, what should I do with role?",
-        "accUM_select_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
-        [
-            "name" => "accUM_new_user_role_action",
-            "values" => [
-                "set_role" => "Set role",
-                "add_role" => "Add role",
-                "nc" => "Do not change role",
-            ],
-            "default" => accUM_get_new_user_role_action_default(),
-        ]
-    );
-
-    $roles = wp_roles()->get_names();
-    add_settings_field(
-        "accUM_new_user_role_value", //ID
-        "role value?", //Title
-        "accUM_select_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
-        [
-            "name" => "accUM_new_user_role_value",
-            "values" => $roles,
-            "default" => accUM_get_new_user_role_value_default(),
-        ]
-    );
-
-    add_settings_field(
-        "accUM_ex_user_role_action", //ID
-        "When expiring a user, what should I do with role?",
-        "accUM_select_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
-        [
-            "name" => "accUM_ex_user_role_action",
-            "values" => [
-                "set_role" => "Set role",
-                "remove_role" => "Remove role",
-                "nc" => "Do not change role",
-            ],
-            "default" => accUM_get_ex_user_role_action_default(),
-        ]
-    );
-
-    add_settings_field(
-        "accUM_ex_user_role_value", //ID
-        "role value?", //Title
-        "accUM_select_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
-        [
-            "name" => "accUM_ex_user_role_value",
-            "values" => $roles,
-            "default" => accUM_get_ex_user_role_value_default(),
+            "id" => "accUM_readonly_mode",
+            "name" => ACCUM_GEN . "[accUM_readonly_mode]",
+            "get" => "accUM_get_readonly_mode",
+            "get_args" => [],
+            "help" =>
+                "Check this box to do a normal run but skip the local DB update.",
         ]
     );
 
     add_settings_field(
         "accUM_verify_expiry", //ID
         "Also check user expiry in local DB",
-        "accUM_chkbox_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_chkboxes_render", //Callback
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
-            "name" => "accUM_verify_expiry",
-            "default" => accUM_verify_expiry_default(),
+            "id" => "accUM_verify_expiry",
+            "name" => ACCUM_GEN . "[accUM_verify_expiry]",
+            "get" => "accUM_get_verify_expiry",
+            "get_args" => [],
+            "help" =>
+                "Recommend to check this box. Once import is done " .
+                "the plugin will scan the user database, clean " .
+                "obsolete users and potentially raise warnings " .
+                "in the logfile",
         ]
     );
 
     add_settings_field(
         "accUM_delete_ex_users", //ID
         "Delete expired user accounts after a while",
-        "accUM_chkbox_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_chkboxes_render", //Callback
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
-            "name" => "accUM_delete_ex_users",
-            "default" => accUM_get_delete_ex_users_default(),
+            "id" => "accUM_delete_ex_users",
+            "name" => ACCUM_GEN . "[accUM_delete_ex_users]",
+            "get" => "accUM_get_delete_ex_users",
+            "get_args" => [],
             "help" => "Requires 'Also check user expiry' option.",
         ]
     );
@@ -429,12 +613,14 @@ function accUM_settings_init()
         "accUM_when_2_delete_ex_user", //ID
         "How many days before deleting expired users from database?",
         "accUM_text_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
             "type" => "number",
-            "name" => "accUM_when_2_delete_ex_user",
-            "default" => accUM_get_when_2_delete_ex_user_default(),
+            "id" => "accUM_when_2_delete_ex_user",
+            "name" => ACCUM_GEN . "[when_2_delete_ex_user]",
+            "get" => "accUM_get_when_2_delete_ex_user",
+            "get_args" => [],
             "help" =>
                 "Enter the number of days after which to delete the user account.",
         ]
@@ -444,12 +630,14 @@ function accUM_settings_init()
         "accUM_new_owner", //ID
         "When deleting a user, who will become the new content owner?",
         "accUM_text_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
             "type" => "text",
-            "name" => "accUM_new_owner",
-            "default" => accUM_get_new_owner_default(),
+            "id" => "accUM_new_owner",
+            "name" => ACCUM_GEN . "[new_owner]",
+            "get" => "accUM_get_new_owner",
+            "get_args" => [],
             "help" =>
                 "Enter the new owner login name. Suggestion: manually " .
                 "create a dummy user (example: 'ex-member') to receive " .
@@ -465,12 +653,14 @@ function accUM_settings_init()
         "accUM_notification_emails", //ID
         "Admin to notify about membership creation/expiry? List of emails, comma separated. Leave blank for no notifications",
         "accUM_text_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
+            "id" => "accUM_notification_emails",
+            "name" => ACCUM_GEN . "[notification_emails]",
+            "get" => "accUM_get_notification_emails",
+            "get_args" => [],
             "type" => "text",
-            "name" => "accUM_notification_emails",
-            "default" => accUM_get_notification_emails_default(),
         ]
     );
 
@@ -478,12 +668,14 @@ function accUM_settings_init()
         "accUM_notification_title", //ID
         "Title of admin notification email",
         "accUM_text_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
+            "id" => "accUM_notification_title",
+            "name" => ACCUM_GEN . "[notification_title]",
+            "get" => "accUM_get_notification_title",
+            "get_args" => [],
             "type" => "text",
-            "name" => "accUM_notification_title",
-            "default" => accUM_get_default_notif_title(),
         ]
     );
 
@@ -491,17 +683,131 @@ function accUM_settings_init()
         "accUM_max_log_files", //ID
         "Maximum number of log files to keep",
         "accUM_text_render", //Callback
-        "acc_admin_page", //Page
-        "accUM_user_section", //Section
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
         [
+            "id" => "accUM_max_log_files",
+            "name" => ACCUM_GEN . "[max_log_files]",
+            "get" => "accUM_get_max_log_files",
+            "get_args" => [],
             "type" => "number",
-            "name" => "accUM_max_log_files",
-            "default" => accUM_get_default_max_log_files(),
         ]
     );
 
-    //Register the array that will store all plugin data
-    register_setting("acc_admin_page", "accUM_data", "accUM_sanitize_data");
+    //---------------Define per-section settings--------------------
+    foreach (acc_get_supported_sections() as $section) {
+        register_setting(
+            "acc_" . $section . "_group",
+            ACCUM_SEC,
+            "accUM_sanitize_data2"
+        );
+
+        add_settings_section(
+            ACCUM_SEC . "_$section" . "_section",
+            "Per-section settings",
+            "",
+            "acc_" . $section . "_section"
+        );
+
+        add_settings_field(
+            "accUM_$section" . "_disable", //ID
+            "Temporarily disable import for this section",
+            "accUM_chkboxes_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_$section" . "_disable",
+                "name" => ACCUM_SEC . "[$section][disable]",
+                "get" => "accUM_get_section_disable",
+                "get_args" => [$section],
+            ]
+        );
+
+        add_settings_field(
+            "accUM_$section" . "_token", //ID
+            "Section authentication token",
+            "accUM_text_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_$section" . "_token",
+                "name" => ACCUM_SEC . "[$section][token]",
+                "get" => "accUM_get_section_token",
+                "get_args" => [$section],
+                "type" => "password",
+            ]
+        );
+
+        add_settings_field(
+            "accUM_new_user_role_action", //ID
+            "When creating a new user, what should I do with role?",
+            "accUM_select_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_new_user_role_action",
+                "name" => ACCUM_SEC . "[$section][accUM_new_user_role_action]",
+                "get" => "accUM_get_new_user_role_action",
+                "get_args" => [$section],
+                "items" => [
+                    "set_role" => "Set role",
+                    "add_role" => "Add role",
+                    "nc" => "Do not change role",
+                ],
+            ]
+        );
+
+        $roles = wp_roles()->get_names();
+        add_settings_field(
+            "accUM_new_user_role_value", //ID
+            "role value?", //Title
+            "accUM_select_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_new_user_role_value",
+                "name" => ACCUM_SEC . "[$section][accUM_new_user_role_value]",
+                "get" => "accUM_get_new_user_role_value",
+                "get_args" => [$section],
+                "items" => $roles,
+            ]
+        );
+
+        add_settings_field(
+            "accUM_ex_user_role_action", //ID
+            "When expiring a user, what should I do with role?",
+            "accUM_select_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_ex_user_role_action",
+                "name" => ACCUM_SEC . "[$section][accUM_ex_user_role_action]",
+                "get" => "accUM_get_ex_user_role_action",
+                "get_args" => [$section],
+                "items" => [
+                    "set_role" => "Set role",
+                    "remove_role" => "Remove role",
+                    "nc" => "Do not change role",
+                ],
+            ]
+        );
+
+        $roles = wp_roles()->get_names();
+        add_settings_field(
+            "accUM_ex_user_role_value", //ID
+            "role value?", //Title
+            "accUM_select_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_ex_user_role_value",
+                "name" => ACCUM_SEC . "[$section][accUM_ex_user_role_value]",
+                "get" => "accUM_get_ex_user_role_value",
+                "get_args" => [$section],
+                "items" => $roles,
+            ]
+        );
+    }
 }
 
 /*
@@ -509,30 +815,25 @@ function accUM_settings_init()
  */
 function accUM_text_render($args)
 {
-    $options = get_option("accUM_data");
-    $input_name = $args["name"];
-    $input_type = $args["type"];
-    if (empty($options[$input_name])) {
-        $input_value = $args["default"];
-    } else {
-        $input_value = $options[$input_name];
-    }
+    $id = $args["id"];
+    $get = $args["get"];
+    $get_args = $args["get_args"];
+    $name = $args["name"];
+    $type = $args["type"];
+    //error_log("in " . __FUNCTION__ . " $id $get $name");
+    //error_log(print_r($get_args, true));
+    //For per-section settings, the get function has a section parameter.
+    $value = $get(...$get_args);
 
-    $html = "<input type=\"$input_type\"";
-    $html .= " id=\"$input_name\"";
-    $html .= " name=\"accUM_data[$input_name]\"";
-
-    //if memory is empty and there is a defauly, use that
-    if (empty($input_value) && $args["default"]) {
-        $input_value = $args["default"];
-    }
+    $html = "<input type=\"$type\"";
+    $html .= " id=\"$id\"";
+    $html .= " name=$name";
+    $html .= " value=\"$value\"";
 
     //add extra html tags if any are given
     if (!empty($args["html_tags"])) {
         $html .= " " . $args["html_tags"];
     }
-
-    $html .= " value=\"$input_value\"";
 
     //if there is help text to display when hovering
     if (!empty($args["help"])) {
@@ -543,17 +844,16 @@ function accUM_text_render($args)
     $html .= "/>";
 
     echo $html;
+    //error_log("in " . __FUNCTION__ . " html=$html");
 }
 
 function accUM_select_render($args)
 {
-    $options = get_option("accUM_data");
-    $input_name = $args["name"];
-    if (empty($options[$input_name])) {
-        $select_value = $args["default"];
-    } else {
-        $select_value = $options[$input_name];
-    }
+    $id = $args["id"];
+    $name = $args["name"];
+    $get = $args["get"];
+    $get_args = $args["get_args"];
+    $value = $get(...$get_args);
 
     //if there is help text to display when hovering
     $help = "";
@@ -561,59 +861,96 @@ function accUM_select_render($args)
         $help = $args["help"];
     }
 
-    $html = "<select id=\"$input_name\" name=\"accUM_data[$input_name] \" title=\"$help\">";
+    $html = "<select id=\"$id\" name=\"$name\" title=\"$help\">";
 
     //Fill columns
-    if ($args["values"]) {
-        foreach ($args["values"] as $key => $value) {
+    if ($args["items"]) {
+        foreach ($args["items"] as $key => $text) {
             $html .= "<option value=\"$key\"";
-            if ($key == $select_value) {
+            if ($key == $value) {
                 $html .= ' selected="selected"';
             }
-            $html .= ">$value";
+            $html .= ">$text";
             $html .= "</option>";
         }
     }
     echo $html . "</select>";
+    //error_log("html=$html");
 }
 
 /*
- * Render for a single on/off checkbox.
+ * Render for one or more checkboxes.
+ * For one checkbox, the "item" parameter should be NULL and then
+ * there will be no text printed on the right side and
+ * the data will be stored in the DB as a single variable
+ * rather than an associative array.
  * If checked, the WP database stores 'on'.
  * If not checked, the WP database has no data for that option.
  */
-function accUM_chkbox_render($args)
+function accUM_chkboxes_render($args)
 {
-    $options = get_option("accUM_data");
-    $input_name = $args["name"];
-    if (empty($options[$input_name])) {
-        $select_value = $args["default"];
+    $id = $args["id"];
+    $name = $args["name"];
+    $get = $args["get"];
+    $get_args = $args["get_args"];
+    error_log("in " . __FUNCTION__ . " $id $name $get");
+
+    //error_log("In chkboxes render args[option]=$args[option]");
+    if (!isset($args["items"])) {
+        // This is a single yes/no checkbox
+        $value = $get(...$get_args);
+        $html = "<input type=\"checkbox\"";
+        $html .= " id=\"$id\"";
+        $html .= " name=\"$name\"";
+        $html .= checked("on", $value, false) . " /> <br />";
+        echo $html;
+        error_log("chkboxes html=$html");
     } else {
-        $select_value = $options[$input_name];
+        foreach ($args["items"] as $item => $text) {
+            $args2 = $get_args + [$item]; //Append one more argument
+            //error_log(print_r($args2, true));
+
+            $value = $get(...$args2);
+
+            $html = "<input type=\"checkbox\"";
+            $html .= " id=\"$item\"";
+            $html .= " name=\"$name" . "[$item]\"";
+            $html .= checked("on", $value, false) . " /> $text <br />";
+            echo $html;
+            error_log("chkboxes html=$html");
+        }
     }
-
-    $html = "<input type=\"checkbox\"";
-    $html .= " id=\"$input_name\"";
-    $html .= " name=\"accUM_data[$input_name]\"";
-
-    //if there is help text to display when hovering
-    if (!empty($args["help"])) {
-        $help = $args["help"];
-        $html .= " title=\"$help\"";
-    }
-
-    $html .= checked("on", $select_value, false) . " />";
-    echo $html;
 }
 
 /*
- * WIP: Sanitize and update post data after submit.
+ * WIP: Sanitize data after user hits "Save changes".
  */
 function accUM_sanitize_data($options)
 {
-    foreach ($options as $key => $val) {
-        $options[$key] = sanitize_text_field($val);
+    //error_log("In sanitize");
+    //error_log( print_r( $options, true ) );
+    if (is_array($options)) {
+        foreach ($options as $key => $val) {
+            if ($key == "accUM_section_list") {
+                //This is an array of checkbox options
+                foreach ($val as $key2 => $val2) {
+                    $options[$key][$key2] = sanitize_text_field($val2);
+                    $new_value = $options[$key][$key2];
+                }
+            } else {
+                $options[$key] = sanitize_text_field($val);
+            }
+        }
+    } else {
+        $options = sanitize_text_field($options);
     }
+    return $options;
+}
+
+function accUM_sanitize_data2($options)
+{
+    error_log("In sanitize2");
+    error_log(print_r($options, true));
     return $options;
 }
 
