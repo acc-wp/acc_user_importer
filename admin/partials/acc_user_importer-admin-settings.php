@@ -90,68 +90,6 @@ function acc_email_settings()
     require_once ACC_BASE_DIR . "/template/email_settings.php";
 }
 
-// Define functions to get default values from different files.
-function accUM_get_login_name_mapping_default()
-{
-    return "member_number";
-}
-function accUM_get_new_user_role_action_default()
-{
-    return "set_role";
-}
-function accUM_get_new_user_role_value_default()
-{
-    return "subscriber";
-}
-function accUM_get_default_notif_title()
-{
-    return "ACC membership change notification";
-}
-function accUM_get_ex_user_role_action_default()
-{
-    return "set_role";
-}
-function accUM_transition_from_contactID_default()
-{
-    return "off";
-}
-function accUM_readonly_mode_default()
-{
-    return "off";
-}
-function accUM_verify_expiry_default()
-{
-    return "off";
-}
-function accUM_get_delete_ex_users_default()
-{
-    return "off";
-}
-function accUM_get_ex_user_role_value_default()
-{
-    return "subscriber";
-}
-function accUM_get_when_2_delete_ex_user_default()
-{
-    return 365;
-}
-function accUM_get_new_owner_default()
-{
-    return "";
-}
-function accUM_get_default_max_log_files()
-{
-    return 500;
-}
-function accUM_get_notification_emails_default()
-{
-    return "";
-}
-function accUM_get_sync_list_default()
-{
-    return "";
-}
-
 /*-------------------------Get functions-------------------------------
  * Get functions.
  * Used during automatic import and also by the functions that render
@@ -174,13 +112,13 @@ function accUM_get_section_list()
 {
     $options = get_option(ACCUM_GEN);
     if (isset($options) && isset($options["accUM_section_list"])) {
-        return $options["accUM_section_list"];
+        return array_keys($options["accUM_section_list"]);
     }
     return null;
 }
 
 //Returns "on" if section is imported
-function accUM_is_section_imported($section)
+function accUM_get_section_imported($section)
 {
     $options = get_option(ACCUM_GEN);
     if (
@@ -195,6 +133,11 @@ function accUM_is_section_imported($section)
     return "off";
 }
 
+function accUM_is_section_imported()
+{
+    return accUM_get_section_imported() === "on";
+}
+
 // Sync changes since when?
 function accUM_get_since_date()
 {
@@ -205,6 +148,17 @@ function accUM_get_since_date()
     }
     $value = $options[$key];
     return $value;
+}
+
+function accUM_set_since_date($new_date)
+{
+    $options = get_option(ACCUM_GEN);
+    $key = "since_date";
+    $options[$key] = $new_date;
+    $rc = update_option(ACCUM_GEN, $options);
+    if ($rc != true) {
+        error_log("Failed to update since_date to $new_date");
+    }
 }
 
 // Returns the configured list of users to synchronize
@@ -244,9 +198,9 @@ function accUM_get_transition_from_contactID()
 }
 
 // Returns true if the database is transitioning from FromContactID usernames.
-function accUM_get_transitionFromContactID()
+function accUM_is_transitionFromContactID()
 {
-    return accUM_get_transition_from_contactID() == "on";
+    return accUM_get_transition_from_contactID() === "on";
 }
 
 // Returns "on" if the plugin operates in read-only mode (for debug)
@@ -261,6 +215,12 @@ function accUM_get_readonly_mode()
     return $value;
 }
 
+// Returns true/false
+function accUM_is_section_readonly($section)
+{
+    return accUM_get_readonly_mode($section) === "on";
+}
+
 // Returns "on" if the plugin should scan the DB looking for expired members
 function accUM_get_verify_expiry()
 {
@@ -271,6 +231,12 @@ function accUM_get_verify_expiry()
     }
     $value = $options[$key];
     return $value;
+}
+
+// Returns true/false
+function accUM_is_verify_expiry($section)
+{
+    return accUM_get_verify_expiry($section) === "on";
 }
 
 // Returns "on" if the plugin should delete obsolete users during
@@ -284,6 +250,11 @@ function accUM_get_delete_ex_users()
     }
     $value = $options[$key];
     return $value;
+}
+
+function accUM_is_delete_ex_users($section)
+{
+    return accUM_get_delete_ex_users($section) === "on";
 }
 
 // After how many days should an expired user be deleted?
@@ -348,7 +319,6 @@ function accUM_get_max_log_files()
 
 //-----------get functions with a section parameter----------------
 
-// Returns true if the import is disabled for this section
 function accUM_get_section_disable($section)
 {
     if (!in_array($section, acc_get_supported_sections())) {
@@ -360,9 +330,14 @@ function accUM_get_section_disable($section)
         error_log(
             "in " . __FUNCTION__ . " returning false for section $section"
         );
-        return false;
+        return "off";
     }
     return $options[$section]["disable"];
+}
+
+function accUM_is_section_disabled($section)
+{
+    return accUM_get_section_disable($section) === "on";
 }
 
 // Returns the section authentication token
@@ -425,20 +400,6 @@ function accUM_get_ex_user_role_value($section)
     return $value;
 }
 
-//----FIXME this needs to change-------
-// Get the section name as per the settings
-// Leave as-is for now
-function accUM_getSectionName()
-{
-    $options = get_option("accUM_data");
-    if (!isset($options["accUM_section_api_id"])) {
-        $sectionName = "Ottawa";
-    } else {
-        $sectionName = $options["accUM_section_api_id"];
-    }
-    return $sectionName;
-}
-
 /*****************************************************************************
  * Register plugin settings
  ****************************************************************************/
@@ -449,7 +410,6 @@ function accUM_settings_init()
 {
     //---------Define general settings---------------
     register_setting("acc_general_group", ACCUM_GEN, "accUM_sanitize_data");
-    //register_setting("acc_general_group", "accUM_data", "accUM_sanitize_data");
 
     add_settings_section(
         "accUM_general_section",
@@ -467,7 +427,7 @@ function accUM_settings_init()
         [
             "id" => "accUM_section_list",
             "name" => ACCUM_GEN . "[accUM_section_list]",
-            "get" => "accUM_is_section_imported",
+            "get" => "accUM_get_section_imported",
             "get_args" => [],
             "help" => "Select the sections to import membership from.",
             "items" => [

@@ -96,12 +96,13 @@ var usersInData, newUsers, updatedUsers, usersWithErrors, accSyncStartTime;
     logLocalOutput("Getting list of members with recent changes");
 
     // Very basic validation for token
-    var accessToken = jQuery("#accUM_token").val();
-    if (accessToken === undefined || String(accessToken).length == 0) {
-      logLocalOutput("Error, please provide an access token.");
-      if (failureFn) failureFn.call(this, responseObject);
-      return;
-    }
+    // FIXMETHis no longer works, remove
+    // var accessToken = jQuery("#accUM_token").val();
+    // if (accessToken === undefined || String(accessToken).length == 0) {
+    //   logLocalOutput("Error, please provide an access token.");
+    //   if (failureFn) failureFn.call(this, responseObject);
+    //   return;
+    // }
 
     var apiData = {
       action: "accUserAPI",

@@ -213,12 +213,7 @@ function acc_read_log_filename_from_db()
  */
 function acc_enforce_max_log_files()
 {
-    $options = get_option("accUM_data");
-    if (!isset($options["accUM_max_log_files"])) {
-        $max_log_files = accUM_get_default_max_log_files();
-    } else {
-        $max_log_files = $options["accUM_max_log_files"];
-    }
+    $max_log_files = accUM_get_max_log_files();
 
     // Get list of files, sorted alphabetically so the latest date is on top
     $files = scandir(ACC_LOG_DIR, SCANDIR_SORT_DESCENDING);

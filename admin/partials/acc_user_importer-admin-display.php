@@ -17,7 +17,7 @@
  $tabs = [];
  if (isset($sections)) {
      $num_tabs = count($sections);
-     foreach ($sections as $section => $on) {
+     foreach ($sections as $section) {
          $tabs[$section] = $section;
      }
      //error_log( print_r( $tabs, true ) );
@@ -51,7 +51,8 @@
 
 
 	<?php // Display the content for the current tab
- switch ($current_tab) {
+
+switch ($current_tab) {
      case "tab1":
          // Content for Tab 1
 
@@ -65,13 +66,6 @@
 
 
 	<form id="acc_admin_page" method="post" action="options.php">
-		<div>
-			<?php
-   settings_fields("acc_admin_page");
-   do_settings_sections("acc_admin_page");
-   submit_button();
-   ?>
-		</div>
 		<div>
 			<h2 id="updateStatusTitle">Update Log</h2>
 			<input type="submit" name="update_status_submit" id="update_status_submit" class="button button-primary" value="Manual Membership Update">

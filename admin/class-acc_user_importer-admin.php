@@ -166,47 +166,6 @@ class acc_user_importer_Admin
             "/partials/acc_user_importer-admin-settings.php";
     }
 
-    // Get the section API ID
-    private function getSectionApiID()
-    {
-        return acc_get_section_api_id(accUM_getSectionName());
-    }
-
-    /*
-     * Returns the token for the section the plugin is operating on.
-     * Null is returned if no token has been defined for the section.
-     * Token format: the section name must be as in the accUM_section_api_id list.
-     * Do not put spaces before or after the comma. Here are valid examples
-     * (with bogus token values):
-     * 		SQUAMISH:fpZloKQj8L
-     * 		COLUMBIA MOUNTAINS:123,MONTRÉAL:666,OUTAOUAIS:HJD634
-     */
-    private function getSectionToken()
-    {
-        $options = get_option("accUM_data");
-        $sectionName = accUM_getSectionName();
-        $tokenStrings = explode(",", $options["accUM_token"]);
-
-        foreach ($tokenStrings as $tokenString) {
-            $sectionEntry = [];
-            $sectionTokenStrings = explode(":", $tokenString);
-            if (count($sectionTokenStrings) != 2) {
-                $this->log_dual(
-                    "Error, each section token should have 2 params"
-                );
-                return null;
-            }
-            if ($sectionTokenStrings[0] == $sectionName) {
-                // Found the token for the current section
-                //$this->log_dual("Token for section {$sectionName} is {$sectionTokenStrings[1]}");
-                return $sectionTokenStrings[1];
-            }
-        }
-
-        $this->log_dual("Error, no token provided for section {$sectionName}");
-        return null;
-    }
-
     public function responseErrMsg($api_response)
     {
         return "Error: " .
@@ -235,68 +194,74 @@ class acc_user_importer_Admin
         //force certificate validation - i.e. speed up authentication process
         add_filter("https_local_ssl_verify", "__return_true");
 
-        $sectionName = accUM_getSectionName();
-        $this->log_dual(
-            "Automatic member update starting for section $sectionName"
-        );
-        $timestamp_start = date_i18n("Y-m-d-H-i-s");
+        //Get the list of sections to process
+        $sections = accUM_get_section_list();
+        foreach ($sections as $section) {
+            $this->log_dual(
+                "Automatic member update starting for section $section"
+            );
+            $timestamp_start = date_i18n("Y-m-d-H-i-s");
 
-        // Take note of the ISO 8601 time of start
-        $iso_timestamp_start = date("Y-m-d\TH:i:s\Z");
-        //$this->log_dual("iso_timestamp_start={$iso_timestamp_start}");
+            // Take note of the ISO 8601 time of start
+            $iso_timestamp_start = date("Y-m-d\TH:i:s\Z");
+            //$this->log_dual("iso_timestamp_start={$iso_timestamp_start}");
 
-        // Get the full list of changed members
-        $api_response = $this->getChangedMembers();
-        if ($api_response["message"] != "success") {
-            $this->log_dual($this->responseErrMsg($api_response));
-        } else {
-            $done = 0;
-            $changeList = $api_response["results"];
-            $count = count($changeList);
-            $this->log_dual("Received {$count} membership changes");
+            // Get the full list of changed members
+            $api_response = $this->getChangedMembers($section);
+            if ($api_response["message"] != "success") {
+                $this->log_dual($this->responseErrMsg($api_response));
+            } else {
+                $done = 0;
+                $changeList = $api_response["results"];
+                $count = count($changeList);
+                $this->log_dual("Received {$count} membership changes");
 
-            // Loop for each changed membership
-            while ($done < $count) {
-                $api_response = $this->getMemberData($changeList, $done);
-                if ($api_response["message"] != "success") {
-                    $this->log_dual($this->responseErrMsg($api_response));
-                    break;
-                } else {
-                    //We have an array of membership information
-                    $nextToDo = $api_response["nextDataOffset"];
-                    $done = $nextToDo;
-                    $memberArray = $api_response["results"];
-
-                    $api_response = $this->proccess_user_data($memberArray);
+                // Loop for each changed membership
+                while ($done < $count) {
+                    $api_response = $this->getMemberData(
+                        $section,
+                        $changeList,
+                        $done
+                    );
                     if ($api_response["message"] != "success") {
                         $this->log_dual($this->responseErrMsg($api_response));
                         break;
-                    }
+                    } else {
+                        //We have an array of membership information
+                        $nextToDo = $api_response["nextDataOffset"];
+                        $done = $nextToDo;
+                        $memberArray = $api_response["results"];
 
-                    // Throttle requests to avoid HTTP errors.
-                    if ($done < $count) {
-                        sleep(SLEEP_TIME_AFTER_HTTP);
+                        $api_response = $this->proccess_user_data(
+                            $section,
+                            $memberArray
+                        );
+                        if ($api_response["message"] != "success") {
+                            $this->log_dual(
+                                $this->responseErrMsg($api_response)
+                            );
+                            break;
+                        }
+
+                        // Throttle requests to avoid HTTP errors.
+                        if ($done < $count) {
+                            sleep(SLEEP_TIME_AFTER_HTTP);
+                        }
                     }
                 }
             }
-        }
 
-        // If import was a success, store the date/time where we last did it.
-        // This will be used as the changed_since parameter in the next plugin run.
-        if ($api_response["message"] == "success") {
-            $options = get_option("accUM_data");
-            if (is_array($options)) {
-                $options["accUM_since_date"] = $iso_timestamp_start;
-                update_option("accUM_data", $options);
+            // If import was a success, store the date/time where we last did it.
+            // This will be used as the changed_since parameter in the next plugin run.
+            if ($api_response["message"] == "success") {
+                accUM_set_since_date($iso_timestamp_start);
                 $this->log_dual(
                     "On next run, use changed_since={$iso_timestamp_start}"
                 );
-            } else {
-                $this->log_dual("Error getting plugin options");
             }
         }
 
-        // All members have been successfully updated, now look for expired members
+        // All sections have been successfully updated, now look for expired members
         $expiryResult = $this->local_db_check();
 
         $timestamp_end = date_i18n("Y-m-d-H-i-s");
@@ -339,19 +304,26 @@ class acc_user_importer_Admin
                 break;
 
             case "getChangedMembers":
-                $api_response = $this->getChangedMembers();
+                //FIXME
+                $api_response = $this->getChangedMembers("OUTAOUAIS");
                 break;
 
             case "getMemberData":
+                //FIXME
                 $api_response = $this->getMemberData(
+                    "OUTAOUAIS",
                     $_POST["changeList"],
                     $_POST["offset"]
                 );
                 break;
 
             case "processMemberData":
+                //FIXME
                 $memberArray = $_POST["dataset"];
-                $api_response = $this->proccess_user_data($memberArray);
+                $api_response = $this->proccess_user_data(
+                    "OUTAOUAIS",
+                    $memberArray
+                );
                 break;
 
             case "processExpiry":
@@ -372,13 +344,10 @@ class acc_user_importer_Admin
      * It calls the Changed Member API until it has the full list of members
      * with changed memberships.
      */
-    private function getChangedMembers()
+    private function getChangedMembers($section)
     {
         $this->log_dual("ACC User Importer version {$this->version}");
-
-        $options = get_option("accUM_data");
-        $sectionName = accUM_getSectionName();
-        $sectionApiId = $this->getSectionApiID();
+        $sectionApiId = acc_get_section_api_id($section);
 
         // There is a plugin setting to specify a list of users to sync.
         // If it contains something, then instead of asking 2M for a list of
@@ -408,7 +377,7 @@ class acc_user_importer_Admin
         }
 
         // Read token from user settings. Avoid printing token it is sensitive data
-        $access_token = $this->getSectionToken();
+        $access_token = accUM_get_section_token($section);
         //$this->log_dual("Token=" . $access_token);
         if (is_null($access_token)) {
             $api_response["message"] = "error";
@@ -417,9 +386,7 @@ class acc_user_importer_Admin
             return $api_response;
         }
 
-        if (array_key_exists("accUM_since_date", $options)) {
-            $sinceDate = $options["accUM_since_date"];
-        }
+        $sinceDate = accUM_get_since_date();
         if (!isset($sinceDate) || empty($sinceDate)) {
             // Looks like the plugin is running for the first time.
             // Use 2023-01-01, this should import all memberships.
@@ -429,7 +396,7 @@ class acc_user_importer_Admin
 
         $this->log_dual(
             "Retrieving changed members since {$sinceDate} " .
-                "for section {$sectionName}, API {$sectionApiId}"
+                "for section {$section}, API {$sectionApiId}"
         );
 
         // Create response object for local api
@@ -551,7 +518,7 @@ class acc_user_importer_Admin
      *        }
      *    ]
      */
-    private function getMemberData($changeList, $offset = 0)
+    private function getMemberData($section, $changeList, $offset = 0)
     {
         //create response object
         $api_response = [];
@@ -568,11 +535,11 @@ class acc_user_importer_Admin
         $changeSubset = array_slice($changeList, $offset, $numToDo);
         $subsetString = implode(",", $changeSubset);
 
-        $sectionApiId = $this->getSectionApiID();
+        $sectionApiId = acc_get_section_api_id($section);
         $httpRequest =
             "https://2mev.com/rest/v2/member-apis/{$sectionApiId}/fetch/?member_number=" .
             $subsetString;
-        $access_token = $this->getSectionToken();
+        $access_token = accUM_get_section_token($section);
 
         $get_args = [
             "headers" => [
@@ -677,14 +644,13 @@ class acc_user_importer_Admin
      * Update Wordpress database with member information.
      * This is where most of the work gets done.
      */
-    private function proccess_user_data($users)
+    private function proccess_user_data($section, $users)
     {
         //create response object
         $api_response = [];
         $this->log_dual(
             "Start processing batch of " . count($users) . " users"
         );
-        $options = get_option("accUM_data");
 
         //Return gracefully is dataset is empty
         if (!(count($users) > 0)) {
@@ -694,21 +660,8 @@ class acc_user_importer_Admin
             return $api_response;
         }
 
-        // Get the accUM_new_user_role_action setting
-        if (!isset($options["accUM_new_user_role_action"])) {
-            $new_user_role_action = accUM_get_new_user_role_action_default();
-        } else {
-            $new_user_role_action = $options["accUM_new_user_role_action"];
-        }
-
-        // Get the new_user_role_value setting
-        if (!isset($options["accUM_new_user_role_value"])) {
-            $this->log_dual("accUM_new_user_role_value is empty");
-            $new_user_role_value = accUM_get_new_user_role_value_default();
-        } else {
-            $new_user_role_value = $options["accUM_new_user_role_value"];
-        }
-
+        $new_user_role_action = accUM_get_new_user_role_action($section);
+        $new_user_role_value = accUM_get_new_user_role_value($section);
         if ($new_user_role_action == "set_role") {
             $this->log_dual(
                 "New users will be set with role $new_user_role_value"
@@ -719,20 +672,8 @@ class acc_user_importer_Admin
             );
         }
 
-        // Get the accUM_ex_user_role_action setting
-        if (!isset($options["accUM_ex_user_role_action"])) {
-            $ex_user_role_action = accUM_get_ex_user_role_action_default();
-        } else {
-            $ex_user_role_action = $options["accUM_ex_user_role_action"];
-        }
-
-        // Get the ex_user_role_value setting
-        if (!isset($options["accUM_ex_user_role_value"])) {
-            $ex_user_role_value = accUM_get_ex_user_role_value_default();
-        } else {
-            $ex_user_role_value = $options["accUM_ex_user_role_value"];
-        }
-
+        $ex_user_role_action = accUM_get_ex_user_role_action($section);
+        $ex_user_role_value = accUM_get_ex_user_role_value($section);
         if ($ex_user_role_action == "set_role") {
             $this->log_dual(
                 "Expired users will be set with role $ex_user_role_value"
@@ -743,31 +684,24 @@ class acc_user_importer_Admin
             );
         }
 
-        // Get the loginNameMapping setting
-        if (!isset($options["accUM_login_name_mapping"])) {
-            $loginNameMapping = accUM_get_login_name_mapping_default();
-        } else {
-            $loginNameMapping = $options["accUM_login_name_mapping"];
-        }
+        $loginNameMapping = accUM_get_login_name_mapping();
         $this->log_dual("Using $loginNameMapping as login name.");
 
         // Get the transitionFromContactID setting
-        $transitionFromContactID = accUM_get_transitionFromContactID();
+        $transitionFromContactID = accUM_is_transitionFromContactID();
         $this->log_dual(
             "Usernames " .
-                ($transitionFromContactID ? "" : "DO NOT") .
+                ($transitionFromContactID ? "" : "DO NOT ") .
                 "transition from ContactID"
         );
 
         // Get the readonly_mode setting
-        $readonly_mode = accUM_get_readonly_mode();
-        if ($readonly_mode == "on") {
+        $readonly_mode = accUM_is_section_readonly($section);
+        if ($readonly_mode) {
             $this->log_dual(
                 "Read-only test mode, will not update user database"
             );
         }
-
-        $sectionName = accUM_getSectionName();
 
         //loop through the received data and create users
         $update_errors = [];
@@ -817,7 +751,7 @@ class acc_user_importer_Admin
                 // Keep the YYYY-MM-DD, but truncate the time portion if it was there.
                 $mExpiry = substr($membership["valid_to"], 0, 10);
                 //$this->log_dual("detected membership: {$mId} {$mSection} {$mType} {$mExpiry}");
-                if ($mSection == $sectionName) {
+                if ($mSection == $section) {
                     if (empty($userMembershipType)) {
                         //Found a first membership
                         $userMembershipType = $mType;
@@ -1161,6 +1095,7 @@ class acc_user_importer_Admin
 
                     // Check for actions (ex: send welcome or goodbye email)
                     $outcome = $this->checkForUserStateChange(
+                        $section,
                         $existingUser->ID
                     );
                     if ($outcome == "active") {
@@ -1185,9 +1120,10 @@ class acc_user_importer_Admin
                 continue;
             }
 
-            if (!$readonly_mode) {
+            if ($readonly_mode) {
                 // Skip the rest if we are in read-only test mode
-
+                continue;
+            } else {
                 // Skip the rest if the user does not have a valid membership (ex: expired already)
                 if (!acc_validMembershipStatus($userMembershipStatus)) {
                     continue;
@@ -1223,7 +1159,7 @@ class acc_user_importer_Admin
                 do_action("acc_new_membership", $userID);
 
                 // Check for actions (ex: send welcome or goodbye email)
-                $outcome = $this->checkForUserStateChange($userID);
+                $outcome = $this->checkForUserStateChange($section, $userID);
                 if ($outcome == "active") {
                     $new_active_users[] = "{$accUserData["display_name"]} ({$accUserData["user_email"]})";
                 } elseif ($outcome == "inactive") {
@@ -1327,40 +1263,14 @@ class acc_user_importer_Admin
      * See if it's a new valid user or a user that expired. If so, we might have actions
      * to take, such as sending emails.
      */
-    private function checkForUserStateChange($user_id)
+    private function checkForUserStateChange($section, $user_id)
     {
         $outcome = "na";
 
-        // Get user-configurable option values
-        $options = get_option("accUM_data");
-
-        // Get the accUM_new_user_role_action setting
-        if (!isset($options["accUM_new_user_role_action"])) {
-            $new_user_role_action = accUM_get_new_user_role_action_default();
-        } else {
-            $new_user_role_action = $options["accUM_new_user_role_action"];
-        }
-
-        // Get the new_user_role_value setting
-        if (!isset($options["accUM_new_user_role_value"])) {
-            $new_user_role_value = accUM_get_new_user_role_value_default();
-        } else {
-            $new_user_role_value = $options["accUM_new_user_role_value"];
-        }
-
-        // What should we do to ex-users role?
-        if (!isset($options["accUM_ex_user_role_action"])) {
-            $ex_user_role_action = accUM_get_ex_user_role_action_default();
-        } else {
-            $ex_user_role_action = $options["accUM_ex_user_role_action"];
-        }
-
-        // Get the accUM_ex_user_role_value setting
-        if (!isset($options["accUM_ex_user_role_value"])) {
-            $ex_user_role_value = accUM_get_ex_user_role_value_default();
-        } else {
-            $ex_user_role_value = $options["accUM_ex_user_role_value"];
-        }
+        $new_user_role_action = accUM_get_new_user_role_action($section);
+        $new_user_role_value = accUM_get_new_user_role_value($section);
+        $ex_user_role_action = accUM_get_ex_user_role_action($section);
+        $ex_user_role_value = accUM_get_ex_user_role_value($section);
 
         $user = get_userdata($user_id);
         if (!is_a($user, WP_User::class)) {
@@ -1553,16 +1463,8 @@ class acc_user_importer_Admin
     {
         $api_response = []; //create response object
 
-        $readonly_mode = accUM_get_readonly_mode();
-        if ($readonly_mode == "on") {
-            $this->log_dual("Read-only test mode, skipping local DB check");
-            $api_response["message"] = "success";
-            $api_response["log"] = $GLOBALS["acc_logstr"]; //Return the big log string
-            return $api_response;
-        }
-
-        $verify_expiry = accUM_get_verify_expiry();
-        if ($verify_expiry == "on") {
+        $verify_expiry = accUM_is_verify_expiry();
+        if ($verify_expiry) {
             $this->log_dual("=============================================");
             $this->log_dual("Checking local DB, as stated in configuration");
             $this->log_dual("=============================================");
@@ -1575,8 +1477,8 @@ class acc_user_importer_Admin
             return $api_response;
         }
 
-        $delete_ex_users = accUM_get_delete_ex_users();
-        if ($delete_ex_users == "on") {
+        $delete_ex_users = accUM_is_delete_ex_users();
+        if ($delete_ex_users) {
             //When should we delete expired users? Who will now own the content?
             $days_before_delete = accUM_get_when_2_delete_ex_user();
             $this->log_dual(
@@ -1665,7 +1567,8 @@ class acc_user_importer_Admin
                 $num_processing++;
             }
 
-            $outcome = $this->checkForUserStateChange($user_id);
+            //FIXME
+            $outcome = $this->checkForUserStateChange("OUTAOUTAIS", $user_id);
             if ($outcome == "active") {
                 $new_users[] = "$user->display_name  ($user->user_email)";
             } elseif ($outcome == "inactive") {
@@ -1700,7 +1603,7 @@ class acc_user_importer_Admin
             $this->log_dual("Warning: $warning");
         }
         $this->log_dual(
-            "<br>Email list of users in PROC state = $processing_email_list<br>"
+            "<br>List of users email in PROC state = $processing_email_list<br>"
         );
 
         $operation =
@@ -1729,16 +1632,12 @@ class acc_user_importer_Admin
         $expired_users,
         $warnings
     ) {
-        $options = get_option("accUM_data");
+        $email_addrs = accUM_get_notification_emails();
         if (
-            !empty($options["accUM_notification_emails"]) &&
+            !empty($email_addrs) &&
             (!empty($new_users) || !empty($expired_users))
         ) {
-            $email_addrs = $options["accUM_notification_emails"];
-            $title = accUM_get_default_notif_title();
-            if (isset($options["accUM_notification_title"])) {
-                $title = $options["accUM_notification_title"];
-            }
+            $title = accUM_get_notification_title();
             $content = $operation . "\n\n";
             $content .= "---new members---\n";
             foreach ($new_users as $user) {
