@@ -216,9 +216,9 @@ function accUM_get_readonly_mode()
 }
 
 // Returns true/false
-function accUM_is_section_readonly($section)
+function accUM_is_section_readonly()
 {
-    return accUM_get_readonly_mode($section) === "on";
+    return accUM_get_readonly_mode() === "on";
 }
 
 // Returns "on" if the plugin should scan the DB looking for expired members
@@ -234,9 +234,9 @@ function accUM_get_verify_expiry()
 }
 
 // Returns true/false
-function accUM_is_verify_expiry($section)
+function accUM_is_verify_expiry()
 {
-    return accUM_get_verify_expiry($section) === "on";
+    return accUM_get_verify_expiry() === "on";
 }
 
 // Returns "on" if the plugin should delete obsolete users during
@@ -252,9 +252,9 @@ function accUM_get_delete_ex_users()
     return $value;
 }
 
-function accUM_is_delete_ex_users($section)
+function accUM_is_delete_ex_users()
 {
-    return accUM_get_delete_ex_users($section) === "on";
+    return accUM_get_delete_ex_users() === "on";
 }
 
 // After how many days should an expired user be deleted?
