@@ -853,7 +853,7 @@ function accUM_chkboxes_render($args)
     $name = $args["name"];
     $get = $args["get"];
     $get_args = $args["get_args"];
-    error_log("in " . __FUNCTION__ . " $id $name $get");
+    //error_log("in " . __FUNCTION__ . " $id $name $get");
 
     //error_log("In chkboxes render args[option]=$args[option]");
     if (!isset($args["items"])) {
@@ -864,7 +864,7 @@ function accUM_chkboxes_render($args)
         $html .= " name=\"$name\"";
         $html .= checked("on", $value, false) . " /> <br />";
         echo $html;
-        error_log("chkboxes html=$html");
+        //error_log("chkboxes html=$html");
     } else {
         foreach ($args["items"] as $item => $text) {
             $args2 = $get_args + [$item]; //Append one more argument
@@ -877,7 +877,7 @@ function accUM_chkboxes_render($args)
             $html .= " name=\"$name" . "[$item]\"";
             $html .= checked("on", $value, false) . " /> $text <br />";
             echo $html;
-            error_log("chkboxes html=$html");
+            //error_log("chkboxes html=$html");
         }
     }
 }
@@ -909,8 +909,8 @@ function accUM_sanitize_data($options)
 
 function accUM_sanitize_data2($options)
 {
-    error_log("In sanitize2");
-    error_log(print_r($options, true));
+    //error_log("In sanitize2");
+    //error_log(print_r($options, true));
     return $options;
 }
 

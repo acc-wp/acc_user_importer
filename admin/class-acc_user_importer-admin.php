@@ -187,19 +187,26 @@ class acc_user_importer_Admin
      */
     public function begin_automatic_update()
     {
+        $this->init_logging("Automatic");
+        $this->begin_update();
+    }
+
+    private function init_logging($mode)
+    {
         $GLOBALS["acc_logstr"] = ""; //Clear the API response log string
         $logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log
-        $this->log_dual("Logging to {$logfilename}");
+        $this->log_dual("$mode member update, logging to {$logfilename}");
+    }
 
+    public function begin_update()
+    {
         //force certificate validation - i.e. speed up authentication process
         add_filter("https_local_ssl_verify", "__return_true");
 
         //Get the list of sections to process
         $sections = accUM_get_section_list();
         foreach ($sections as $section) {
-            $this->log_dual(
-                "Automatic member update starting for section $section"
-            );
+            $this->log_dual("Processing section $section");
             $timestamp_start = date_i18n("Y-m-d-H-i-s");
 
             // Take note of the ISO 8601 time of start
@@ -297,38 +304,9 @@ class acc_user_importer_Admin
 
         //iterate through requests
         switch ($_POST["request"]) {
-            case "establish":
-                $logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log
-                $this->log_dual("Logging to {$logfilename}");
-                $api_response["message"] = "established";
-                break;
-
-            case "getChangedMembers":
-                //FIXME
-                $api_response = $this->getChangedMembers("OUTAOUAIS");
-                break;
-
-            case "getMemberData":
-                //FIXME
-                $api_response = $this->getMemberData(
-                    "OUTAOUAIS",
-                    $_POST["changeList"],
-                    $_POST["offset"]
-                );
-                break;
-
-            case "processMemberData":
-                //FIXME
-                $memberArray = $_POST["dataset"];
-                $api_response = $this->proccess_user_data(
-                    "OUTAOUAIS",
-                    $memberArray
-                );
-                break;
-
-            case "processExpiry":
-                $api_response = $this->local_db_check();
-                break;
+            case "import":
+                $this->init_logging("Manual");
+                $this->begin_update();
         }
 
         //Return the log of the operation
