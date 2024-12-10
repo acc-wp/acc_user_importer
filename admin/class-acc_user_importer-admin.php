@@ -206,6 +206,13 @@ class acc_user_importer_Admin
         //Get the list of sections to process
         $sections = accUM_get_section_list();
         foreach ($sections as $section) {
+            if (accUM_is_section_disabled($section)) {
+                $this->log_dual(
+                    "Skipping import for $section " . "(disabled in config)"
+                );
+                continue;
+            }
+
             $this->log_dual("Processing section $section");
             $timestamp_start = date_i18n("Y-m-d-H-i-s");
 
@@ -1443,6 +1450,7 @@ class acc_user_importer_Admin
 
         $verify_expiry = accUM_is_verify_expiry();
         if ($verify_expiry) {
+            $this->log_dual("");
             $this->log_dual("=============================================");
             $this->log_dual("Checking local DB, as stated in configuration");
             $this->log_dual("=============================================");

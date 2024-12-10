@@ -10,9 +10,11 @@
 
 /**
  * Variables in wp_options table where we store our plugin settings.
+ * There is one option for general settings, and one option
+ * per enabled section (name example=accUM_sec_OUTAOUAIS).
  */
 const ACCUM_GEN = "accUM_gen"; //The general settings
-const ACCUM_SEC = "accUM_sec"; //The per-section settings
+const ACCUM_SEC = "accUM_sec_"; //The per-section settings
 
 /**
  * Returns an associative array of section names and API ID.
@@ -127,7 +129,7 @@ function accUM_get_section_imported($section)
         isset($options["accUM_section_list"][$section])
     ) {
         $value = $options["accUM_section_list"][$section];
-        error_log("in " . __FUNCTION__ . " returning $value");
+        //error_log("in " . __FUNCTION__ . " returning $value");
         return $value;
     }
     return "off";
@@ -325,14 +327,12 @@ function accUM_get_section_disable($section)
         //error_log("in " . __FUNCTION__ . " section $section is invalid");
         return true;
     }
-    $options = get_option(ACCUM_SEC);
-    if (!isset($options[$section]["disable"])) {
-        error_log(
-            "in " . __FUNCTION__ . " returning false for section $section"
-        );
+    $options = get_option(ACCUM_SEC . $section);
+    if (!isset($options["disable"])) {
+        //error_log("in " . __FUNCTION__ . " false for $section");
         return "off";
     }
-    return $options[$section]["disable"];
+    return $options["disable"];
 }
 
 function accUM_is_section_disabled($section)
@@ -343,60 +343,60 @@ function accUM_is_section_disabled($section)
 // Returns the section authentication token
 function accUM_get_section_token($section)
 {
-    $options = get_option(ACCUM_SEC);
+    $options = get_option(ACCUM_SEC . $section);
     $key = "token";
-    if (!isset($options[$section][$key])) {
+    if (!isset($options[$key])) {
         return null;
     }
-    $value = $options[$section][$key];
+    $value = $options[$key];
     return $value;
 }
 
 // Returns what to do with the role of a new user.
 function accUM_get_new_user_role_action($section)
 {
-    $options = get_option(ACCUM_SEC);
-    $key = "accUM_new_user_role_action";
-    if (!isset($options[$section][$key])) {
+    $options = get_option(ACCUM_SEC . $section);
+    $key = "new_user_role_action";
+    if (!isset($options[$key])) {
         return "set_role";
     }
-    $value = $options[$section][$key];
+    $value = $options[$key];
     return $value;
 }
 
 // Returns what role to use for a new user.
 function accUM_get_new_user_role_value($section)
 {
-    $options = get_option(ACCUM_SEC);
-    $key = "accUM_new_user_role_value";
-    if (!isset($options[$section][$key])) {
+    $options = get_option(ACCUM_SEC . $section);
+    $key = "new_user_role_value";
+    if (!isset($options[$key])) {
         return "subscriber";
     }
-    $value = $options[$section][$key];
+    $value = $options[$key];
     return $value;
 }
 
 // Returns what to do with the role of a new user.
 function accUM_get_ex_user_role_action($section)
 {
-    $options = get_option(ACCUM_SEC);
-    $key = "accUM_ex_user_role_action";
-    if (!isset($options[$section][$key])) {
+    $options = get_option(ACCUM_SEC . $section);
+    $key = "ex_user_role_action";
+    if (!isset($options[$key])) {
         return "set_role";
     }
-    $value = $options[$section][$key];
+    $value = $options[$key];
     return $value;
 }
 
 // Returns what role to use for a new user.
 function accUM_get_ex_user_role_value($section)
 {
-    $options = get_option(ACCUM_SEC);
-    $key = "accUM_ex_user_role_value";
-    if (!isset($options[$section][$key])) {
+    $options = get_option(ACCUM_SEC . $section);
+    $key = "ex_user_role_value";
+    if (!isset($options[$key])) {
         return "subscriber";
     }
-    $value = $options[$section][$key];
+    $value = $options[$key];
     return $value;
 }
 
@@ -654,11 +654,12 @@ function accUM_settings_init()
         ]
     );
 
-    //---------------Define per-section settings--------------------
+    //-------------------Define per-section settings--------------------------
     foreach (acc_get_supported_sections() as $section) {
         register_setting(
             "acc_" . $section . "_group",
-            ACCUM_SEC,
+            ACCUM_SEC . $section, //Used for writing to DB
+            //array( 'sanitize_callback' => $section->sanitize_callback )
             "accUM_sanitize_data2"
         );
 
@@ -677,7 +678,7 @@ function accUM_settings_init()
             ACCUM_SEC . "_$section" . "_section",
             [
                 "id" => "accUM_$section" . "_disable",
-                "name" => ACCUM_SEC . "[$section][disable]",
+                "name" => ACCUM_SEC . $section . "[disable]", //Used for writing to DB
                 "get" => "accUM_get_section_disable",
                 "get_args" => [$section],
             ]
@@ -691,7 +692,7 @@ function accUM_settings_init()
             ACCUM_SEC . "_$section" . "_section",
             [
                 "id" => "accUM_$section" . "_token",
-                "name" => ACCUM_SEC . "[$section][token]",
+                "name" => ACCUM_SEC . $section . "[token]", //for writing DB
                 "get" => "accUM_get_section_token",
                 "get_args" => [$section],
                 "type" => "password",
@@ -699,14 +700,14 @@ function accUM_settings_init()
         );
 
         add_settings_field(
-            "accUM_new_user_role_action", //ID
+            "accUM_$section" . "_new_user_role_action", //ID
             "When creating a new user, what should I do with role?",
             "accUM_select_render", //Callback
             "acc_" . $section . "_section", //Page
             ACCUM_SEC . "_$section" . "_section",
             [
-                "id" => "accUM_new_user_role_action",
-                "name" => ACCUM_SEC . "[$section][accUM_new_user_role_action]",
+                "id" => "accUM_$section" . "_new_user_role_action",
+                "name" => ACCUM_SEC . $section . "[new_user_role_action]", //for writing DB
                 "get" => "accUM_get_new_user_role_action",
                 "get_args" => [$section],
                 "items" => [
@@ -719,14 +720,14 @@ function accUM_settings_init()
 
         $roles = wp_roles()->get_names();
         add_settings_field(
-            "accUM_new_user_role_value", //ID
+            "accUM_$section" . "_new_user_role_value", //ID
             "role value?", //Title
             "accUM_select_render", //Callback
             "acc_" . $section . "_section", //Page
             ACCUM_SEC . "_$section" . "_section",
             [
-                "id" => "accUM_new_user_role_value",
-                "name" => ACCUM_SEC . "[$section][accUM_new_user_role_value]",
+                "id" => "accUM_$section" . "_new_user_role_value",
+                "name" => ACCUM_SEC . $section . "[new_user_role_value]", //for writing DB
                 "get" => "accUM_get_new_user_role_value",
                 "get_args" => [$section],
                 "items" => $roles,
@@ -734,14 +735,14 @@ function accUM_settings_init()
         );
 
         add_settings_field(
-            "accUM_ex_user_role_action", //ID
+            "accUM_$section" . "_ex_user_role_action", //ID
             "When expiring a user, what should I do with role?",
             "accUM_select_render", //Callback
             "acc_" . $section . "_section", //Page
             ACCUM_SEC . "_$section" . "_section",
             [
-                "id" => "accUM_ex_user_role_action",
-                "name" => ACCUM_SEC . "[$section][accUM_ex_user_role_action]",
+                "id" => "accUM_$section" . "_ex_user_role_action",
+                "name" => ACCUM_SEC . $section . "[ex_user_role_action]", //for writing DB
                 "get" => "accUM_get_ex_user_role_action",
                 "get_args" => [$section],
                 "items" => [
@@ -754,14 +755,14 @@ function accUM_settings_init()
 
         $roles = wp_roles()->get_names();
         add_settings_field(
-            "accUM_ex_user_role_value", //ID
+            "accUM_$section" . "_ex_user_role_value", //ID
             "role value?", //Title
             "accUM_select_render", //Callback
             "acc_" . $section . "_section", //Page
             ACCUM_SEC . "_$section" . "_section",
             [
-                "id" => "accUM_ex_user_role_value",
-                "name" => ACCUM_SEC . "[$section][accUM_ex_user_role_value]",
+                "id" => "accUM_$section" . "_ex_user_role_value",
+                "name" => ACCUM_SEC . $section . "[ex_user_role_value]", //for writing DB
                 "get" => "accUM_get_ex_user_role_value",
                 "get_args" => [$section],
                 "items" => $roles,
@@ -855,7 +856,6 @@ function accUM_chkboxes_render($args)
     $get_args = $args["get_args"];
     //error_log("in " . __FUNCTION__ . " $id $name $get");
 
-    //error_log("In chkboxes render args[option]=$args[option]");
     if (!isset($args["items"])) {
         // This is a single yes/no checkbox
         $value = $get(...$get_args);
@@ -883,27 +883,30 @@ function accUM_chkboxes_render($args)
 }
 
 /*
+ * FIXME
  * WIP: Sanitize data after user hits "Save changes".
+ * We need a different sanitize function for general and section settings.
  */
 function accUM_sanitize_data($options)
 {
     //error_log("In sanitize");
     //error_log( print_r( $options, true ) );
-    if (is_array($options)) {
-        foreach ($options as $key => $val) {
-            if ($key == "accUM_section_list") {
-                //This is an array of checkbox options
-                foreach ($val as $key2 => $val2) {
-                    $options[$key][$key2] = sanitize_text_field($val2);
-                    $new_value = $options[$key][$key2];
-                }
-            } else {
-                $options[$key] = sanitize_text_field($val);
-            }
-        }
-    } else {
-        $options = sanitize_text_field($options);
-    }
+
+    // if (is_array($options)) {
+    //     foreach ($options as $key => $val) {
+    //         if ($key == "accUM_section_list") {
+    //             //This is an array of checkbox options
+    //             foreach ($val as $key2 => $val2) {
+    //                 $options[$key][$key2] = sanitize_text_field($val2);
+    //                 $new_value = $options[$key][$key2];
+    //             }
+    //         } else {
+    //             $options[$key] = sanitize_text_field($val);
+    //         }
+    //     }
+    // } else {
+    //     $options = sanitize_text_field($options);
+    // }
     return $options;
 }
 

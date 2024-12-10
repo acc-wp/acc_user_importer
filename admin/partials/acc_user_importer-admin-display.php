@@ -2,14 +2,13 @@
 	<h2>ACC - User Importer</h2>
 
     <div>
-        <!-- Section 3 Form -->
+        <!-- General settings form -->
         <form action="options.php" method="post">
             <?php settings_fields("acc_general_group"); ?>
             <?php do_settings_sections("accUM_general_section1"); ?>
             <?php submit_button("Submit Changes for general section"); ?>
         </form>
 	</div>
-
 
 	<?php
  // Define the tabs
@@ -20,7 +19,6 @@
      foreach ($sections as $section) {
          $tabs[$section] = $section;
      }
-     //error_log( print_r( $tabs, true ) );
  }
 
  // Get the current tab
@@ -28,41 +26,27 @@
      isset($_GET["tab"]) && isset($tabs[$_GET["tab"]])
          ? $_GET["tab"]
          : array_key_first($tabs);
- error_log("Current tab is $current_tab");
  ?>	
+
 	<nav class="nav-tab-wrapper">
 		<?php foreach ($tabs as $tab => $name): ?>
 			<a href="<?php echo add_query_arg([
        "page" => "acc_admin_page",
        "tab" => $tab,
-   ]); ?>" class="nav-tab <?php echo $current_tab == $tab
-    ? "nav-tab-active"
-    : ""; ?>"><?php echo $name; ?></a>
+   ]); ?>" 
+                class="nav-tab <?php echo $current_tab == $tab
+                    ? "nav-tab-active"
+                    : ""; ?>"><?php echo $name; ?></a>
 		<?php endforeach; ?>
 	</nav>
 
 	<form id="acc_sections" method="post" action="options.php">
-			<?php
-   settings_fields("acc_" . $current_tab . "_group");
-   do_settings_sections("acc_" . $current_tab . "_section");
-   submit_button();
-   ?>
+        <?php
+        settings_fields("acc_" . $current_tab . "_group");
+        do_settings_sections("acc_" . $current_tab . "_section");
+        submit_button();
+        ?>
 	</form>
-
-
-	<?php // Display the content for the current tab
-
-switch ($current_tab) {
-     case "tab1":
-         // Content for Tab 1
-
-         break;
-     case "tab2":
-         // Content for Tab 2
-         break;
-     // Add more cases for additional tabs
- } ?>
-
 
 
 	<form id="acc_admin_page" method="post" action="options.php">
