@@ -167,7 +167,7 @@ function accUM_set_since_date($new_date)
 function accUM_get_sync_list()
 {
     $options = get_option(ACCUM_GEN);
-    $key = "accUM_sync_list";
+    $key = "sync_list";
     if (!isset($options[$key])) {
         return null;
     }
@@ -179,7 +179,7 @@ function accUM_get_sync_list()
 function accUM_get_login_name_mapping()
 {
     $options = get_option(ACCUM_GEN);
-    $key = "accUM_login_name_mapping";
+    $key = "login_name_mapping";
     if (!isset($options[$key])) {
         return "member_number";
     }
@@ -227,7 +227,7 @@ function accUM_is_section_readonly()
 function accUM_get_verify_expiry()
 {
     $options = get_option(ACCUM_GEN);
-    $key = "accUM_verify_expiry";
+    $key = "verify_expiry";
     if (!isset($options[$key])) {
         return "off";
     }
@@ -246,7 +246,7 @@ function accUM_is_verify_expiry()
 function accUM_get_delete_ex_users()
 {
     $options = get_option(ACCUM_GEN);
-    $key = "accUM_delete_ex_users";
+    $key = "delete_ex_users";
     if (!isset($options[$key])) {
         return "off";
     }
@@ -473,7 +473,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_sync_list",
-            "name" => ACCUM_GEN . "[accUM_sync_list]",
+            "name" => ACCUM_GEN . "[sync_list]",
             "get" => "accUM_get_sync_list",
             "get_args" => [],
             "type" => "text",
@@ -493,7 +493,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_login_name_mapping",
-            "name" => ACCUM_GEN . "[accUM_login_name_mapping]",
+            "name" => ACCUM_GEN . "[login_name_mapping]",
             "get" => "accUM_get_login_name_mapping",
             "get_args" => [],
             "items" => [
@@ -543,7 +543,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_verify_expiry",
-            "name" => ACCUM_GEN . "[accUM_verify_expiry]",
+            "name" => ACCUM_GEN . "[verify_expiry]",
             "get" => "accUM_get_verify_expiry",
             "get_args" => [],
             "help" =>
@@ -562,7 +562,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_delete_ex_users",
-            "name" => ACCUM_GEN . "[accUM_delete_ex_users]",
+            "name" => ACCUM_GEN . "[delete_ex_users]",
             "get" => "accUM_get_delete_ex_users",
             "get_args" => [],
             "help" => "Requires 'Also check user expiry' option.",
