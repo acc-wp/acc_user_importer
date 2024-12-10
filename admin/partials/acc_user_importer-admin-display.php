@@ -12,7 +12,7 @@
 
 	<?php
  // Define the tabs
- $sections = accUM_get_section_list();
+ $sections = accUM_get_enabled_sections();
  $tabs = [];
  if (isset($sections)) {
      $num_tabs = count($sections);

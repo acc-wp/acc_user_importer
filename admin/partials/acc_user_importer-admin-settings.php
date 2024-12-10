@@ -103,18 +103,18 @@ function acc_email_settings()
 function accUM_get_num_sections()
 {
     $options = get_option(ACCUM_GEN);
-    if (!isset($options["accUM_section_list"])) {
+    if (!isset($options["enabled_sections"])) {
         return 0;
     }
-    return count($options["accUM_section_list"]);
+    return count($options["enabled_sections"]);
 }
 
 //Return an array of sections selected for import
-function accUM_get_section_list()
+function accUM_get_enabled_sections()
 {
     $options = get_option(ACCUM_GEN);
-    if (isset($options) && isset($options["accUM_section_list"])) {
-        return array_keys($options["accUM_section_list"]);
+    if (isset($options) && isset($options["enabled_sections"])) {
+        return array_keys($options["enabled_sections"]);
     }
     return null;
 }
@@ -125,10 +125,10 @@ function accUM_get_section_imported($section)
     $options = get_option(ACCUM_GEN);
     if (
         isset($options) &&
-        isset($options["accUM_section_list"]) &&
-        isset($options["accUM_section_list"][$section])
+        isset($options["enabled_sections"]) &&
+        isset($options["enabled_sections"][$section])
     ) {
-        $value = $options["accUM_section_list"][$section];
+        $value = $options["enabled_sections"][$section];
         //error_log("in " . __FUNCTION__ . " returning $value");
         return $value;
     }
@@ -419,14 +419,14 @@ function accUM_settings_init()
     );
 
     add_settings_field(
-        "accUM_section_list", //ID
+        "accUM_enabled_sections", //ID
         "List of sections to import",
         "accUM_chkboxes_render", //Callback
         "accUM_general_section1", //Page
         "accUM_general_section", //Section
         [
-            "id" => "accUM_section_list",
-            "name" => ACCUM_GEN . "[accUM_section_list]",
+            "id" => "accUM_enabled_sections",
+            "name" => ACCUM_GEN . "[enabled_sections]",
             "get" => "accUM_get_section_imported",
             "get_args" => [],
             "help" => "Select the sections to import membership from.",
@@ -894,7 +894,7 @@ function accUM_sanitize_data($options)
 
     // if (is_array($options)) {
     //     foreach ($options as $key => $val) {
-    //         if ($key == "accUM_section_list") {
+    //         if ($key == "enabled_sections") {
     //             //This is an array of checkbox options
     //             foreach ($val as $key2 => $val2) {
     //                 $options[$key][$key2] = sanitize_text_field($val2);

@@ -204,7 +204,7 @@ class acc_user_importer_Admin
         add_filter("https_local_ssl_verify", "__return_true");
 
         //Get the list of sections to process
-        $sections = accUM_get_section_list();
+        $sections = accUM_get_enabled_sections();
         foreach ($sections as $section) {
             if (accUM_is_section_disabled($section)) {
                 $this->log_dual(
