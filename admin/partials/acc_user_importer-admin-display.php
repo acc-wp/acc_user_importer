@@ -6,7 +6,7 @@
         <form action="options.php" method="post">
             <?php settings_fields("acc_general_group"); ?>
             <?php do_settings_sections("accUM_general_section1"); ?>
-            <?php submit_button("Submit Changes for general section"); ?>
+            <?php submit_button("Submit changes to general settings"); ?>
         </form>
 	</div>
 
@@ -44,7 +44,7 @@
         <?php
         settings_fields("acc_" . $current_tab . "_group");
         do_settings_sections("acc_" . $current_tab . "_section");
-        submit_button();
+        submit_button("Submit changes to section settings");
         ?>
 	</form>
 

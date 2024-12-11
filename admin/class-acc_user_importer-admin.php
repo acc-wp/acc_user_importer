@@ -187,19 +187,15 @@ class acc_user_importer_Admin
      */
     public function begin_automatic_update()
     {
-        $this->init_logging("Automatic");
-        $this->begin_update();
+        $this->begin_update("Automatic");
     }
 
-    private function init_logging($mode)
+    public function begin_update($mode)
     {
         $GLOBALS["acc_logstr"] = ""; //Clear the API response log string
         $logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log
         $this->log_dual("$mode member update, logging to {$logfilename}");
-    }
 
-    public function begin_update()
-    {
         //force certificate validation - i.e. speed up authentication process
         add_filter("https_local_ssl_verify", "__return_true");
 
@@ -267,7 +263,7 @@ class acc_user_importer_Admin
 
             // If import was a success, store the date/time where we last did it.
             // This will be used as the changed_since parameter in the next plugin run.
-            if ($api_response["message"] == "success") {
+            if ($mode == "Automatic" && $api_response["message"] == "success") {
                 accUM_set_since_date($iso_timestamp_start);
                 $this->log_dual(
                     "On next run, use changed_since={$iso_timestamp_start}"
@@ -312,8 +308,7 @@ class acc_user_importer_Admin
         //iterate through requests
         switch ($_POST["request"]) {
             case "import":
-                $this->init_logging("Manual");
-                $this->begin_update();
+                $this->begin_update("Manual");
         }
 
         //Return the log of the operation

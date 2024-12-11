@@ -68,13 +68,6 @@ function accUM_add_menu_page()
         "acc_admin_page", //Slug
         "accUM_render_options_pages" //Callback
     );
-    add_options_page(
-        "ACC Email Templates", //Title
-        "ACC Email Templates", //Menu Title
-        "edit_users", //Capability
-        "email_templates", //Slug
-        "acc_email_settings" //Callback
-    );
 }
 
 /*
@@ -85,11 +78,6 @@ function accUM_render_options_pages()
     require plugin_dir_path(__FILE__) . "/acc_user_importer-admin-display.php";
     require_once ACC_BASE_DIR . "/template/cron_settings.php";
     require_once ACC_BASE_DIR . "/template/acc_logs.php";
-}
-
-function acc_email_settings()
-{
-    require_once ACC_BASE_DIR . "/template/email_settings.php";
 }
 
 /*-------------------------Get functions-------------------------------
@@ -395,6 +383,78 @@ function accUM_get_ex_user_role_value($section)
     $key = "ex_user_role_value";
     if (!isset($options[$key])) {
         return "subscriber";
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+function accUM_get_welcome_email_enable($section)
+{
+    if (!in_array($section, acc_get_supported_sections())) {
+        //error_log("in " . __FUNCTION__ . " section $section is invalid");
+        return true;
+    }
+    $options = get_option(ACCUM_SEC . $section);
+    if (!isset($options["welcome_email_enable"])) {
+        return "off";
+    }
+    return $options["welcome_email_enable"];
+}
+
+function accUM_get_welcome_email_title($section)
+{
+    $options = get_option(ACCUM_SEC . $section);
+    $key = "welcome_email_title";
+    if (!isset($options[$key])) {
+        return null;
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+function accUM_get_welcome_email_content($section)
+{
+    $options = get_option(ACCUM_SEC . $section);
+    $key = "welcome_email_content";
+    if (!isset($options[$key])) {
+        return null;
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+function accUM_get_goodbye_email_enable($section)
+{
+    if (!in_array($section, acc_get_supported_sections())) {
+        //error_log("in " . __FUNCTION__ . " section $section is invalid");
+        return true;
+    }
+    $options = get_option(ACCUM_SEC . $section);
+    $key = "goodbye_email_enable";
+    if (!isset($options[$key])) {
+        return "off";
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+function accUM_get_goodbye_email_title($section)
+{
+    $options = get_option(ACCUM_SEC . $section);
+    $key = "goodbye_email_title";
+    if (!isset($options[$key])) {
+        return null;
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+function accUM_get_goodbye_email_content($section)
+{
+    $options = get_option(ACCUM_SEC . $section);
+    $key = "goodbye_email_content";
+    if (!isset($options[$key])) {
+        return null;
     }
     $value = $options[$key];
     return $value;
@@ -768,6 +828,98 @@ function accUM_settings_init()
                 "items" => $roles,
             ]
         );
+
+        add_settings_field(
+            "accUM_$section" . "_welcome_email_enable", //ID
+            "Send Welcome email?",
+            "accUM_chkboxes_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_$section" . "_welcome_email_enable",
+                "name" => ACCUM_SEC . $section . "[welcome_email_enable]", //Used for writing to DB
+                "get" => "accUM_get_welcome_email_enable",
+                "get_args" => [$section],
+                "help" => "Check to send a welcome email to the user",
+            ]
+        );
+
+        add_settings_field(
+            "accUM_$section" . "_welcome_email_title", //ID
+            "Welcome email title",
+            "accUM_text_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_$section" . "_welcome_email_title",
+                "name" => ACCUM_SEC . $section . "[welcome_email_title]", //for writing DB
+                "get" => "accUM_get_welcome_email_title",
+                "get_args" => [$section],
+                "type" => "text",
+                "size" => "70",
+                "help" => "The subject of the email",
+            ]
+        );
+
+        add_settings_field(
+            "accUM_$section" . "_welcome_email_content", //ID
+            "Welcome email content",
+            "accUM_wpeditor_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_$section" . "_welcome_email_content",
+                "name" => ACCUM_SEC . $section . "[welcome_email_content]", //for writing DB
+                "get" => "accUM_get_welcome_email_content",
+                "get_args" => [$section],
+            ]
+        );
+
+        add_settings_field(
+            "accUM_$section" . "_goodbye_email_enable", //ID
+            "Send Goodbye email?",
+            "accUM_chkboxes_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_$section" . "_goodbye_email_enable",
+                "name" => ACCUM_SEC . $section . "[goodbye_email_enable]", //Used for writing to DB
+                "get" => "accUM_get_goodbye_email_enable",
+                "get_args" => [$section],
+                "help" => "Check to send a goodbye email to the user",
+            ]
+        );
+
+        add_settings_field(
+            "accUM_$section" . "_goodbye_email_title", //ID
+            "Goodbye email title",
+            "accUM_text_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_$section" . "_goodbye_email_title",
+                "name" => ACCUM_SEC . $section . "[goodbye_email_title]", //for writing DB
+                "get" => "accUM_get_goodbye_email_title",
+                "get_args" => [$section],
+                "type" => "text",
+                "size" => "70",
+                "help" => "The subject of the email",
+            ]
+        );
+
+        add_settings_field(
+            "accUM_$section" . "_goodbye_email_content", //ID
+            "Goodbye email content",
+            "accUM_wpeditor_render", //Callback
+            "acc_" . $section . "_section", //Page
+            ACCUM_SEC . "_$section" . "_section",
+            [
+                "id" => "accUM_$section" . "_goodbye_email_content",
+                "name" => ACCUM_SEC . $section . "[goodbye_email_content]", //for writing DB
+                "get" => "accUM_get_goodbye_email_content",
+                "get_args" => [$section],
+            ]
+        );
     }
 }
 
@@ -791,6 +943,11 @@ function accUM_text_render($args)
     $html .= " name=$name";
     $html .= " value=\"$value\"";
 
+    if (!empty($args["size"])) {
+        $size = $args["size"];
+        $html .= " size=\"$size\"";
+    }
+
     //add extra html tags if any are given
     if (!empty($args["html_tags"])) {
         $html .= " " . $args["html_tags"];
@@ -808,6 +965,58 @@ function accUM_text_render($args)
     //error_log("in " . __FUNCTION__ . " html=$html");
 }
 
+/*
+ * Render the textarea (multiline fields).
+ */
+function accUM_textarea_render($args)
+{
+    $id = $args["id"];
+    $get = $args["get"];
+    $get_args = $args["get_args"];
+    $name = $args["name"];
+    $rows = $args["rows"];
+    $cols = $args["cols"];
+    //For per-section settings, the get function has a section parameter.
+    $value = $get(...$get_args);
+
+    $html = "<textarea";
+    $html .= " id=\"$id\"";
+    $html .= " name=$name";
+    if (isset($rows)) {
+        $html .= " rows=$rows";
+    }
+    if (isset($cols)) {
+        $html .= " cols=$cols";
+    }
+    $html .= " >$value<";
+    $html .= "/textarea>";
+
+    echo $html;
+}
+
+/*
+ * Render a text editor box.
+ */
+function accUM_wpeditor_render($args)
+{
+    $id = $args["id"];
+    $get = $args["get"];
+    $get_args = $args["get_args"];
+    $name = $args["name"];
+    $rows = $args["rows"];
+    $cols = $args["cols"];
+    //For per-section settings, the get function has a section parameter.
+    $content = $get(...$get_args);
+
+    $settings = [
+        "textarea_name" => $name,
+        "media_buttons" => true,
+        "textarea_rows" => 10,
+        "tinymce" => true,
+    ];
+    wp_editor($content, $id, $settings);
+}
+
 function accUM_select_render($args)
 {
     $id = $args["id"];
@@ -816,13 +1025,13 @@ function accUM_select_render($args)
     $get_args = $args["get_args"];
     $value = $get(...$get_args);
 
+    $html = "<select id=\"$id\" name=\"$name\" >";
+
     //if there is help text to display when hovering
-    $help = "";
     if (!empty($args["help"])) {
         $help = $args["help"];
+        $html .= " title=\"$help\"";
     }
-
-    $html = "<select id=\"$id\" name=\"$name\" title=\"$help\">";
 
     //Fill columns
     if ($args["items"]) {
@@ -836,7 +1045,6 @@ function accUM_select_render($args)
         }
     }
     echo $html . "</select>";
-    //error_log("html=$html");
 }
 
 /*
@@ -854,7 +1062,7 @@ function accUM_chkboxes_render($args)
     $name = $args["name"];
     $get = $args["get"];
     $get_args = $args["get_args"];
-    //error_log("in " . __FUNCTION__ . " $id $name $get");
+    $help = $args["help"];
 
     if (!isset($args["items"])) {
         // This is a single yes/no checkbox
@@ -862,6 +1070,9 @@ function accUM_chkboxes_render($args)
         $html = "<input type=\"checkbox\"";
         $html .= " id=\"$id\"";
         $html .= " name=\"$name\"";
+        if (isset($help)) {
+            $html .= " title=\"$help\"";
+        }
         $html .= checked("on", $value, false) . " /> <br />";
         echo $html;
         //error_log("chkboxes html=$html");
@@ -875,6 +1086,9 @@ function accUM_chkboxes_render($args)
             $html = "<input type=\"checkbox\"";
             $html .= " id=\"$item\"";
             $html .= " name=\"$name" . "[$item]\"";
+            if (isset($help)) {
+                $html .= " title=\"$help\"";
+            }
             $html .= checked("on", $value, false) . " /> $text <br />";
             echo $html;
             //error_log("chkboxes html=$html");
