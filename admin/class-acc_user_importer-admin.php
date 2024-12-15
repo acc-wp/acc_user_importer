@@ -1270,7 +1270,7 @@ class acc_user_importer_Admin
                         "user $user->ID $user->display_name transitioned to " .
                             "inactive, send goodbye email if enabled"
                     );
-                    acc_send_goodbye_email($user->ID);
+                    acc_send_goodbye_email($section, $user->ID);
                     do_action("acc_member_goodbye", $user->ID); //action hook
                     $outcome = "inactive";
 
@@ -1316,7 +1316,7 @@ class acc_user_importer_Admin
                         "user $user->ID $user->display_name transitioned to " .
                             "active, send welcome email if enabled"
                     );
-                    acc_send_welcome_email($user->ID);
+                    acc_send_welcome_email($section, $user->ID);
                     do_action("acc_member_welcome", $user->ID); //action hook
                     $outcome = "active";
 

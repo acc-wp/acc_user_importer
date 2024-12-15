@@ -9,14 +9,6 @@
  */
 
 /**
- * Variables in wp_options table where we store our plugin settings.
- * There is one option for general settings, and one option
- * per enabled section (name example=accUM_sec_OUTAOUAIS).
- */
-const ACCUM_GEN = "accUM_gen"; //The general settings
-const ACCUM_SEC = "accUM_sec_"; //The per-section settings
-
-/**
  * Returns an associative array of section names and API ID.
  * Intentially omitted FQME, which maps to 10.
  */
@@ -90,7 +82,7 @@ function accUM_render_options_pages()
 //Return the number of sections we will import
 function accUM_get_num_sections()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     if (!isset($options["enabled_sections"])) {
         return 0;
     }
@@ -100,7 +92,7 @@ function accUM_get_num_sections()
 //Return an array of sections selected for import
 function accUM_get_enabled_sections()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     if (isset($options) && isset($options["enabled_sections"])) {
         return array_keys($options["enabled_sections"]);
     }
@@ -110,7 +102,7 @@ function accUM_get_enabled_sections()
 //Returns "on" if section is imported
 function accUM_get_section_imported($section)
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     if (
         isset($options) &&
         isset($options["enabled_sections"]) &&
@@ -131,7 +123,7 @@ function accUM_is_section_imported()
 // Sync changes since when?
 function accUM_get_since_date()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "since_date";
     if (!isset($options[$key])) {
         return null;
@@ -142,10 +134,10 @@ function accUM_get_since_date()
 
 function accUM_set_since_date($new_date)
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "since_date";
     $options[$key] = $new_date;
-    $rc = update_option(ACCUM_GEN, $options);
+    $rc = update_option(ACCUM_DATA, $options);
     if ($rc != true) {
         error_log("Failed to update since_date to $new_date");
     }
@@ -154,7 +146,7 @@ function accUM_set_since_date($new_date)
 // Returns the configured list of users to synchronize
 function accUM_get_sync_list()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "sync_list";
     if (!isset($options[$key])) {
         return null;
@@ -166,7 +158,7 @@ function accUM_get_sync_list()
 // Returns the configured login name mapping
 function accUM_get_login_name_mapping()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "login_name_mapping";
     if (!isset($options[$key])) {
         return "member_number";
@@ -178,7 +170,7 @@ function accUM_get_login_name_mapping()
 //Returns "on" if transition from Contact ID is selected
 function accUM_get_transition_from_contactID()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     if (isset($options["accUM_transition_from_contactID"])) {
         $value = $options["accUM_transition_from_contactID"];
         //error_log("in " . __FUNCTION__ . " returning $value");
@@ -196,7 +188,7 @@ function accUM_is_transitionFromContactID()
 // Returns "on" if the plugin operates in read-only mode (for debug)
 function accUM_get_readonly_mode()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "accUM_readonly_mode";
     if (!isset($options[$key])) {
         return "off";
@@ -214,7 +206,7 @@ function accUM_is_section_readonly()
 // Returns "on" if the plugin should scan the DB looking for expired members
 function accUM_get_verify_expiry()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "verify_expiry";
     if (!isset($options[$key])) {
         return "off";
@@ -233,7 +225,7 @@ function accUM_is_verify_expiry()
 // the DB scan.
 function accUM_get_delete_ex_users()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "delete_ex_users";
     if (!isset($options[$key])) {
         return "off";
@@ -250,7 +242,7 @@ function accUM_is_delete_ex_users()
 // After how many days should an expired user be deleted?
 function accUM_get_when_2_delete_ex_user()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "when_2_delete_ex_user";
     if (!isset($options[$key])) {
         return 365;
@@ -262,7 +254,7 @@ function accUM_get_when_2_delete_ex_user()
 // When deleting a user, who should become the new content owner?
 function accUM_get_new_owner()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "new_owner";
     if (!isset($options[$key])) {
         return "";
@@ -274,7 +266,7 @@ function accUM_get_new_owner()
 // Who (email addresses) to send notification emails to?
 function accUM_get_notification_emails()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "notification_emails";
     if (!isset($options[$key])) {
         return "";
@@ -286,7 +278,7 @@ function accUM_get_notification_emails()
 // Title of the email?
 function accUM_get_notification_title()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "notification_title";
     if (!isset($options[$key])) {
         return "ACC membership change notification";
@@ -298,7 +290,7 @@ function accUM_get_notification_title()
 // How many log files should we keep max.
 function accUM_get_max_log_files()
 {
-    $options = get_option(ACCUM_GEN);
+    $options = get_option(ACCUM_DATA);
     $key = "max_log_files";
     if (!isset($options[$key])) {
         return 500;
@@ -408,7 +400,7 @@ function accUM_get_welcome_email_title($section)
     if (!isset($options[$key])) {
         return null;
     }
-    $value = $options[$key];
+    $value = stripslashes($options[$key]);
     return $value;
 }
 
@@ -419,7 +411,7 @@ function accUM_get_welcome_email_content($section)
     if (!isset($options[$key])) {
         return null;
     }
-    $value = $options[$key];
+    $value = stripslashes(html_entity_decode($options[$key]));
     return $value;
 }
 
@@ -445,7 +437,7 @@ function accUM_get_goodbye_email_title($section)
     if (!isset($options[$key])) {
         return null;
     }
-    $value = $options[$key];
+    $value = stripslashes($options[$key]);
     return $value;
 }
 
@@ -456,7 +448,7 @@ function accUM_get_goodbye_email_content($section)
     if (!isset($options[$key])) {
         return null;
     }
-    $value = $options[$key];
+    $value = stripslashes(html_entity_decode($options[$key]));
     return $value;
 }
 
@@ -469,7 +461,7 @@ if (!has_action("admin_init", "accUM_settings_init")) {
 function accUM_settings_init()
 {
     //---------Define general settings---------------
-    register_setting("acc_general_group", ACCUM_GEN, "accUM_sanitize_data");
+    register_setting("acc_general_group", ACCUM_DATA, "accUM_sanitize_data");
 
     add_settings_section(
         "accUM_general_section",
@@ -486,7 +478,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_enabled_sections",
-            "name" => ACCUM_GEN . "[enabled_sections]",
+            "name" => ACCUM_DATA . "[enabled_sections]",
             "get" => "accUM_get_section_imported",
             "get_args" => [],
             "help" => "Select the sections to import membership from.",
@@ -517,7 +509,7 @@ function accUM_settings_init()
             "id" => "accUM_since_date",
             "get" => "accUM_get_since_date",
             "get_args" => [],
-            "name" => ACCUM_GEN . "[since_date]",
+            "name" => ACCUM_DATA . "[since_date]",
             "type" => "text",
             "help" =>
                 "The date gets updated when the plugin runs automatically, " .
@@ -533,7 +525,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_sync_list",
-            "name" => ACCUM_GEN . "[sync_list]",
+            "name" => ACCUM_DATA . "[sync_list]",
             "get" => "accUM_get_sync_list",
             "get_args" => [],
             "type" => "text",
@@ -553,7 +545,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_login_name_mapping",
-            "name" => ACCUM_GEN . "[login_name_mapping]",
+            "name" => ACCUM_DATA . "[login_name_mapping]",
             "get" => "accUM_get_login_name_mapping",
             "get_args" => [],
             "items" => [
@@ -572,7 +564,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_transition_from_contactID",
-            "name" => ACCUM_GEN . "[accUM_transition_from_contactID]",
+            "name" => ACCUM_DATA . "[accUM_transition_from_contactID]",
             "get" => "accUM_get_transition_from_contactID",
             "get_args" => [],
             "help" => "This option should normally be left unchecked.",
@@ -587,7 +579,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_readonly_mode",
-            "name" => ACCUM_GEN . "[accUM_readonly_mode]",
+            "name" => ACCUM_DATA . "[accUM_readonly_mode]",
             "get" => "accUM_get_readonly_mode",
             "get_args" => [],
             "help" =>
@@ -603,7 +595,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_verify_expiry",
-            "name" => ACCUM_GEN . "[verify_expiry]",
+            "name" => ACCUM_DATA . "[verify_expiry]",
             "get" => "accUM_get_verify_expiry",
             "get_args" => [],
             "help" =>
@@ -622,7 +614,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_delete_ex_users",
-            "name" => ACCUM_GEN . "[delete_ex_users]",
+            "name" => ACCUM_DATA . "[delete_ex_users]",
             "get" => "accUM_get_delete_ex_users",
             "get_args" => [],
             "help" => "Requires 'Also check user expiry' option.",
@@ -638,7 +630,7 @@ function accUM_settings_init()
         [
             "type" => "number",
             "id" => "accUM_when_2_delete_ex_user",
-            "name" => ACCUM_GEN . "[when_2_delete_ex_user]",
+            "name" => ACCUM_DATA . "[when_2_delete_ex_user]",
             "get" => "accUM_get_when_2_delete_ex_user",
             "get_args" => [],
             "help" =>
@@ -655,7 +647,7 @@ function accUM_settings_init()
         [
             "type" => "text",
             "id" => "accUM_new_owner",
-            "name" => ACCUM_GEN . "[new_owner]",
+            "name" => ACCUM_DATA . "[new_owner]",
             "get" => "accUM_get_new_owner",
             "get_args" => [],
             "help" =>
@@ -677,7 +669,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_notification_emails",
-            "name" => ACCUM_GEN . "[notification_emails]",
+            "name" => ACCUM_DATA . "[notification_emails]",
             "get" => "accUM_get_notification_emails",
             "get_args" => [],
             "type" => "text",
@@ -692,7 +684,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_notification_title",
-            "name" => ACCUM_GEN . "[notification_title]",
+            "name" => ACCUM_DATA . "[notification_title]",
             "get" => "accUM_get_notification_title",
             "get_args" => [],
             "type" => "text",
@@ -707,7 +699,7 @@ function accUM_settings_init()
         "accUM_general_section", //Section
         [
             "id" => "accUM_max_log_files",
-            "name" => ACCUM_GEN . "[max_log_files]",
+            "name" => ACCUM_DATA . "[max_log_files]",
             "get" => "accUM_get_max_log_files",
             "get_args" => [],
             "type" => "number",

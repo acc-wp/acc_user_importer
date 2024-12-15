@@ -8,7 +8,7 @@
  * Plugin Name:       ACC User Importer
  * Plugin URI:        https://github.com/acc-wp/acc_user_importer
  * Description:       A plugin for synchronizing users from the <a href="http://alpineclubofcanada.ca">Alpine Club of Canada</a> national office.
- * Version:           2.2.14
+ * Version:           3.0.0
  * Author:            Francois Bessette, Claude Vessaz, Raz Peel, Karine Frenette Gaufre, Keith Dunwoody
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
@@ -30,9 +30,17 @@ define("ACC_MAIN_PLUGIN_FILE_URL", __FILE__);
 define("ACC_LOG_DIR", ACC_BASE_DIR . "/logs/");
 
 /**
+ * Variables in wp_options table where we store our plugin settings.
+ * There is one option for general settings, and one option
+ * per enabled section (name example=accUM_sec_OUTAOUAIS).
+ */
+const ACCUM_DATA = "accUM_data"; //The general settings
+const ACCUM_SEC = "accUM_sec_"; //The per-section settings
+
+/**
  * Current plugin version.
  */
-define("ACC_USER_IMPORTER_VERSION", "2.2.14");
+define("ACC_USER_IMPORTER_VERSION", "3.0.0");
 
 /**
  * Plugin deactivation.

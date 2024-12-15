@@ -115,55 +115,42 @@ function acc_validate_user_login($user)
     return $user;
 }
 
-function acc_send_email($user_email, $email_ID)
+function acc_send_welcome_email($section, $user_id)
 {
-    // Picks up from the ACC Email contents/titles options
-    // 0 = Welcome Email
-    // 1 = Expired Email
-    // 2 = ...
+    if (accUM_get_welcome_email_enable($section) == "on") {
+        $title = accUM_get_welcome_email_title($section);
+        $content = accUM_get_welcome_email_content($section);
+        if (isset($title) && isset($content)) {
+            $user = get_userdata($user_id);
+            $user_email = $user->user_email;
 
-    $email_contents = get_option("acc_email_contents");
-
-    if (!empty($email_contents)) {
-        add_option("acc_email_contents", []);
-
-        $email_contents = get_option("acc_email_contents");
-        $chosen_email = stripslashes(
-            html_entity_decode($email_contents[$email_ID])
-        );
-
-        $email_titles = get_option("acc_email_titles");
-        $chosen_title = stripslashes($email_titles[$email_ID]);
-
-        $email_active = get_option("acc_email_activation");
-        $chosen_active = stripslashes($email_active[$email_ID]);
-
-        if (empty($chosen_active)) {
-            return false;
+            return wp_mail(
+                $user_email,
+                $title,
+                $content,
+                "Content-Type: text/html; charset=UTF-8"
+            );
         }
-
-        //Send email
-        return wp_mail(
-            $user_email,
-            $chosen_title,
-            $chosen_email,
-            "Content-Type: text/html; charset=UTF-8"
-        );
     }
 }
 
-function acc_send_welcome_email($user_id)
+function acc_send_goodbye_email($section, $user_id)
 {
-    $user = get_userdata($user_id);
-    $user_email = $user->user_email;
-    $test = acc_send_email($user_email, 0);
-}
+    if (accUM_get_goodbye_email_enable($section) == "on") {
+        $title = accUM_get_goodbye_email_title($section);
+        $content = accUM_get_goodbye_email_content($section);
+        if (isset($title) && isset($content)) {
+            $user = get_userdata($user_id);
+            $user_email = $user->user_email;
 
-function acc_send_goodbye_email($user_id)
-{
-    $user = get_userdata($user_id);
-    $user_email = $user->user_email;
-    $test = acc_send_email($user_email, 1);
+            return wp_mail(
+                $user_email,
+                $title,
+                $content,
+                "Content-Type: text/html; charset=UTF-8"
+            );
+        }
+    }
 }
 
 static $acc_logfile = "";
@@ -193,16 +180,16 @@ function acc_pick_new_log_file($prefix)
 // Write the current log filename as a plugin DB option.
 function acc_write_log_filename_to_db($filename)
 {
-    $options = get_option("accUM_data");
+    $options = get_option(ACCUM_DATA);
     $options["log_filename"] = $filename;
-    update_option("accUM_data", $options);
+    update_option(ACCUM_DATA, $options);
     //error_log("wrote filename to DB");
 }
 
 // Get the log filename stored in the DB.
 function acc_read_log_filename_from_db()
 {
-    $options = get_option("accUM_data");
+    $options = get_option(ACCUM_DATA);
     $filename = $options["log_filename"];
     //error_log("read $filename from DB");
     return $filename;

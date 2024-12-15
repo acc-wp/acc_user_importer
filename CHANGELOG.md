@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.0 Francois Bessette
+
+- Allow importing multiple sections. Many changes to the user database.
+
 ## 2.2.14 Keith Dunwoody
 
 - Add group for Vancouver section life members.
