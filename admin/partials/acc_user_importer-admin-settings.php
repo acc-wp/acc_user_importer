@@ -995,8 +995,6 @@ function accUM_wpeditor_render($args)
     $get = $args["get"];
     $get_args = $args["get_args"];
     $name = $args["name"];
-    $rows = $args["rows"];
-    $cols = $args["cols"];
     //For per-section settings, the get function has a section parameter.
     $content = $get(...$get_args);
 
@@ -1054,7 +1052,6 @@ function accUM_chkboxes_render($args)
     $name = $args["name"];
     $get = $args["get"];
     $get_args = $args["get_args"];
-    $help = $args["help"];
 
     if (!isset($args["items"])) {
         // This is a single yes/no checkbox
@@ -1062,7 +1059,8 @@ function accUM_chkboxes_render($args)
         $html = "<input type=\"checkbox\"";
         $html .= " id=\"$id\"";
         $html .= " name=\"$name\"";
-        if (isset($help)) {
+        if (isset($args["help"])) {
+            $help = $args["help"];
             $html .= " title=\"$help\"";
         }
         $html .= checked("on", $value, false) . " /> <br />";
@@ -1078,7 +1076,8 @@ function accUM_chkboxes_render($args)
             $html = "<input type=\"checkbox\"";
             $html .= " id=\"$item\"";
             $html .= " name=\"$name" . "[$item]\"";
-            if (isset($help)) {
+            if (isset($args["help"])) {
+                $help = $args["help"];
                 $html .= " title=\"$help\"";
             }
             $html .= checked("on", $value, false) . " /> $text <br />";
