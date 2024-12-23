@@ -600,6 +600,13 @@ class acc_user_importer_Admin
         "student_club" => 0,
     ];
 
+    // Preference for membership status
+    private $statusPreference = [
+        "ISSU" => 3,
+        "PROC" => 2,
+        "EXP" => 1,
+    ];
+
     /**
      * Returns true if the type2 membership is preferred over the type1.
      * If the member has both a family and an adult membership, is it
@@ -612,12 +619,131 @@ class acc_user_importer_Admin
     }
 
     /**
-     * Returns true if the 2 membership have equal priority.
+     * Return a preference score for the membership status.
      */
-    private function equalMembershipType($type1, $type2)
+    private function statusScore($status)
     {
-        return $this->membershipPreference[$type2] ==
-            $this->membershipPreference[$type1];
+        if ($this->statusPreference[$status] !== null) {
+            return $this->statusPreference[$status];
+        }
+        return 0;
+    }
+
+    /**
+     * Returns true if the type2 membership is preferred (or equal) over the type1.
+     * If the member has both a family and an adult membership, is it
+     * preferable to chose the family membership because it has more privilege.
+     * Order of Priority: Status, then expiry, then type
+     */
+    private function compareMembership(
+        $id1,
+        $expiry1,
+        $status1,
+        $id2,
+        $expiry2,
+        $status2
+    ) {
+        $type1 = $this->membershipTable[$id1]["type"];
+        $type2 = $this->membershipTable[$id2]["type"];
+
+        //$this->log_dual("In compareMembership $id1 $expiry1 $status1 $id2 $expiry2 $status2");
+
+        if ($this->statusScore($status2) > $this->statusScore($status1)) {
+            //$this->log_dual("In compareMembership status $status2 better than $status1");
+            return true;
+        } elseif ($this->statusScore($status2) < $this->statusScore($status1)) {
+            //$this->log_dual("In compareMembership status $status2 worse than $status1");
+            return false;
+        }
+
+        if ($expiry2 > $expiry1) {
+            //$this->log_dual("In compareMembership expiry $expiry2 better than $expiry1");
+            return true;
+        } elseif ($expiry2 < $expiry1) {
+            //$this->log_dual("In compareMembership expiry $expiry2 worse than $expiry1");
+            return false;
+        }
+
+        if (
+            $this->membershipPreference[$type2] >
+            $this->membershipPreference[$type1]
+        ) {
+            // $this->log_dual("In compareMembership type " .
+            //     $this->membershipPreference[$type2] . " better than ".
+            //     $this->membershipPreference[$type1]);
+            return true;
+        } elseif (
+            $this->membershipPreference[$type2] <
+            $this->membershipPreference[$type1]
+        ) {
+            // $this->log_dual("In compareMembership type " .
+            //     $this->membershipPreference[$type2] . " worse than ".
+            //     $this->membershipPreference[$type1]);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Returns true if membership2 is better or equal.
+     * Sometimes a user can have a adult and a family membership.
+     * Suggestion: the 2nd parameter should be the existing user in
+     * the database because if both 1 and 2 are equivalent,
+     * we should avoid replacing unnecessarily the DB.
+     */
+    private function compareMemberships($memberships1, $memberships2)
+    {
+        //Step1: find the best membership in membership1
+        $bestId = null;
+        $bestValue = null;
+        foreach ($memberships1 as $mId => $value) {
+            if (!isset($bestId)) {
+                $bestId = $mId;
+                $bestValue = $value;
+            } else {
+                if (
+                    $this->compareMembership(
+                        $bestId,
+                        $bestValue["expiry"],
+                        $bestValue["status"],
+                        $mId,
+                        $value["expiry"],
+                        $value["status"]
+                    )
+                ) {
+                    $bestId = $mId;
+                    $bestValue = $value;
+                }
+            }
+        }
+
+        if (!isset($bestId)) {
+            $this->log_dual(
+                "Warning, In compareMemberships did not find anything"
+            );
+            return true;
+        }
+
+        //Step2: See if membership2 has better
+        foreach ($memberships2 as $mId => $value) {
+            //$this->log_dual("In compareMemberships now comparing with $mId");
+            if (
+                $this->compareMembership(
+                    $bestId,
+                    $bestValue["expiry"],
+                    $bestValue["status"],
+                    $mId,
+                    $value["expiry"],
+                    $value["status"]
+                )
+            ) {
+                //$this->log_dual("In compareMemberships $mId is best, return true");
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -713,58 +839,6 @@ class acc_user_importer_Admin
             $this->log_dual("");
             $this->log_dual(json_encode($user));
 
-            // It is possible for the user to have multiple memberships.
-            // We are only interested in memberships for the section the plugin
-            // is operating for. Among those memberships, select the one with
-            // greater date (most in the future).
-            // The membership status is read and printed in the log, however
-            // we only look at the valid_to date in order to decide if a user is
-            // valid or not, which is equivalent according to the API spec.
-            $userMembershipType = "";
-            $userMembershipSection = "";
-            $userMembershipExpiry = "1900-01-01";
-            $userMembershipStatus = "UNKNOWN_STATUS";
-            foreach ($receivedMemberships as $membership) {
-                $mId = $membership["membership_group"]["id"];
-                $mSection = $this->membershipTable[$mId]["section"];
-                $mType = $this->membershipTable[$mId]["type"];
-                // Keep the YYYY-MM-DD, but truncate the time portion if it was there.
-                $mExpiry = substr($membership["valid_to"], 0, 10);
-                //$this->log_dual("detected membership: {$mId} {$mSection} {$mType} {$mExpiry}");
-                if ($mSection == $section) {
-                    if (empty($userMembershipType)) {
-                        //Found a first membership
-                        $userMembershipType = $mType;
-                        $userMembershipSection = $mSection;
-                        $userMembershipExpiry = $mExpiry;
-                        $userMembershipStatus =
-                            $membership["identity_membership_status"] ?? "";
-                    } elseif ($mExpiry > $userMembershipExpiry) {
-                        //Found a membership with a later expiry, take note of it.
-                        $userMembershipType = $mType;
-                        $userMembershipSection = $mSection;
-                        $userMembershipExpiry = $mExpiry;
-                        $userMembershipStatus =
-                            $membership["identity_membership_status"] ?? "";
-                        $this->log_dual("> Better expiry date");
-                    } elseif (
-                        $mExpiry == $userMembershipExpiry &&
-                        $this->compareMembershipType(
-                            $userMembershipType,
-                            $mType
-                        )
-                    ) {
-                        //Same expiry date, but found a better membership type.
-                        $userMembershipType = $mType;
-                        $userMembershipSection = $mSection;
-                        $userMembershipExpiry = $mExpiry;
-                        $userMembershipStatus =
-                            $membership["identity_membership_status"] ?? "";
-                        $this->log_dual("> Same expiry date but better type");
-                    }
-                }
-            }
-
             //Log the info we received for this user
             $userInfoString = $userFirstName . " " . $userLastName;
             $userInfoString .= " " . $userEmail;
@@ -772,11 +846,97 @@ class acc_user_importer_Admin
             //$userInfoString .= " imis_id:" . $userImisId;
             $userInfoString .= " membership#:" . $userMemberNumber;
             $userInfoString .= " cell:" . $userCellPhone;
-            $userInfoString .= " type:" . $userMembershipType;
-            $userInfoString .= " section:" . $userMembershipSection;
-            $userInfoString .= " expiry:" . $userMembershipExpiry;
-            $userInfoString .= " status:" . $userMembershipStatus;
             $this->log_dual("Received " . $userInfoString);
+
+            // It is possible for the user to have multiple memberships.
+            // We are only interested in memberships for the section the plugin
+            // is operating for. Here is roughly how the data is stored in the DB:
+            // "acc_memberships"
+            //     "outaouais" =>
+            //         "1842" => ["expiry" => "2024-06-01",
+            //                    "status" => "EXP"],
+            //         "1845" => ["expiry" => "2025-06-15",
+            //                    "status" => "ISSU"],
+            //     "Montreal" =>
+            //         "1840" => ["expiry" => "2024-06-01",
+            //                    "status" => "EXP"],
+
+            $userRxdMemberships = []; //Aggregate of user section memberships
+
+            foreach ($receivedMemberships as $membership) {
+                //Sanity check received fields
+                if (
+                    !isset($membership["membership_group"]) ||
+                    !isset($membership["membership_group"]["id"]) ||
+                    !isset($membership["valid_to"]) ||
+                    !isset($membership["identity_membership_status"])
+                ) {
+                    $this->log_dual("Warning, missing fields in rxd data");
+                    $warnings[] = "Warning, missing fields in rxd data\n";
+                    continue;
+                }
+                $mId = $membership["membership_group"]["id"];
+                if (!is_int($mId)) {
+                    $this->log_dual("Warning, rxd membership ID not a number!");
+                    $warnings[] = "Warning, rxd membership ID not a number\n";
+                    continue;
+                }
+                if (!in_array($mId, $membership["membership_group"])) {
+                    $this->log_dual(
+                        "Warning, unknown rxd membership ID. " .
+                            "Maybe the plugin needs updating?"
+                    );
+                    $warnings[] = "Warning, unknown rxd membership ID\n";
+                    continue;
+                }
+
+                $mSection = $this->membershipTable[$mId]["section"];
+                $mType = $this->membershipTable[$mId]["type"];
+                $mStatus = $membership["identity_membership_status"];
+                // Keep the YYYY-MM-DD, but truncate the time portion if it was there.
+                $mExpiry = substr($membership["valid_to"], 0, 10);
+                if ($mSection != $section) {
+                    continue; //This could indicate an API error?
+                }
+
+                // Issue harmless warnings if we see the 2mev API returned discrepancies
+                $membershipExpired = $mExpiry < date("Y-m-d");
+                $membershipValid = acc_validMembershipStatus($mStatus);
+                if ($membershipExpired && $membershipValid) {
+                    $this->log_dual(
+                        "Warning, data discrepancy: " .
+                            "membership expired but status is good!"
+                    );
+                    $warnings[] =
+                        "Warning, rxd data discrepancy for $userFullName: " .
+                        "membership date expired but status is good!\n";
+                } elseif (!$membershipExpired && !$membershipValid) {
+                    $this->log_dual(
+                        "Warning, data discrepancy: " .
+                            "membership date OK but status is not!"
+                    );
+                    $warnings[] =
+                        "Warning, rxd data discrepancy for $userFullName: " .
+                        "membership date OK but status is not!\n";
+                }
+
+                //Aggregate rxd info into a structure similar as in DB
+                $userRxdMemberships[$mId] = [
+                    "expiry" => $mExpiry,
+                    "status" => $mStatus,
+                ];
+
+                $this->log_dual(
+                    ">   ID:$mId section:$mSection type:$mType " .
+                        "expiry:$mExpiry status:$mStatus"
+                );
+            }
+
+            //Safety that we received at least 1 membership for this user
+            if (!isset($userRxdMemberships)) {
+                $this->log_dual("> No membership received; skip");
+                continue;
+            }
 
             //Validate we have received mandatory fields.
             if (empty($userMemberNumber)) {
@@ -788,31 +948,6 @@ class acc_user_importer_Admin
             if (empty($userFirstName) && empty($userLastName)) {
                 $this->log_dual(" > error, user has no name; skip");
                 continue;
-            }
-
-            //Safety check in case member is not a member of this section
-            if (empty($userMembershipSection)) {
-                $this->log_dual(
-                    "> error, user is not a member of this section; skip"
-                );
-                continue;
-            }
-
-            // Issue a harmless warning in the log if we see the 2mev API returned discrepancies
-            $membershipExpired = $userMembershipExpiry < date("Y-m-d");
-            $membershipStatus = acc_validMembershipStatus(
-                $userMembershipStatus
-            );
-            if ($membershipExpired && $membershipStatus) {
-                $this->log_dual(
-                    "Warning, data discrepancy: membership date expired but status is good!"
-                );
-                $warnings[] = "Warning, rxd data discrepancy for $userFullName: membership date expired but status is good!\n";
-            } elseif (!$membershipExpired && !$membershipStatus) {
-                $this->log_dual(
-                    "Warning, data discrepancy: membership date good but status is bad!"
-                );
-                $warnings[] = "Warning, rxd data discrepancy for $userFullName: good membership date but status is bad!\n";
             }
 
             switch ($loginNameMapping) {
@@ -843,10 +978,8 @@ class acc_user_importer_Admin
             $accUserMetaData = [
                 "cell_phone" => $userCellPhone,
                 "membership" => $userMemberNumber,
-                "membership_type" => $userMembershipType,
-                "expiry" => $userMembershipExpiry,
                 "nickname" => $userFirstName . " " . $userLastName,
-                "membership_status" => $userMembershipStatus,
+                "acc_memberships" => [], //To fill later
             ];
 
             // Check if ID or email already exist. Both should be unique
@@ -919,9 +1052,10 @@ class acc_user_importer_Admin
                         );
                         //Collision, and names are different
                         if (
-                            $this->compareMembershipType(
-                                $userMembershipType,
-                                $existingUser->membership_type
+                            !isset($existingUser->acc_memberships) ||
+                            $this->compareMemberships(
+                                $userRxdMemberships,
+                                $existingUser->acc_memberships[$section]
                             )
                         ) {
                             //Existing user is better, keep it.
@@ -929,21 +1063,6 @@ class acc_user_importer_Admin
                                 " > email already used by someone else, skip"
                             );
                             continue;
-                        } elseif (
-                            $this->equalMembershipType(
-                                $userMembershipType,
-                                $existingUser->membership_type
-                            )
-                        ) {
-                            //When both users have equal membership types,
-                            //prefer the one with the lower member number, it
-                            //seems to be the one who created the family membership.
-                            if ($existingUser->membership < $userMemberNumber) {
-                                $this->log_dual(
-                                    " > email already used by someone with lower member number, skip"
-                                );
-                                continue;
-                            }
                         }
                     } else {
                         $this->log_dual(
@@ -966,31 +1085,20 @@ class acc_user_importer_Admin
                         ")"
                 );
 
-                //Introduce a special rule to NOT update a user if the incoming data has
-                //a expiry date earlier than the one in the local DB. This is because
-                //sometimes a user has 2 distinct membership numbers, with
-                //different information in each. When the plugin runs, it receives asynchronously
-                //the 2 memberships, so one overwrites the other. Which one is the best one
-                //is hard to say, but most likely the information in the membership with
-                //latest expiry date is the best, because it is the latest one subscribed
-                //to by the user. One such example was received on @2024-01-01-17-15-06.
-                //The below logic will ensure the membership with the best expiry will win
-                //the database, and the other one will 'find by email' the user, but will
-                //not overwrite the data.
-                //I think we can do a straight string compare, given the YYYY-MM-DD-TIME format.
-                //But truncate strings to remove the time portion, it is not needed.
-                //The old ACC API used to give a time portion we no longer want.
-                $existingUserExpiryDate = substr($existingUser->expiry, 0, 10);
-                //$this->log_dual(" > userMembershipExpiry={$userMembershipExpiry}, existingUserExpiryDate={$existingUserExpiryDate}");
-                if (
-                    $userFoundByEmail &&
-                    $userMembershipExpiry < $existingUserExpiryDate
-                ) {
-                    $this->log_dual(
-                        " > warning, received expiry is earlier than local $existingUserExpiryDate; skip"
-                    );
-                    $warnings[] = "warning, rxd expiry for user {$accUserData["display_name"]} is earlier than in local DB\n";
-                    continue;
+                //We received memberships for one section. We have to merge
+                //this information with the existing user memberships,
+                //preserving memberships from other sections.
+                if (!isset($existingUser->acc_memberships)) {
+                    //This field does not exist yet in the user meta.
+                    $accUserMetaData["acc_memberships"] = [
+                        $section => $userRxdMemberships,
+                    ];
+                } else {
+                    $accUserMetaData["acc_memberships"] =
+                        $existingUser->acc_memberships;
+                    $accUserMetaData["acc_memberships"][
+                        $section
+                    ] = $userRxdMemberships;
                 }
 
                 // Check which fields might have changed. On purpose we dont want to check nicename.
@@ -999,12 +1107,21 @@ class acc_user_importer_Admin
                     as $field => $value
                 ) {
                     if ($value != $existingUser->$field) {
-                        $this->log_dual(
-                            " > $field changed from " .
-                                $existingUser->$field .
-                                " to " .
-                                $value
-                        );
+                        if (is_array($value)) {
+                            //To conveniently print the change in an array,
+                            //we serialize and print the string.
+                            $old = serialize($existingUser->$field);
+                            $new = serialize($value);
+                            $this->log_dual(
+                                " > $field changed from " . "$old to $new"
+                            );
+                        } else {
+                            $this->log_dual(
+                                " > $field changed from " .
+                                    $existingUser->$field .
+                                    " to $value"
+                            );
+                        }
                         $existingUser->$field = $value;
                         $updatedFields[] = $field;
                     }
@@ -1104,11 +1221,6 @@ class acc_user_importer_Admin
                 // Skip the rest if we are in read-only test mode
                 continue;
             } else {
-                // Skip the rest if the user does not have a valid membership (ex: expired already)
-                if (!acc_validMembershipStatus($userMembershipStatus)) {
-                    continue;
-                }
-
                 //--------CREATE NEW USER-----
                 $this->log_dual(" > email not found on any other users");
                 $new_users[] = $accUserData["display_name"];
@@ -1131,6 +1243,9 @@ class acc_user_importer_Admin
                 //Insert meta fields.
                 //Indicate this user was inactive. Will transition to active in checkForUserStateChange.
                 $accUserMetaData["acc_status"] = "inactive";
+                $accUserMetaData["acc_memberships"] = [
+                    $section => $userRxdMemberships,
+                ];
                 foreach ($accUserMetaData as $field => $value) {
                     update_user_meta($userID, $field, $value);
                 }

@@ -61,8 +61,23 @@ function acc_MembershipStatusIsProc($membershipStatus)
 }
 
 /**
+ * Returns true if the membership status is in ISSUed state.
+ */
+function acc_MembershipStatusIsIssu($membershipStatus)
+{
+    return $membershipStatus == "ISSU";
+}
+
+/**
  * User is trying to login.
+ * Allow login there is at least 1 section membership in ISSU state.
+ * NOTE: there is no check that the user membership is part of the
+ * sections configured for import. If members of a section should
+ * no longer be allowed to login, then a manual DB cleanup is needed.
  * Prevent user login if membership is PROC, EXP or expiry date is passed.
+ * The logic allows login of manually created accounts that have no
+ * acc_memberships and no membership_status fields, as long as they have
+ * an expiry date in the future.
  */
 function acc_validate_user_login($user)
 {
@@ -72,9 +87,55 @@ function acc_validate_user_login($user)
             return $user;
         }
 
+        $proc_error = false;
+        $expiry_error = false;
+
+        // Plugin version 3.x.x introduces acc_memberships array
+        $memberships = get_user_meta($user->ID, "acc_memberships", true);
+        if (!empty($memberships)) {
+            foreach ($memberships as $section => $sect_memberships) {
+                foreach ($sect_memberships as $mId => $mship) {
+                    $expiry = $mship["expiry"];
+                    $status = $mship["status"];
+                    //error_log("Login: found $section with id=$mId $expiry $status");
+
+                    if (acc_MembershipStatusIsIssu($status)) {
+                        //User has at least one valid membership, let him login
+                        return $user;
+                    }
+                    if (acc_MembershipStatusIsProc($status)) {
+                        $proc_error = true;
+                    }
+                }
+            }
+
+            //If we reach here and it's not a proc error, then it must be that
+            //the membership is expired.
+            if (!$proc_error) {
+                $expiry_error = true;
+            }
+        } else {
+            //This is for backward compatibility during upgrade, it will allow
+            //users to login in the period during which the plugin has not
+            //reimported users and created the new acc_memberships array yet.
+            //Plugin version 2.2.x has a single membership_status field.
+            $status = get_user_meta($user->ID, "membership_status", "true");
+            if (!empty($status) && acc_MembershipStatusIsProc($status)) {
+                $proc_error = true;
+            } else {
+                $expiry = get_user_meta($user->ID, "expiry", "true");
+                if (
+                    (!empty($status) && !acc_validMembershipStatus($status)) ||
+                    empty($expiry) ||
+                    $expiry < date("Y-m-d")
+                ) {
+                    $expiry_error = true;
+                }
+            }
+        }
+
         // Case where membership is in PROC state. We output a specific error.
-        $status = get_user_meta($user->ID, "membership_status", "true");
-        if (!empty($status) && acc_MembershipStatusIsProc($status)) {
+        if ($proc_error) {
             $error = new WP_Error();
             $msg =
                 "Oops. Your membership is in Processing state, which means " .
@@ -94,12 +155,7 @@ function acc_validate_user_login($user)
         // Case where membership is not ISSU, or expiry date is passed. In theory, just
         // checking for not ISSU should be enough. But I have seen weird cases where 2M forgot to
         // notify us of a user expiry, and checking the expiry date here acts as a safeguard.
-        $expiry = get_user_meta($user->ID, "expiry", "true");
-        if (
-            (!empty($status) && !acc_validMembershipStatus($status)) ||
-            empty($expiry) ||
-            $expiry < date("Y-m-d")
-        ) {
+        if ($expiry_error) {
             $error = new WP_Error();
             $msg =
                 "Oops. Looks like your membership has expired. Please renew your membership at " .
