@@ -305,7 +305,7 @@ function accUM_get_section_disable($section)
 {
     if (!in_array($section, acc_get_supported_sections())) {
         //error_log("in " . __FUNCTION__ . " section $section is invalid");
-        return true;
+        return "on"; //Consider this section as disabled
     }
     $options = get_option(ACCUM_SEC . $section);
     if (!isset($options["disable"])) {
@@ -384,7 +384,7 @@ function accUM_get_welcome_email_enable($section)
 {
     if (!in_array($section, acc_get_supported_sections())) {
         //error_log("in " . __FUNCTION__ . " section $section is invalid");
-        return true;
+        return "off";
     }
     $options = get_option(ACCUM_SEC . $section);
     if (!isset($options["welcome_email_enable"])) {
@@ -419,7 +419,7 @@ function accUM_get_goodbye_email_enable($section)
 {
     if (!in_array($section, acc_get_supported_sections())) {
         //error_log("in " . __FUNCTION__ . " section $section is invalid");
-        return true;
+        return "off";
     }
     $options = get_option(ACCUM_SEC . $section);
     $key = "goodbye_email_enable";
