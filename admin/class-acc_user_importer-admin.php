@@ -1046,32 +1046,23 @@ class acc_user_importer_Admin
                     // then adult2, then childs. So naturally the owner of the
                     // account would be the first to be created.
                     $userFoundByEmail = true;
+                    $this->log_dual(
+                        " > found by email existing userId {$existingUser->ID} named " .
+                            "{$existingUser->display_name}. Collision!"
+                    );
+                    //Collision, and names are different
                     if (
-                        $accUserData["display_name"] !=
-                        $existingUser->display_name
+                        !isset($existingUser->acc_memberships) ||
+                        $this->compareMemberships(
+                            $userRxdMemberships,
+                            $existingUser->acc_memberships[$section]
+                        )
                     ) {
+                        //Existing user is better, keep it.
                         $this->log_dual(
-                            " > found by email existing userId {$existingUser->ID} named " .
-                                "{$existingUser->display_name}. Collision!"
+                            " > email already used by someone else, skip"
                         );
-                        //Collision, and names are different
-                        if (
-                            !isset($existingUser->acc_memberships) ||
-                            $this->compareMemberships(
-                                $userRxdMemberships,
-                                $existingUser->acc_memberships[$section]
-                            )
-                        ) {
-                            //Existing user is better, keep it.
-                            $this->log_dual(
-                                " > email already used by someone else, skip"
-                            );
-                            continue;
-                        }
-                    } else {
-                        $this->log_dual(
-                            " > found by email, userId is" . $existingUser->ID
-                        );
+                        continue;
                     }
                 }
             }
@@ -1268,15 +1259,11 @@ class acc_user_importer_Admin
                 count($users) .
                 " people."
         );
-        $this->log_dual(
-            "--Created account for " . count($new_users) . " people:"
-        );
+        $this->log_dual("--" . count($new_users) . " accounts created:");
         foreach ($new_users as $id => $user) {
             $this->log_dual("  " . $user . " (" . $new_users_email[$id] . ")");
         }
-        $this->log_dual(
-            "--Updated data for " . count($updated_users) . " people:"
-        );
+        $this->log_dual("--" . count($updated_users) . " accounts updated:");
         foreach ($updated_users as $id => $user) {
             $this->log_dual(
                 "  " . $user . " (" . $updated_users_email[$id] . ")"

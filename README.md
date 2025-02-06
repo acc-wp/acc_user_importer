@@ -226,10 +226,10 @@ An email is sent whenever the acc_status state changes. When upgrading an existi
 
 ## Hooks
 
-- `do_action('acc_new_membership', $userID)`: Called each time a new user account is created during import.
-- `do_action('acc_membership_renewal', $existingUser->ID)`: Called each time an existing user 'expiry' date changes. Yes, this is not perfect, there is an assumption here that the expiry will only change forward because of a renewal. Could be improved.
-- `do_action("acc_member_welcome", $user->ID)`: Called whenever a user's membership is switched from inactive to active.
-- `do_action("acc_member_goodbye", $user->ID)`: Called whenever a user's membership lapsed.
+- `do_action('acc_new_membership', $userID)`: Called each time a new user account is created in the database.
+- `do_action('acc_membership_renewal', $existingUser->ID)`: Called when an existing expired user renews his membership.
+- `do_action("acc_member_welcome", $user->ID)`: Called whenever a user's membership changes from (non-existent or inactive) to active
+- `do_action("acc_member_goodbye", $user->ID)`: Called whenever a user's membership becomes no longer active.
 
 ## Caveats
 
