@@ -269,6 +269,8 @@ class acc_user_importer_Admin
                     "On next run, use changed_since={$iso_timestamp_start}"
                 );
             }
+
+            $this->log_dual("");
         }
 
         // All sections have been successfully updated, now look for expired members
@@ -1288,8 +1290,7 @@ class acc_user_importer_Admin
             $this->log_dual(" [" . $id . "] " . var_export($user, true));
         }
 
-        $operation =
-            "The ACC web site has received the following membership changes:";
+        $operation = "The ACC website received the following changes for $section:";
         $this->send_admin_email(
             $operation,
             $new_active_users,
