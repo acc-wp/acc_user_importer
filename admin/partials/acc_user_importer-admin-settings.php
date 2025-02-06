@@ -589,7 +589,7 @@ function accUM_settings_init()
 
     add_settings_field(
         "accUM_verify_expiry", //ID
-        "Also check user expiry in local DB",
+        "Also check local DB sanity",
         "accUM_chkboxes_render", //Callback
         "accUM_general_section1", //Page
         "accUM_general_section", //Section

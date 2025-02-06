@@ -862,6 +862,7 @@ class acc_user_importer_Admin
             //                    "status" => "EXP"],
 
             $userRxdMemberships = []; //Aggregate of user section memberships
+            $userIsValid = false; //default init value
 
             foreach ($receivedMemberships as $membership) {
                 //Sanity check received fields
@@ -899,12 +900,20 @@ class acc_user_importer_Admin
                     continue; //This could indicate an API error?
                 }
 
+                $this->log_dual(
+                    ">   ID:$mId section:$mSection type:$mType " .
+                        "expiry:$mExpiry status:$mStatus"
+                );
+
                 // Issue harmless warnings if we see the 2mev API returned discrepancies
                 $membershipExpired = $mExpiry < date("Y-m-d");
                 $membershipValid = acc_validMembershipStatus($mStatus);
+                if ($membershipValid) {
+                    $userIsValid = true; //Take note that this user is valid
+                }
                 if ($membershipExpired && $membershipValid) {
                     $this->log_dual(
-                        "Warning, data discrepancy: " .
+                        "> Warning, data discrepancy: " .
                             "membership expired but status is good!"
                     );
                     $warnings[] =
@@ -912,7 +921,7 @@ class acc_user_importer_Admin
                         "membership date expired but status is good!\n";
                 } elseif (!$membershipExpired && !$membershipValid) {
                     $this->log_dual(
-                        "Warning, data discrepancy: " .
+                        "> Warning, data discrepancy: " .
                             "membership date OK but status is not!"
                     );
                     $warnings[] =
@@ -925,11 +934,6 @@ class acc_user_importer_Admin
                     "expiry" => $mExpiry,
                     "status" => $mStatus,
                 ];
-
-                $this->log_dual(
-                    ">   ID:$mId section:$mSection type:$mType " .
-                        "expiry:$mExpiry status:$mStatus"
-                );
             }
 
             //Safety that we received at least 1 membership for this user
@@ -1077,13 +1081,16 @@ class acc_user_importer_Admin
             // Existing user, check if any fields were updated
             if (is_a($existingUser, WP_User::class)) {
                 //---------USER WAS FOUND IN DATABASE------------
+                $userID = $existingUser->ID;
                 $this->log_dual(
                     " > checking " .
                         $existingUser->display_name .
                         " (user #" .
-                        $existingUser->ID .
+                        $userID .
                         ")"
                 );
+
+                $userWasExpired = acc_is_user_expired($existingUser);
 
                 //We received memberships for one section. We have to merge
                 //this information with the existing user memberships,
@@ -1144,11 +1151,7 @@ class acc_user_importer_Admin
                         //Update meta fields
                         foreach ($accUserMetaData as $field => $value) {
                             if (in_array($field, $updatedFields)) {
-                                update_user_meta(
-                                    $existingUser->ID,
-                                    $field,
-                                    $value
-                                );
+                                update_user_meta($userID, $field, $value);
                             }
                         }
 
@@ -1164,13 +1167,11 @@ class acc_user_importer_Admin
                     //step where we re-order the array of incoming registrations,
                     //so that the parent records are received first.
                     if ($loginName != $existingUser->user_login) {
-                        $userID = $existingUser->ID;
-
                         global $wpdb;
                         $result = $wpdb->update(
                             $wpdb->users,
                             ["user_login" => $loginName],
-                            ["ID" => $existingUser->ID]
+                            ["ID" => $userID]
                         );
                         if ($result === false) {
                             $result_str = " failed";
@@ -1185,19 +1186,17 @@ class acc_user_importer_Admin
                         clean_user_cache($userID);
                     }
 
-                    // Trigger hook if expiry date changed (updated membership)
-                    if (in_array("expiry", $updatedFields)) {
-                        do_action("acc_membership_renewal", $existingUser->ID);
-                    }
+                    //Get updated status of user
+                    $userIsExpired = acc_is_user_expired($existingUser);
 
                     // Check for actions (ex: send welcome or goodbye email)
-                    $outcome = $this->checkForUserStateChange(
-                        $section,
-                        $existingUser->ID
-                    );
-                    if ($outcome == "active") {
+                    if ($userWasExpired && !$userIsExpired) {
+                        // Trigger hook if expiry date changed (updated membership)
+                        do_action("acc_membership_renewal", $userID);
+                        $this->takeActionOnNewUser($section, $userID);
                         $new_active_users[] = "$existingUser->display_name  ($existingUser->user_email)";
-                    } elseif ($outcome == "inactive") {
+                    } elseif (!$userWasExpired && $userIsExpired) {
+                        $this->takeActionOnExpiredUser($section, $userID);
                         $expired_users[] = "$existingUser->display_name  ($existingUser->user_email)";
                     }
                 }
@@ -1220,47 +1219,46 @@ class acc_user_importer_Admin
             if ($readonly_mode) {
                 // Skip the rest if we are in read-only test mode
                 continue;
-            } else {
-                //--------CREATE NEW USER-----
-                $this->log_dual(" > email not found on any other users");
-                $new_users[] = $accUserData["display_name"];
-                $new_users_email[] = $userEmail;
-                $accUserData["user_pass"] = wp_generate_password(20);
-                $accUserData["role"] = $new_user_role_value;
-                $accUserData["user_nicename"] = $accUserData["display_name"]; //WP will sanitize
-                $accUserData["user_login"] = $loginName;
-
-                // Insert new user
-                $userID = wp_insert_user($accUserData);
-                if (is_wp_error($userID)) {
-                    $this->log_dual(" > error, failed to create user");
-                    $this->log_dual(" > WP:" . $userID->get_error_message());
-                    continue;
-                }
-
-                $this->log_dual(" > Created new user #" . $userID);
-
-                //Insert meta fields.
-                //Indicate this user was inactive. Will transition to active in checkForUserStateChange.
-                $accUserMetaData["acc_status"] = "inactive";
-                $accUserMetaData["acc_memberships"] = [
-                    $section => $userRxdMemberships,
-                ];
-                foreach ($accUserMetaData as $field => $value) {
-                    update_user_meta($userID, $field, $value);
-                }
-
-                // Execute hooks for new membership
-                do_action("acc_new_membership", $userID);
-
-                // Check for actions (ex: send welcome or goodbye email)
-                $outcome = $this->checkForUserStateChange($section, $userID);
-                if ($outcome == "active") {
-                    $new_active_users[] = "{$accUserData["display_name"]} ({$accUserData["user_email"]})";
-                } elseif ($outcome == "inactive") {
-                    $expired_users[] = "{$accUserData["display_name"]} ({$accUserData["user_email"]})";
-                }
             }
+
+            if (!$userIsValid) {
+                // Skip the rest if the user is expired already
+                $this->log_dual("> Expired membership, dont create account");
+                continue;
+            }
+
+            //--------CREATE NEW USER-----
+            $this->log_dual(" > email not found on any other users");
+            $new_users[] = $accUserData["display_name"];
+            $new_users_email[] = $userEmail;
+            $accUserData["user_pass"] = wp_generate_password(20);
+            $accUserData["role"] = $new_user_role_value;
+            $accUserData["user_nicename"] = $accUserData["display_name"]; //WP will sanitize
+            $accUserData["user_login"] = $loginName;
+
+            // Insert new user
+            $userID = wp_insert_user($accUserData);
+            if (is_wp_error($userID)) {
+                $this->log_dual(" > error, failed to create user");
+                $this->log_dual(" > WP:" . $userID->get_error_message());
+                continue;
+            }
+
+            $this->log_dual(" > Created new user #" . $userID);
+
+            //Insert meta fields.
+            $accUserMetaData["acc_memberships"] = [
+                $section => $userRxdMemberships,
+            ];
+            foreach ($accUserMetaData as $field => $value) {
+                update_user_meta($userID, $field, $value);
+            }
+
+            // Execute hooks for new membership
+            do_action("acc_new_membership", $userID);
+
+            $this->takeActionOnNewUser($section, $userID);
+            $new_active_users[] = "{$accUserData["display_name"]} ({$accUserData["user_email"]})";
         } //end user loop
 
         //Outcome summary
@@ -1309,6 +1307,7 @@ class acc_user_importer_Admin
             $operation,
             $new_active_users,
             $expired_users,
+            [], //No deleted accounts
             $warnings
         );
 
@@ -1324,46 +1323,55 @@ class acc_user_importer_Admin
     }
 
     /**
-     * Returns True if the user is expired.
-     * The user is consider valid if its membership_status is PROC or ISSU.
-     * For backward compatibility, if user has no membership_status, we
-     * the check the 'expiry' date.  If there is no expiry, the user is
-     * considered as valid.	 The user is most likely an admin, and his account was
-     * created manually.
+     * A user became valid, take the necessary actions (ex: change role, send email)
      */
-    private function is_user_expired($user)
+    private function takeActionOnNewUser($section, $user_id)
     {
-        if (!empty($user->membership_status)) {
-            $expired = !acc_validMembershipStatus($user->membership_status);
-            // $exp_string = $expired ? "expired" : "not expired";
-            // $this->log_dual("user $user->ID $user->display_name has membership_status, $exp_string");
-            return $expired;
+        $new_user_role_action = accUM_get_new_user_role_action($section);
+        $new_user_role_value = accUM_get_new_user_role_value($section);
+
+        $user = get_userdata($user_id);
+        if (!is_a($user, WP_User::class)) {
+            $this->log_dual(
+                "Error when checking for user state, userid $user_id is invalid"
+            );
+            return;
         }
 
-        if (!empty($user->expiry)) {
-            if ($user->expiry < date("Y-m-d")) {
-                // $this->log_dual("user $user->ID $user->display_name expiry=$user->expiry is expired");
-                return true;
-            } else {
-                // $this->log_dual("user $user->ID $user->display_name expiry=$user->expiry is not expired");
-                return false;
-            }
-        }
+        $message =
+            "user $user->ID $user->display_name transitioned to " .
+            "active, send welcome email if enabled";
+        $this->log_dual($message);
+        acc_send_welcome_email($section, $user->ID);
+        do_action("acc_member_welcome", $user->ID); //action hook
 
-        // $this->log_dual("user $user->ID $user->display_name has no expiry, consider active");
-        return false;
+        // If needed, change the user role to the new member role.
+        $user_roles = $user->roles;
+        if (
+            $new_user_role_action == "set_role" &&
+            (count($user_roles) != 1 ||
+                !in_array($new_user_role_value, $user_roles, true))
+        ) {
+            $this->log_dual(
+                "Changing user $user->ID $user->display_name role to $new_user_role_value"
+            );
+            $user->set_role($new_user_role_value);
+        } elseif (
+            $new_user_role_action == "add_role" &&
+            !in_array($new_user_role_value, $user_roles, true)
+        ) {
+            $this->log_dual(
+                "Adding role $new_user_role_value to user $user->ID $user->display_name"
+            );
+            $user->add_role($new_user_role_value);
+        }
     }
 
     /**
-     * See if it's a new valid user or a user that expired. If so, we might have actions
-     * to take, such as sending emails.
+     * A user became invalid, take the necessary actions (ex: change role, send email)
      */
-    private function checkForUserStateChange($section, $user_id)
+    private function takeActionOnExpiredUser($section, $user_id)
     {
-        $outcome = "na";
-
-        $new_user_role_action = accUM_get_new_user_role_action($section);
-        $new_user_role_value = accUM_get_new_user_role_value($section);
         $ex_user_role_action = accUM_get_ex_user_role_action($section);
         $ex_user_role_value = accUM_get_ex_user_role_value($section);
 
@@ -1372,109 +1380,46 @@ class acc_user_importer_Admin
             $this->log_dual(
                 "Error when checking for user state, userid $user_id is invalid"
             );
-            return $outcome;
+            return;
         }
 
-        if ($this->is_user_expired($user)) {
-            // User is expired
-            if (!empty($user->acc_status)) {
-                if ($user->acc_status == "active") {
-                    // User was active, now expired.
-                    update_user_meta($user->ID, "acc_status", "inactive");
-                    $this->log_dual(
-                        "user $user->ID $user->display_name transitioned to " .
-                            "inactive, send goodbye email if enabled"
-                    );
-                    acc_send_goodbye_email($section, $user->ID);
-                    do_action("acc_member_goodbye", $user->ID); //action hook
-                    $outcome = "inactive";
+        $this->log_dual(
+            "user $user->ID $user->display_name transitioned to " .
+                "inactive, send goodbye email if enabled"
+        );
+        acc_send_goodbye_email($section, $user->ID);
+        do_action("acc_member_goodbye", $user->ID); //action hook
 
-                    // If needed, change the user role to the expired role.
-                    // Do not change roles of administrators to prevent lockout.
-                    $user_roles = $user->roles;
-                    if (
-                        $ex_user_role_action == "set_role" &&
-                        !in_array("administrator", $user_roles, true) &&
-                        (count($user_roles) != 1 ||
-                            !in_array($ex_user_role_value, $user_roles, true))
-                    ) {
-                        $this->log_dual(
-                            "Changing user $user->ID $user->display_name role to $ex_user_role_value"
-                        );
-                        $user->set_role($ex_user_role_value);
-                    } elseif (
-                        $ex_user_role_action == "remove_role" &&
-                        !in_array("administrator", $user_roles, true) &&
-                        in_array($ex_user_role_value, $user_roles, true)
-                    ) {
-                        $this->log_dual(
-                            "Removing role $ex_user_role_value from user $user->ID $user->display_name"
-                        );
-                        $user->remove_role($ex_user_role_value);
-                    }
-                }
-            } else {
-                // User did not have a acc_status field. Must be the first time this
-                // new plugin executes. Set the field but do not send email.
-                update_user_meta($user->ID, "acc_status", "inactive");
-                $this->log_dual(
-                    "Initial update of user $user->ID $user->display_name to inactive"
-                );
-            }
-        } else {
-            // User has a valid membership
-            if (!empty($user->acc_status)) {
-                if ($user->acc_status == "inactive") {
-                    // User was inactive, now active.
-                    update_user_meta($user->ID, "acc_status", "active");
-                    $this->log_dual(
-                        "user $user->ID $user->display_name transitioned to " .
-                            "active, send welcome email if enabled"
-                    );
-                    acc_send_welcome_email($section, $user->ID);
-                    do_action("acc_member_welcome", $user->ID); //action hook
-                    $outcome = "active";
-
-                    // If needed, change the user role to the new member role.
-                    $user_roles = $user->roles;
-                    if (
-                        $new_user_role_action == "set_role" &&
-                        (count($user_roles) != 1 ||
-                            !in_array($new_user_role_value, $user_roles, true))
-                    ) {
-                        $this->log_dual(
-                            "Changing user $user->ID $user->display_name role to $new_user_role_value"
-                        );
-                        $user->set_role($new_user_role_value);
-                    } elseif (
-                        $new_user_role_action == "add_role" &&
-                        !in_array($new_user_role_value, $user_roles, true)
-                    ) {
-                        $this->log_dual(
-                            "Adding role $new_user_role_value to user $user->ID $user->display_name"
-                        );
-                        $user->add_role($new_user_role_value);
-                    }
-                }
-            } else {
-                // User did not have a acc_status field. Must be the first time this
-                // new plugin executes. Set the field but do not send email.
-                update_user_meta($user->ID, "acc_status", "active");
-                $this->log_dual(
-                    "Initial update of user $user->ID $user->display_name to active"
-                );
-            }
+        // If needed, change the user role to the expired role.
+        // Do not change roles of administrators to prevent lockout.
+        $user_roles = $user->roles;
+        if (
+            $ex_user_role_action == "set_role" &&
+            !in_array("administrator", $user_roles, true) &&
+            (count($user_roles) != 1 ||
+                !in_array($ex_user_role_value, $user_roles, true))
+        ) {
+            $this->log_dual(
+                "Changing user $user->ID $user->display_name role to $ex_user_role_value"
+            );
+            $user->set_role($ex_user_role_value);
+        } elseif (
+            $ex_user_role_action == "remove_role" &&
+            !in_array("administrator", $user_roles, true) &&
+            in_array($ex_user_role_value, $user_roles, true)
+        ) {
+            $this->log_dual(
+                "Removing role $ex_user_role_value from user $user->ID $user->display_name"
+            );
+            $user->remove_role($ex_user_role_value);
         }
-
-        return $outcome;
     }
 
     /**
      * Returns true if the user membership expired a while back and it is time
      * to delete it from the database.  This comparison is just based on the
      * user expiry date. We dont take into account the membership status.
-     * Returns false if user->expiry does not exist.
-     * Asssumes that the specified $user object contains the metadata.
+     * Returns false if user does not have an expiry.
      */
     private function acc_is_time_to_delete_user($user, $days_before_delete)
     {
@@ -1484,8 +1429,9 @@ class acc_user_importer_Admin
                 return false;
             }
 
-            if (isset($user->expiry)) {
-                $expiry = new DateTime($user->expiry);
+            $best_expiry = acc_MembershipLatestDate($user);
+            if (!empty($best_expiry)) {
+                $expiry = new DateTime($best_expiry);
                 $expiry_ts = $expiry->getTimestamp();
 
                 $now = new DateTime("now");
@@ -1539,18 +1485,13 @@ class acc_user_importer_Admin
 
     /**
      * Go over our local user database and do some sanity checks.
-     * This is mainly to cover the case where the 2mev API would fail
-     * to notify us of a change.  This would cause expired users to go
-     * unnoticed and potentially with the wrong role.  If the periodic
-     * membership sync works fine, this function will find nothing to do.
+     * This is mainly to delete old accounts that are no longer needed
+     * on the website, and also to raise warnings if inconsistencies are detected.
+     * Possible future improvement: we could double-check if the role is correct
+     * according to the membership status and the plugin config.
      *
      * What we do:
-     * -we check for expired users that are still marked active, and if any are
-     *  found, we potentially send the goodbye email and change the role.
-     * -we check for valid users that are marked inactive, and if any are
-     *  found, we potentially send the welcome email and change the role.
-     *  This scenario can probably only happen if someone manually
-     *  adds a user in the local Wordpress database.
+     * -We check for old accounts and delete them if configured to do so.
      * -We check for suspicious user expiry dates (no expiry date, or
      *  an expiry date more than 1 year 1 month from now) and log warnings.
      */
@@ -1605,8 +1546,6 @@ class acc_user_importer_Admin
         }
 
         $deleted_users = [];
-        $new_users = [];
-        $expired_users = [];
         $warnings = [];
         $num_active = 0;
         $num_inactive = 0;
@@ -1646,54 +1585,34 @@ class acc_user_importer_Admin
             }
 
             //Sanity check: raise a warning if user has no or weird expiry date.
-            if (empty($user->expiry)) {
+            $expiry = acc_MembershipLatestDate($user);
+            if (empty($expiry)) {
                 $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has no membership expiry!";
-            } elseif ($user->expiry > $more_than_a_year_from_now) {
-                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has expiry=$user->expiry!";
+            } elseif ($expiry > $more_than_a_year_from_now) {
+                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has expiry=$expiry!";
             }
 
             //Give warning for users having a 'PROC' membership status
-            if (
-                !empty($user->membership_status) &&
-                acc_MembershipStatusIsProc($user->membership_status)
-            ) {
+            if (acc_MembershipIsProc($user)) {
                 $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has membership in PROC state";
                 $processing_email_list .=
                     $user->display_name . " &lt" . $user->user_email . "&gt, ";
                 $num_processing++;
             }
 
-            //FIXME
-            $outcome = $this->checkForUserStateChange("OUTAOUTAIS", $user_id);
-            if ($outcome == "active") {
-                $new_users[] = "$user->display_name  ($user->user_email)";
-            } elseif ($outcome == "inactive") {
-                $expired_users[] = "$user->display_name  ($user->user_email)";
-            }
-
             //count active and inactive
-            if ($user->acc_status == "active") {
-                $num_active++;
-            } elseif ($user->acc_status == "inactive") {
+            if (acc_is_user_expired($user)) {
                 $num_inactive++;
+            } else {
+                $num_active++;
             }
         }
 
         //Give a summary
-        $this->log_dual(
-            "Check of local DB made " . count($new_users) . " users active"
-        );
-        $this->log_dual(
-            "Check of local DB made " .
-                count($expired_users) .
-                " users inactive"
-        );
         $deleted_cnt = count($deleted_users);
-        $this->log_dual(
-            "Check of local DB deleted $deleted_cnt obsolete users"
-        );
-        $this->log_dual("Number of active members = $num_active");
-        $this->log_dual("Number of inactive members = $num_inactive");
+        $this->log_dual("Local DB check deleted $deleted_cnt obsolete users");
+        $this->log_dual("Number of valid members = $num_active");
+        $this->log_dual("Number of expired members = $num_inactive");
         $this->log_dual("Number of members in PROC state = $num_processing");
         foreach ($warnings as $warning) {
             $this->log_dual("Warning: $warning");
@@ -1706,8 +1625,9 @@ class acc_user_importer_Admin
             "The ACC web site local DB check made the following changes:";
         $this->send_admin_email(
             $operation,
-            $new_users,
-            $expired_users,
+            [], //No new users
+            [], //No expired users
+            $deleted_users,
             $warnings
         );
 
@@ -1719,19 +1639,23 @@ class acc_user_importer_Admin
 
     /**
      * If the option is configured, send a summary email to the admin.
-     * The email is only sent if needed (there were new users, expired users or warnings).
+     * The email is only sent if needed (there were new users, expired users,
+     * deleted accounts or warnings).
      * There is no checking done to ensure the notification email addresses are valid.
      */
     private function send_admin_email(
         $operation,
         $new_users,
         $expired_users,
+        $deleted_users,
         $warnings
     ) {
         $email_addrs = accUM_get_notification_emails();
         if (
             !empty($email_addrs) &&
-            (!empty($new_users) || !empty($expired_users))
+            (!empty($new_users) ||
+                !empty($expired_users) ||
+                !empty($deleted_users))
         ) {
             $title = accUM_get_notification_title();
             $content = $operation . "\n\n";
@@ -1741,6 +1665,10 @@ class acc_user_importer_Admin
             }
             $content .= "\n---expired members---\n";
             foreach ($expired_users as $user) {
+                $content .= $user . "\n";
+            }
+            $content .= "\n---deleted obsolete members---\n";
+            foreach ($deleted_users as $user) {
                 $content .= $user . "\n";
             }
             $content .= "\n---warnings---\n";

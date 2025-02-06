@@ -40,13 +40,7 @@ class acc_user_importer_Public
         $fields["home_phone"] = __("Home Phone");
         $fields["cell_phone"] = __("Cell Phone");
         $fields["membership"] = __("Member Number");
-        $fields["membership_type"] = __("Membership Type");
-        $fields["expiry"] = __("Expiry");
         $fields["city"] = __("City");
-        $fields["membership_status"] = __(
-            "ACC Membership Status (ex:ISSU,PROC,EXP)"
-        );
-        $fields["acc_status"] = __("Internal status");
 
         //remove useless fields
         unset($fields["aim"]);

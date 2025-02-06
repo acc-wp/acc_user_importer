@@ -69,6 +69,117 @@ function acc_MembershipStatusIsIssu($membershipStatus)
 }
 
 /**
+ * Returns the latest date among all user memberships.
+ * If the user has no membership, return NULL.
+ */
+function acc_MembershipLatestDate($user)
+{
+    if (!($user instanceof WP_User)) {
+        return null; //error handling
+    }
+
+    $latestDate = null;
+    if (!empty($user->acc_memberships)) {
+        foreach ($user->acc_memberships as $section => $sect_memberships) {
+            foreach ($sect_memberships as $mId => $mship) {
+                $expiry = $mship["expiry"];
+                $status = $mship["status"];
+                if (empty($latestDate) || $expiry > $latestDate) {
+                    $latestDate = $expiry;
+                }
+            }
+        }
+    } elseif (!empty($user->expiry)) {
+        //This part is for backward compatibility
+        $latestDate = $user->expiry;
+    }
+
+    return $latestDate;
+}
+
+/**
+ * Returns true if the specified user has a membership in PROC state.
+ * According to Interpodia, all memberships will share the same status,
+ * derived from the main national ACC base membership. So we could
+ * probably just look at the first membership instead of looping.
+ * If the user has no membership, return false.
+ */
+function acc_MembershipIsProc($user)
+{
+    if (!($user instanceof WP_User)) {
+        return false; //error handling
+    }
+
+    if (!empty($user->acc_memberships)) {
+        foreach ($user->acc_memberships as $section => $sect_memberships) {
+            foreach ($sect_memberships as $mId => $mship) {
+                $status = $mship["status"];
+                if (acc_MembershipStatusIsProc($status)) {
+                    return true;
+                }
+            }
+        }
+    } elseif (!empty($user->membership_status)) {
+        //This part is for backward compatibility
+        $status = $user->membership_status;
+        if (acc_MembershipStatusIsProc($status)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Returns true if the user is expired.
+ * The user is consider valid if one membership_status is PROC or ISSU.
+ * We first check the newest acc_memberships array.
+ * For backward compatibility we also check the user membership_status.
+ * For backward compatibility, if user has no membership_status, we
+ * the check the 'expiry' date.  If there is no expiry, the user is
+ * considered as valid.	 The user is most likely an admin, and his account was
+ * created manually.
+ */
+function acc_is_user_expired($user)
+{
+    if (!($user instanceof WP_User)) {
+        return true; //error handling
+    }
+
+    if (!empty($user->acc_memberships)) {
+        $found_valid = false;
+        foreach ($user->acc_memberships as $section => $sect_memberships) {
+            foreach ($sect_memberships as $mId => $mship) {
+                $status = $mship["status"];
+                if (acc_validMembershipStatus($status)) {
+                    return false;
+                }
+            }
+        }
+
+        //We scanned and found no valid memberships. User is invalid.
+        return true;
+    } elseif (!empty($user->membership_status)) {
+        //This part is for backward compatibility
+        $status = $user->membership_status;
+        if (!acc_validMembershipStatus($status)) {
+            return true;
+        } else {
+            return false;
+        }
+    } elseif (!empty($user->expiry)) {
+        if ($user->expiry < date("Y-m-d")) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    //Must be a manually created entry (ex: admin account). Consider active.
+    return false;
+}
+
+/**
  * User is trying to login.
  * Allow login there is at least 1 section membership in ISSU state.
  * NOTE: there is no check that the user membership is part of the
@@ -283,6 +394,13 @@ function acc_enforce_max_log_files()
             }
         }
     }
+}
+
+//Candidate to replace log_dual. Takes less characters on a line, nicer.
+function accLog2($string)
+{
+    acc_log($string);
+    $GLOBALS["acc_logstr"] .= $string . "<br/>";
 }
 
 function acc_log($v)

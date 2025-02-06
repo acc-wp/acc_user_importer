@@ -90,14 +90,13 @@ Save Changes after changing parameters!
   You have the choice to take no action, set role to a value or remove a
   role from the member.
 - Role value? Value related to the previous choice.
-- Also check user expiry in local DB? If this option is
+- Also check local DB sanity? If this option is
   checked, then after syncing the received data from the 2M API,
   an additional step is done: the local database is scanned,
-  looking for expired users. This is a safeguard in case 2M forgets
-  to notify us of an expired user.
+  looking for suspicious values.
 - Delete expired user accounts after a while? Enable feature
   where obsolete user accounts are deleted after a while. This
-  logic requires the above "Also check user expiry" option
+  logic requires the above "Also check local DB sanity" option
   and enable the next 2 options.
 - How many days before deleting an expired user from database?
   In order to protect members personal information, it is good practice to eventually
