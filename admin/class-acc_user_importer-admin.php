@@ -16,6 +16,13 @@ define("MEMBER_API_MAX_USERS", "50");
  */
 define("SLEEP_TIME_AFTER_HTTP", 4);
 
+/*
+ * If we receive an unknown membership ID, assume this type.
+ * Not too critical, the type is only used to prioritize
+ * in certain corner cases which membership to store in DB.
+ */
+define("ACC_UNKNOWN_MSHIP", "unknown");
+
 $acc_logstr = ""; //handy global to store log string
 
 class acc_user_importer_Admin
@@ -203,15 +210,16 @@ class acc_user_importer_Admin
     // This is also used to resolve collisions when multiple members have
     // the same email address and we can insert only 1 in the WP database.
     private $membershipPreference = [
-        "life_member" => 8,
-        "family1" => 7,
-        "family2" => 6,
-        "adult" => 5,
-        "acc_staff_individual" => 4,
-        "acc_staff_family" => 3,
-        "child" => 2,
-        "youth" => 1,
-        "student_club" => 0,
+        "life_member" => 9,
+        "family1" => 8,
+        "family2" => 7,
+        "adult" => 6,
+        "acc_staff_individual" => 5,
+        "acc_staff_family" => 4,
+        "child" => 3,
+        "youth" => 2,
+        "student_club" => 1,
+        ACC_UNKNOWN_MSHIP => 0,
     ];
 
     // Preference for membership status
@@ -867,6 +875,7 @@ class acc_user_importer_Admin
         $new_active_users = [];
         $expired_users = [];
         $warnings = [];
+        $errors = [];
 
         foreach ($users as $user) {
             $userFoundByEmail = false;
@@ -921,27 +930,33 @@ class acc_user_importer_Admin
                     !isset($membership["valid_to"]) ||
                     !isset($membership["identity_membership_status"])
                 ) {
-                    $this->log_dual("Warning, missing fields in rxd data");
-                    $warnings[] = "Warning, missing fields in rxd data\n";
+                    $this->log_dual("Error, missing fields in rxd data");
+                    $errors[] = "Error, missing fields in rxd data";
                     continue;
                 }
                 $mId = $membership["membership_group"]["id"];
                 if (!is_int($mId)) {
-                    $this->log_dual("Warning, rxd membership ID not a number!");
-                    $warnings[] = "Warning, rxd membership ID not a number\n";
+                    $this->log_dual("Error, rxd membership ID not a number!");
+                    $errors[] = "Error, rxd mship ID not a number for $userFullName";
                     continue;
                 }
-                if (!in_array($mId, $membership["membership_group"])) {
+                if (array_key_exists($mId, $this->membershipTable)) {
+                    $mSection = $this->membershipTable[$mId]["section"];
+                    $mType = $this->membershipTable[$mId]["type"];
+                } else {
+                    //No such ID in the membershipTable table.
+                    //Table is probably outdated. For error handling
+                    //assume that the section is the right one and pick
+                    //type=unknown and keep going to allow the member.
                     $this->log_dual(
-                        "Warning, unknown rxd membership ID. " .
+                        "Error, unknown rxd membership ID. " .
                             "Maybe the plugin needs updating?"
                     );
-                    $warnings[] = "Warning, unknown rxd membership ID\n";
-                    continue;
+                    $errors[] = "Error, unknown mship ID for $userFullName";
+                    $mSection = $section;
+                    $mType = ACC_UNKNOWN_MSHIP;
                 }
 
-                $mSection = $this->membershipTable[$mId]["section"];
-                $mType = $this->membershipTable[$mId]["type"];
                 $mStatus = $membership["identity_membership_status"];
                 // Keep the YYYY-MM-DD, but truncate the time portion if it was there.
                 $mExpiry = substr($membership["valid_to"], 0, 10);
@@ -961,13 +976,18 @@ class acc_user_importer_Admin
                     $userIsValid = true; //Take note that this user is valid
                 }
                 if ($membershipExpired && $membershipValid) {
-                    $this->log_dual(
-                        "> Warning, data discrepancy: " .
-                            "membership expired but status is good!"
-                    );
-                    $warnings[] =
-                        "Warning, rxd data discrepancy for $userFullName: " .
-                        "membership date expired but status is good!\n";
+                    //Most of the time this is not a real warning. A user may have
+                    //multiple memberships, some having expired dates, but the
+                    //status represents the global state of the member and
+                    //as long as one membership is OK, 2M sends status=valid
+                    //for all memberships the user has.
+                    // $this->log_dual(
+                    //     "> Warning, data discrepancy: " .
+                    //         "membership expired but status is good!"
+                    // );
+                    // $warnings[] =
+                    //     "Warning, rxd data discrepancy for $userFullName: " .
+                    //     "membership date expired but status is good!";
                 } elseif (!$membershipExpired && !$membershipValid) {
                     $this->log_dual(
                         "> Warning, data discrepancy: " .
@@ -975,7 +995,7 @@ class acc_user_importer_Admin
                     );
                     $warnings[] =
                         "Warning, rxd data discrepancy for $userFullName: " .
-                        "membership date OK but status is not!\n";
+                        "membership date OK but status is not!";
                 }
 
                 //Aggregate rxd info into a structure similar as in DB
@@ -987,18 +1007,21 @@ class acc_user_importer_Admin
 
             //Safety that we received at least 1 membership for this user
             if (!isset($userRxdMemberships)) {
+                $errors[] = "Error, No mship rcvd for $userFullName";
                 $this->log_dual("> No membership received; skip");
                 continue;
             }
 
             //Validate we have received mandatory fields.
             if (empty($userMemberNumber)) {
+                $errors[] = "Error, No member number rcvd for $userFullName";
                 $this->log_dual(" > error, no member number; skip");
                 continue;
             }
 
             //Safety check in case firstname and lastname are empty
             if (empty($userFirstName) && empty($userLastName)) {
+                $errors[] = "Error, user $userMemberNumber has no name";
                 $this->log_dual(" > error, user has no name; skip");
                 continue;
             }
@@ -1180,6 +1203,7 @@ class acc_user_importer_Admin
                         // Passing in the $existingUser object with the updated values will persist to the database.
                         $updateResp = wp_update_user($existingUser);
                         if (is_wp_error($updateResp)) {
+                            $errors[] = "Error updating user $userFullName in DB";
                             $this->log_dual(" > error, failed to update user");
                             $this->log_dual(
                                 " > WP:" . $updateResp->get_error_message()
@@ -1215,6 +1239,7 @@ class acc_user_importer_Admin
                         );
                         if ($result === false) {
                             $result_str = " failed";
+                            $errors[] = "Error changing loginName for $userFullName";
                         } else {
                             $result_str = " success";
                         }
@@ -1253,6 +1278,7 @@ class acc_user_importer_Admin
                     " > error: invalid email, cannot create new user account."
                 );
                 $update_errors[] = $user;
+                $errors[] = "Error $userFullName has invalid email";
                 continue;
             }
 
@@ -1279,6 +1305,7 @@ class acc_user_importer_Admin
             // Insert new user
             $userID = wp_insert_user($accUserData);
             if (is_wp_error($userID)) {
+                $errors[] = "Error creating user $userFullName";
                 $this->log_dual(" > error, failed to create user");
                 $this->log_dual(" > WP:" . $userID->get_error_message());
                 continue;
@@ -1343,7 +1370,8 @@ class acc_user_importer_Admin
             $new_active_users,
             $expired_users,
             [], //No deleted accounts
-            $warnings
+            $warnings,
+            $errors
         );
 
         $api_response["usersInData"] = count($users);
@@ -1549,6 +1577,9 @@ class acc_user_importer_Admin
             return $api_response;
         }
 
+        $warnings = [];
+        $errors = [];
+
         $delete_ex_users = accUM_is_delete_ex_users();
         if ($delete_ex_users) {
             //When should we delete expired users? Who will now own the content?
@@ -1575,13 +1606,12 @@ class acc_user_importer_Admin
                         "Error in config, invalid new content owner " .
                             "($new_owner_login). Skipping delete of expired users."
                     );
-                    $warnings[] = "Error in config, invalid new content owner ($new_owner_login)";
+                    $errors[] = "Error in config, invalid new content owner ($new_owner_login)";
                 }
             }
         }
 
         $deleted_users = [];
-        $warnings = [];
         $num_active = 0;
         $num_inactive = 0;
         $num_processing = 0;
@@ -1615,6 +1645,7 @@ class acc_user_importer_Admin
                         $this->log_dual(
                             "Failed to delete $user->display_name ($user->ID)"
                         );
+                        $errors[] = "Failed to delete $user->display_name ($user->ID)";
                     }
                 }
             }
@@ -1663,7 +1694,8 @@ class acc_user_importer_Admin
             [], //No new users
             [], //No expired users
             $deleted_users,
-            $warnings
+            $warnings,
+            $errors
         );
 
         $api_response["message"] = "success";
@@ -1683,13 +1715,15 @@ class acc_user_importer_Admin
         $new_users,
         $expired_users,
         $deleted_users,
-        $warnings
+        $warnings,
+        $errors
     ) {
         $email_addrs = accUM_get_notification_emails();
         if (
             !empty($email_addrs) &&
             (!empty($new_users) ||
                 !empty($expired_users) ||
+                !empty($errors) ||
                 !empty($deleted_users))
         ) {
             $title = accUM_get_notification_title();
@@ -1705,6 +1739,10 @@ class acc_user_importer_Admin
             $content .= "\n---deleted obsolete members---\n";
             foreach ($deleted_users as $user) {
                 $content .= $user . "\n";
+            }
+            $content .= "\n---errors---\n";
+            foreach ($errors as $error) {
+                $content .= $error . "\n";
             }
             $content .= "\n---warnings---\n";
             foreach ($warnings as $warning) {
