@@ -384,7 +384,7 @@ function acc_enforce_max_log_files()
             // How many to delete?  Minus one because we are about to add one more file
             $num_to_delete = $count - $max_log_files - 1;
             $files_to_delete = array_slice($files2, $max_log_files - 1);
-            acc_log(
+            accLog(
                 "Loc directory contains {$count} files and max set to " .
                     "{$max_log_files}, deleting " .
                     count($files_to_delete)
@@ -397,13 +397,13 @@ function acc_enforce_max_log_files()
 }
 
 //Candidate to replace log_dual. Takes less characters on a line, nicer.
-function accLog2($string)
+function accLog($string)
 {
-    acc_log($string);
+    _acc_log($string);
     $GLOBALS["acc_logstr"] .= $string . "<br/>";
 }
 
-function acc_log($v)
+function _acc_log($v)
 {
     global $acc_logfile;
     if (empty($acc_logfile)) {

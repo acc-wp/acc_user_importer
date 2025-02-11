@@ -267,7 +267,7 @@ class acc_user_importer_Admin
     {
         $GLOBALS["acc_logstr"] = ""; //Clear the API response log string
         $logfilename = basename(acc_pick_new_log_file("log_auto_")); //Let's store to a new log
-        $this->log_dual("$mode member update, logging to {$logfilename}");
+        accLog("$mode member update, logging to {$logfilename}");
 
         //force certificate validation - i.e. speed up authentication process
         add_filter("https_local_ssl_verify", "__return_true");
@@ -276,28 +276,26 @@ class acc_user_importer_Admin
         $sections = accUM_get_enabled_sections();
         foreach ($sections as $section) {
             if (accUM_is_section_disabled($section)) {
-                $this->log_dual(
-                    "Skipping import for $section " . "(disabled in config)"
-                );
+                accLog("Skipping import for disabled $section ");
                 continue;
             }
 
-            $this->log_dual("Processing section $section");
+            accLog("Processing section $section");
             $timestamp_start = date_i18n("Y-m-d-H-i-s");
 
             // Take note of the ISO 8601 time of start
             $iso_timestamp_start = date("Y-m-d\TH:i:s\Z");
-            //$this->log_dual("iso_timestamp_start={$iso_timestamp_start}");
+            //accLog("iso_timestamp_start={$iso_timestamp_start}");
 
             // Get the full list of changed members
             $api_response = $this->getChangedMembers($section);
             if ($api_response["message"] != "success") {
-                $this->log_dual($this->responseErrMsg($api_response));
+                accLog($this->responseErrMsg($api_response));
             } else {
                 $done = 0;
                 $changeList = $api_response["results"];
                 $count = count($changeList);
-                $this->log_dual("Received {$count} membership changes");
+                accLog("Received {$count} membership changes");
 
                 // Loop for each changed membership
                 while ($done < $count) {
@@ -307,7 +305,7 @@ class acc_user_importer_Admin
                         $done
                     );
                     if ($api_response["message"] != "success") {
-                        $this->log_dual($this->responseErrMsg($api_response));
+                        accLog($this->responseErrMsg($api_response));
                         break;
                     } else {
                         //We have an array of membership information
@@ -320,9 +318,7 @@ class acc_user_importer_Admin
                             $memberArray
                         );
                         if ($api_response["message"] != "success") {
-                            $this->log_dual(
-                                $this->responseErrMsg($api_response)
-                            );
+                            accLog($this->responseErrMsg($api_response));
                             break;
                         }
 
@@ -338,22 +334,20 @@ class acc_user_importer_Admin
             // This will be used as the changed_since parameter in the next plugin run.
             if ($mode == "Automatic" && $api_response["message"] == "success") {
                 accUM_set_since_date($iso_timestamp_start);
-                $this->log_dual(
-                    "On next run, use changed_since={$iso_timestamp_start}"
-                );
+                accLog("On next run, use since={$iso_timestamp_start}");
             }
 
-            $this->log_dual("");
+            accLog("");
         }
 
         // All sections have been successfully updated, now look for expired members
         $expiryResult = $this->local_db_check();
 
         $timestamp_end = date_i18n("Y-m-d-H-i-s");
-        $this->log_dual("This journey has come to an end.");
-        $this->log_dual("Start time: " . $timestamp_start);
-        $this->log_dual("End time: " . $timestamp_end);
-        $this->log_dual("\n\n");
+        accLog("This journey has come to an end.");
+        accLog("Start time: " . $timestamp_start);
+        accLog("End time: " . $timestamp_end);
+        accLog("\n\n");
     }
 
     /**
@@ -401,7 +395,7 @@ class acc_user_importer_Admin
      */
     private function getChangedMembers($section)
     {
-        $this->log_dual("ACC User Importer version {$this->version}");
+        accLog("ACC User Importer version {$this->version}");
         $sectionApiId = acc_get_section_api_id($section);
 
         // There is a plugin setting to specify a list of users to sync.
@@ -409,10 +403,8 @@ class acc_user_importer_Admin
         // members with changes, we take the user-provided list.
         $syncList = accUM_get_sync_list();
         if (!empty($syncList)) {
-            $this->log_dual(
-                "Will sync the following list of users indicated in the plugin settings:"
-            );
-            $this->log_dual("$syncList");
+            accLog("Will sync the following list of users (as per settings:");
+            accLog("$syncList");
             $changeList = explode(",", $syncList);
             $count = count($changeList);
             if ($count == 0 || in_array(0, $changeList)) {
@@ -422,8 +414,8 @@ class acc_user_importer_Admin
                 );
             }
 
-            $this->log_dual("total count=" . $count);
-            $this->log_dual("total members=" . json_encode($changeList));
+            accLog("total count=" . $count);
+            accLog("total members=" . json_encode($changeList));
             $api_response["count"] = $count;
             $api_response["results"] = $changeList;
             $api_response["message"] = "success";
@@ -433,7 +425,7 @@ class acc_user_importer_Admin
 
         // Read token from user settings. Avoid printing token it is sensitive data
         $access_token = accUM_get_section_token($section);
-        //$this->log_dual("Token=" . $access_token);
+        //accLog("Token=" . $access_token);
         if (is_null($access_token)) {
             $api_response["message"] = "error";
             $api_response["log"] = $GLOBALS["acc_logstr"];
@@ -446,10 +438,10 @@ class acc_user_importer_Admin
             // Looks like the plugin is running for the first time.
             // Use 2023-01-01, this should import all memberships.
             $sinceDate = "2023-01-01";
-            $this->log_dual("No sinceDate specified, using {$sinceDate}");
+            accLog("No sinceDate specified, using {$sinceDate}");
         }
 
-        $this->log_dual(
+        accLog(
             "Retrieving changed members since {$sinceDate} " .
                 "for section {$section}, API {$sectionApiId}"
         );
@@ -473,11 +465,11 @@ class acc_user_importer_Admin
 
         do {
             $currentTime = date_i18n("Y-m-d-H-i-s");
-            $this->log_dual("Request sent @{$currentTime}: {$httpRequest}");
+            accLog("Request sent @{$currentTime}: {$httpRequest}");
             $acc_response = wp_remote_get($httpRequest, $get_args);
 
             if (is_wp_error($acc_response)) {
-                $this->log_dual(
+                accLog(
                     "wp_remote_get error" . $acc_response->get_error_message()
                 );
                 $api_response["message"] = "error";
@@ -489,12 +481,12 @@ class acc_user_importer_Admin
             }
 
             $acc_response_data = wp_remote_retrieve_body($acc_response);
-            //$this->log_dual("ACC response=" . $acc_response_data);
+            //accLog("ACC response=" . $acc_response_data);
             $acc_response_data = json_decode($acc_response_data);
 
             $responseMsg = wp_remote_retrieve_response_message($acc_response);
             if ($responseMsg != "OK") {
-                $this->log_dual("HTTP error={$responseMsg}");
+                accLog("HTTP error={$responseMsg}");
                 $api_response["message"] = "error";
                 $api_response["errorMessage"] = "HTTP error={$responseMsg}";
                 $api_response["log"] = $GLOBALS["acc_logstr"]; //Return the big log string
@@ -509,10 +501,10 @@ class acc_user_importer_Admin
                 return $api_response;
             }
 
-            // $this->log_dual("count=" . $acc_response_data->count);
-            // $this->log_dual("next=" . $acc_response_data->next);
-            // $this->log_dual("previous=" . $acc_response_data->previous);
-            // $this->log_dual("members=" . json_encode($acc_response_data->results));
+            // accLog("count=" . $acc_response_data->count);
+            // accLog("next=" . $acc_response_data->next);
+            // accLog("previous=" . $acc_response_data->previous);
+            // accLog("members=" . json_encode($acc_response_data->results));
             $count += count($acc_response_data->results);
             $changeList = array_merge($changeList, $acc_response_data->results);
             //The server gives us a convenient string to access next page of data
@@ -527,12 +519,12 @@ class acc_user_importer_Admin
 
         //Validation step
         if ($acc_response_data->count != $count) {
-            $this->log_dual("Warning, server said there would be {$acc_response_data->count}
+            accLog("Warning, server said there would be {$acc_response_data->count}
 			                entries but we actually received {$count}");
         }
 
-        $this->log_dual("total count=" . $count);
-        $this->log_dual("total members=" . json_encode($changeList));
+        accLog("total count=" . $count);
+        accLog("total members=" . json_encode($changeList));
         $api_response["count"] = $count;
         $api_response["results"] = $changeList;
         $api_response["message"] = "success";
@@ -584,7 +576,7 @@ class acc_user_importer_Admin
         }
         $remaining = sizeof($changeList) - $offset;
         $numToDo = min($remaining, MEMBER_API_MAX_USERS);
-        $this->log_dual("remaining={$remaining}, will fetch {$numToDo}");
+        accLog("remaining={$remaining}, will fetch {$numToDo}");
 
         // Select the next N entries from the list of changed members.
         $changeSubset = array_slice($changeList, $offset, $numToDo);
@@ -604,14 +596,12 @@ class acc_user_importer_Admin
         ];
 
         $currentTime = date_i18n("Y-m-d-H-i-s");
-        $this->log_dual("Request sent @{$currentTime}: {$httpRequest}");
+        accLog("Request sent @{$currentTime}: {$httpRequest}");
         $acc_response = wp_remote_get($httpRequest, $get_args);
 
         //if the post request fails
         if (is_wp_error($acc_response)) {
-            $this->log_dual(
-                "wp_remote_get error" . $acc_response->get_error_message()
-            );
+            accLog("wp_remote_get error" . $acc_response->get_error_message());
             $api_response["message"] = "error";
             $api_response["errorMessage"] = $acc_response->get_error_message();
             $api_response["log"] = $GLOBALS["acc_logstr"]; //Return the big log string
@@ -621,7 +611,7 @@ class acc_user_importer_Admin
         $acc_response_data = wp_remote_retrieve_body($acc_response);
         $memberData = (array) json_decode($acc_response_data, true);
         $count = sizeof($memberData);
-        //$this->log_dual("acc_response_data={$acc_response_data}");     //for debug only
+        //accLog("acc_response_data={$acc_response_data}");     //for debug only
 
         $responseCode = wp_remote_retrieve_response_code($acc_response);
         $responseMsg = wp_remote_retrieve_response_message($acc_response);
@@ -630,7 +620,7 @@ class acc_user_importer_Admin
         // But I think we will no longer hit this issue thanks to the preventive
         // sleep after each request.
         if ($responseCode != 200) {
-            $this->log_dual("HTTP error {$responseCode} ({$responseMsg})");
+            accLog("HTTP error {$responseCode} ({$responseMsg})");
             $api_response["message"] = "error";
             $api_response[
                 "errorMessage"
@@ -647,7 +637,7 @@ class acc_user_importer_Admin
         // to terminate his membership. It is possible that on the Wordpress
         // database the user expiry is still in the future.
         // if ($count != $numToDo) {
-        // 	$this->log_dual("Error, member API returned " . $count . " members instead of " . $numToDo);
+        // 	accLog("Error, member API returned " . $count . " members instead of " . $numToDo);
         // 	$api_response['message'] = "error";
         // 	$api_response['errorMessage'] = "Member API returned " . $count . " members instead of " . $numToDo;
         // 	$api_response['log'] = $GLOBALS['acc_logstr'];	//Return the big log string
@@ -655,7 +645,7 @@ class acc_user_importer_Admin
         // }
 
         $lastUser = $offset + $numToDo - 1;
-        $this->log_dual("Received users $offset to $lastUser");
+        accLog("Received users $offset to $lastUser");
 
         $api_response["nextDataOffset"] = $offset + $numToDo;
         $api_response["results"] = $memberData;
@@ -703,21 +693,21 @@ class acc_user_importer_Admin
         $type1 = $this->membershipTable[$id1]["type"];
         $type2 = $this->membershipTable[$id2]["type"];
 
-        //$this->log_dual("In compareMembership $id1 $expiry1 $status1 $id2 $expiry2 $status2");
+        //accLog("In compareMembership $id1 $expiry1 $status1 $id2 $expiry2 $status2");
 
         if ($this->statusScore($status2) > $this->statusScore($status1)) {
-            //$this->log_dual("In compareMembership status $status2 better than $status1");
+            //accLog("In compareMembership status $status2 better than $status1");
             return true;
         } elseif ($this->statusScore($status2) < $this->statusScore($status1)) {
-            //$this->log_dual("In compareMembership status $status2 worse than $status1");
+            //accLog("In compareMembership status $status2 worse than $status1");
             return false;
         }
 
         if ($expiry2 > $expiry1) {
-            //$this->log_dual("In compareMembership expiry $expiry2 better than $expiry1");
+            //accLog("In compareMembership expiry $expiry2 better than $expiry1");
             return true;
         } elseif ($expiry2 < $expiry1) {
-            //$this->log_dual("In compareMembership expiry $expiry2 worse than $expiry1");
+            //accLog("In compareMembership expiry $expiry2 worse than $expiry1");
             return false;
         }
 
@@ -725,7 +715,7 @@ class acc_user_importer_Admin
             $this->membershipPreference[$type2] >
             $this->membershipPreference[$type1]
         ) {
-            // $this->log_dual("In compareMembership type " .
+            // accLog("In compareMembership type " .
             //     $this->membershipPreference[$type2] . " better than ".
             //     $this->membershipPreference[$type1]);
             return true;
@@ -733,7 +723,7 @@ class acc_user_importer_Admin
             $this->membershipPreference[$type2] <
             $this->membershipPreference[$type1]
         ) {
-            // $this->log_dual("In compareMembership type " .
+            // accLog("In compareMembership type " .
             //     $this->membershipPreference[$type2] . " worse than ".
             //     $this->membershipPreference[$type1]);
             return false;
@@ -776,15 +766,13 @@ class acc_user_importer_Admin
         }
 
         if (!isset($bestId)) {
-            $this->log_dual(
-                "Warning, In compareMemberships did not find anything"
-            );
+            accLog("Warning, compareMemberships found nothing");
             return true;
         }
 
         //Step2: See if membership2 has better
         foreach ($memberships2 as $mId => $value) {
-            //$this->log_dual("In compareMemberships now comparing with $mId");
+            //accLog("In compareMemberships now comparing with $mId");
             if (
                 $this->compareMembership(
                     $bestId,
@@ -795,7 +783,7 @@ class acc_user_importer_Admin
                     $value["status"]
                 )
             ) {
-                //$this->log_dual("In compareMemberships $mId is best, return true");
+                //accLog("In compareMemberships $mId is best, return true");
                 return true;
             }
         }
@@ -811,13 +799,11 @@ class acc_user_importer_Admin
     {
         //create response object
         $api_response = [];
-        $this->log_dual(
-            "Start processing batch of " . count($users) . " users"
-        );
+        accLog("Start processing batch of " . count($users) . " users");
 
         //Return gracefully is dataset is empty
         if (!(count($users) > 0)) {
-            $this->log_dual("Nothing to process");
+            accLog("Nothing to process");
             $api_response["message"] = "success";
             $api_response["log"] = $GLOBALS["acc_logstr"]; //Return the big log string
             return $api_response;
@@ -826,33 +812,25 @@ class acc_user_importer_Admin
         $new_user_role_action = accUM_get_new_user_role_action($section);
         $new_user_role_value = accUM_get_new_user_role_value($section);
         if ($new_user_role_action == "set_role") {
-            $this->log_dual(
-                "New users will be set with role $new_user_role_value"
-            );
+            accLog("New users will be set with role $new_user_role_value");
         } elseif ($new_user_role_action == "add_role") {
-            $this->log_dual(
-                "New users will be added role $new_user_role_value"
-            );
+            accLog("New users will be added role $new_user_role_value");
         }
 
         $ex_user_role_action = accUM_get_ex_user_role_action($section);
         $ex_user_role_value = accUM_get_ex_user_role_value($section);
         if ($ex_user_role_action == "set_role") {
-            $this->log_dual(
-                "Expired users will be set with role $ex_user_role_value"
-            );
+            accLog("Expired users will be set with role $ex_user_role_value");
         } elseif ($ex_user_role_action == "remove_role") {
-            $this->log_dual(
-                "Expired users will be removed role $ex_user_role_value"
-            );
+            accLog("Expired users will be removed role $ex_user_role_value");
         }
 
         $loginNameMapping = accUM_get_login_name_mapping();
-        $this->log_dual("Using $loginNameMapping as login name.");
+        accLog("Using $loginNameMapping as login name.");
 
         // Get the transitionFromContactID setting
         $transitionFromContactID = accUM_is_transitionFromContactID();
-        $this->log_dual(
+        accLog(
             "Usernames " .
                 ($transitionFromContactID ? "" : "DO NOT ") .
                 "transition from ContactID"
@@ -861,9 +839,7 @@ class acc_user_importer_Admin
         // Get the readonly_mode setting
         $readonly_mode = accUM_is_section_readonly($section);
         if ($readonly_mode) {
-            $this->log_dual(
-                "Read-only test mode, will not update user database"
-            );
+            accLog("Read-only test mode, will not update user database");
         }
 
         //loop through the received data and create users
@@ -894,8 +870,8 @@ class acc_user_importer_Admin
             $userCellPhone = $user["phone_number"] ?? "";
             $userMemberNumber = $user["member_number"] ?? "";
             $receivedMemberships = $user["memberships"];
-            $this->log_dual("");
-            $this->log_dual(json_encode($user));
+            accLog("");
+            accLog(json_encode($user));
 
             //Log the info we received for this user
             $userInfoString = $userFirstName . " " . $userLastName;
@@ -904,7 +880,7 @@ class acc_user_importer_Admin
             //$userInfoString .= " imis_id:" . $userImisId;
             $userInfoString .= " membership#:" . $userMemberNumber;
             $userInfoString .= " cell:" . $userCellPhone;
-            $this->log_dual("Received " . $userInfoString);
+            accLog("Received " . $userInfoString);
 
             // It is possible for the user to have multiple memberships.
             // We are only interested in memberships for the section the plugin
@@ -930,13 +906,13 @@ class acc_user_importer_Admin
                     !isset($membership["valid_to"]) ||
                     !isset($membership["identity_membership_status"])
                 ) {
-                    $this->log_dual("Error, missing fields in rxd data");
+                    accLog("Error, missing fields in rxd data");
                     $errors[] = "Error, missing fields in rxd data";
                     continue;
                 }
                 $mId = $membership["membership_group"]["id"];
                 if (!is_int($mId)) {
-                    $this->log_dual("Error, rxd membership ID not a number!");
+                    accLog("Error, rxd membership ID not a number!");
                     $errors[] = "Error, rxd mship ID not a number for $userFullName";
                     continue;
                 }
@@ -948,7 +924,7 @@ class acc_user_importer_Admin
                     //Table is probably outdated. For error handling
                     //assume that the section is the right one and pick
                     //type=unknown and keep going to allow the member.
-                    $this->log_dual(
+                    accLog(
                         "Error, unknown rxd membership ID. " .
                             "Maybe the plugin needs updating?"
                     );
@@ -964,7 +940,7 @@ class acc_user_importer_Admin
                     continue; //This could indicate an API error?
                 }
 
-                $this->log_dual(
+                accLog(
                     ">   ID:$mId section:$mSection type:$mType " .
                         "expiry:$mExpiry status:$mStatus"
                 );
@@ -981,7 +957,7 @@ class acc_user_importer_Admin
                     //status represents the global state of the member and
                     //as long as one membership is OK, 2M sends status=valid
                     //for all memberships the user has.
-                    // $this->log_dual(
+                    // accLog(
                     //     "> Warning, data discrepancy: " .
                     //         "membership expired but status is good!"
                     // );
@@ -989,7 +965,7 @@ class acc_user_importer_Admin
                     //     "Warning, rxd data discrepancy for $userFullName: " .
                     //     "membership date expired but status is good!";
                 } elseif (!$membershipExpired && !$membershipValid) {
-                    $this->log_dual(
+                    accLog(
                         "> Warning, data discrepancy: " .
                             "membership date OK but status is not!"
                     );
@@ -1008,21 +984,21 @@ class acc_user_importer_Admin
             //Safety that we received at least 1 membership for this user
             if (!isset($userRxdMemberships)) {
                 $errors[] = "Error, No mship rcvd for $userFullName";
-                $this->log_dual("> No membership received; skip");
+                accLog("> No membership received; skip");
                 continue;
             }
 
             //Validate we have received mandatory fields.
             if (empty($userMemberNumber)) {
                 $errors[] = "Error, No member number rcvd for $userFullName";
-                $this->log_dual(" > error, no member number; skip");
+                accLog(" > error, no member number; skip");
                 continue;
             }
 
             //Safety check in case firstname and lastname are empty
             if (empty($userFirstName) && empty($userLastName)) {
                 $errors[] = "Error, user $userMemberNumber has no name";
-                $this->log_dual(" > error, user has no name; skip");
+                accLog(" > error, user has no name; skip");
                 continue;
             }
 
@@ -1089,7 +1065,7 @@ class acc_user_importer_Admin
                         $accUserData["user_email"] == $existingUser->user_email
                     )
                 ) {
-                    $this->log_dual(
+                    accLog(
                         " > error (transition from ContactID): looks like " .
                             "we have a duplicate member number ({$existingUser->display_name}, skipping "
                     );
@@ -1098,7 +1074,7 @@ class acc_user_importer_Admin
             }
 
             if (!is_a($existingUser, WP_User::class)) {
-                $this->log_dual(" > not found by login");
+                accLog(" > not found by login");
                 //Not found by login, search by email
                 $existingUser = get_user_by("email", $userEmail);
                 if (is_a($existingUser, WP_User::class)) {
@@ -1118,7 +1094,7 @@ class acc_user_importer_Admin
                     // then adult2, then childs. So naturally the owner of the
                     // account would be the first to be created.
                     $userFoundByEmail = true;
-                    $this->log_dual(
+                    accLog(
                         " > found by email existing userId {$existingUser->ID} named " .
                             "{$existingUser->display_name}. Collision!"
                     );
@@ -1131,9 +1107,7 @@ class acc_user_importer_Admin
                         )
                     ) {
                         //Existing user is better, keep it.
-                        $this->log_dual(
-                            " > email already used by someone else, skip"
-                        );
+                        accLog(" > email already used by someone else, skip");
                         continue;
                     }
                 }
@@ -1145,7 +1119,7 @@ class acc_user_importer_Admin
             if (is_a($existingUser, WP_User::class)) {
                 //---------USER WAS FOUND IN DATABASE------------
                 $userID = $existingUser->ID;
-                $this->log_dual(
+                accLog(
                     " > checking " .
                         $existingUser->display_name .
                         " (user #" .
@@ -1182,11 +1156,9 @@ class acc_user_importer_Admin
                             //we serialize and print the string.
                             $old = serialize($existingUser->$field);
                             $new = serialize($value);
-                            $this->log_dual(
-                                " > $field changed from " . "$old to $new"
-                            );
+                            accLog(" > $field changed from " . "$old to $new");
                         } else {
-                            $this->log_dual(
+                            accLog(
                                 " > $field changed from " .
                                     $existingUser->$field .
                                     " to $value"
@@ -1204,13 +1176,11 @@ class acc_user_importer_Admin
                         $updateResp = wp_update_user($existingUser);
                         if (is_wp_error($updateResp)) {
                             $errors[] = "Error updating user $userFullName in DB";
-                            $this->log_dual(" > error, failed to update user");
-                            $this->log_dual(
-                                " > WP:" . $updateResp->get_error_message()
-                            );
+                            accLog(" > error, failed to update user");
+                            accLog(" > WP:" . $updateResp->get_error_message());
                             continue;
                         }
-                        $this->log_dual(" > updated user #" . $updateResp);
+                        accLog(" > updated user #" . $updateResp);
 
                         //Update meta fields
                         foreach ($accUserMetaData as $field => $value) {
@@ -1243,7 +1213,7 @@ class acc_user_importer_Admin
                         } else {
                             $result_str = " success";
                         }
-                        $this->log_dual(
+                        accLog(
                             "> user {$userID} username changed from " .
                                 "{$existingUser->user_login} to {$loginName}, update database $result_str"
                         );
@@ -1274,9 +1244,7 @@ class acc_user_importer_Admin
             // But before creating a new record, make sure email is valid.
             if (!is_email($userEmail)) {
                 //User has no email field, skip it
-                $this->log_dual(
-                    " > error: invalid email, cannot create new user account."
-                );
+                accLog(" > error: invalid email, cant create new account.");
                 $update_errors[] = $user;
                 $errors[] = "Error $userFullName has invalid email";
                 continue;
@@ -1289,12 +1257,12 @@ class acc_user_importer_Admin
 
             if (!$userIsValid) {
                 // Skip the rest if the user is expired already
-                $this->log_dual("> Expired membership, dont create account");
+                accLog("> Expired membership, dont create account");
                 continue;
             }
 
             //--------CREATE NEW USER-----
-            $this->log_dual(" > email not found on any other users");
+            accLog(" > email not found on any other users");
             $new_users[] = $accUserData["display_name"];
             $new_users_email[] = $userEmail;
             $accUserData["user_pass"] = wp_generate_password(20);
@@ -1309,19 +1277,19 @@ class acc_user_importer_Admin
                 $new_user_role_action == "add_role"
             ) {
                 $accUserData["role"] = $new_user_role_value;
-                $this->log_dual("> setting role to $new_user_role_value");
+                accLog("> setting role to $new_user_role_value");
             }
 
             // Insert new user
             $userID = wp_insert_user($accUserData);
             if (is_wp_error($userID)) {
                 $errors[] = "Error creating user $userFullName";
-                $this->log_dual(" > error, failed to create user");
-                $this->log_dual(" > WP:" . $userID->get_error_message());
+                accLog(" > error, failed to create user");
+                accLog(" > WP:" . $userID->get_error_message());
                 continue;
             }
 
-            $this->log_dual(" > Created new user #" . $userID);
+            accLog(" > Created new user #" . $userID);
 
             //Insert meta fields.
             $accUserMetaData["acc_memberships"] = [
@@ -1339,39 +1307,35 @@ class acc_user_importer_Admin
         } //end user loop
 
         //Outcome summary
-        $this->log_dual("");
-        $this->log_dual(
+        accLog("");
+        accLog(
             "Processing complete for this batch of " .
                 count($users) .
                 " people."
         );
-        $this->log_dual("--" . count($new_users) . " accounts created:");
+        accLog("--" . count($new_users) . " accounts created:");
         foreach ($new_users as $id => $user) {
-            $this->log_dual("  " . $user . " (" . $new_users_email[$id] . ")");
+            accLog("  " . $user . " (" . $new_users_email[$id] . ")");
         }
-        $this->log_dual("--" . count($updated_users) . " accounts updated:");
+        accLog("--" . count($updated_users) . " accounts updated:");
         foreach ($updated_users as $id => $user) {
-            $this->log_dual(
-                "  " . $user . " (" . $updated_users_email[$id] . ")"
-            );
+            accLog("  " . $user . " (" . $updated_users_email[$id] . ")");
         }
-        $this->log_dual(
+        accLog(
             "--" . count($new_active_users) . " members transitioned to Active:"
         );
         foreach ($new_active_users as $user) {
-            $this->log_dual("  " . $user);
+            accLog("  " . $user);
         }
-        $this->log_dual("--" . count($expired_users) . " members Expired:");
+        accLog("--" . count($expired_users) . " members Expired:");
         foreach ($expired_users as $user) {
-            $this->log_dual("  " . $user);
+            accLog("  " . $user);
         }
         if (count($update_errors) != 0) {
-            $this->log_dual(
-                "--Errors updating " . count($update_errors) . " accounts:"
-            );
+            accLog("--Errors updating " . count($update_errors) . " accounts:");
         }
         foreach ($update_errors as $id => $user) {
-            $this->log_dual(" [" . $id . "] " . var_export($user, true));
+            accLog(" [" . $id . "] " . var_export($user, true));
         }
 
         $operation = "The ACC website received the following changes for $section:";
@@ -1405,7 +1369,7 @@ class acc_user_importer_Admin
 
         $user = get_userdata($user_id);
         if (!is_a($user, WP_User::class)) {
-            $this->log_dual(
+            accLog(
                 "Error when checking for user state, userid $user_id is invalid"
             );
             return;
@@ -1414,7 +1378,7 @@ class acc_user_importer_Admin
         $message =
             "> user $user->ID $user->display_name transitioned to " .
             "active, send welcome email if enabled";
-        $this->log_dual($message);
+        accLog($message);
         acc_send_welcome_email($section, $user->ID);
         do_action("acc_member_welcome", $user->ID); //action hook
 
@@ -1425,7 +1389,7 @@ class acc_user_importer_Admin
             (count($user_roles) != 1 ||
                 !in_array($new_user_role_value, $user_roles, true))
         ) {
-            $this->log_dual(
+            accLog(
                 "> Changing user $user->ID $user->display_name role to $new_user_role_value"
             );
             $user->set_role($new_user_role_value);
@@ -1433,7 +1397,7 @@ class acc_user_importer_Admin
             $new_user_role_action == "add_role" &&
             !in_array($new_user_role_value, $user_roles, true)
         ) {
-            $this->log_dual(
+            accLog(
                 "> Adding role $new_user_role_value to user $user->ID $user->display_name"
             );
             $user->add_role($new_user_role_value);
@@ -1450,13 +1414,13 @@ class acc_user_importer_Admin
 
         $user = get_userdata($user_id);
         if (!is_a($user, WP_User::class)) {
-            $this->log_dual(
+            accLog(
                 "Error when checking for user state, userid $user_id is invalid"
             );
             return;
         }
 
-        $this->log_dual(
+        accLog(
             "> user $user->ID $user->display_name transitioned to " .
                 "inactive, send goodbye email if enabled"
         );
@@ -1472,7 +1436,7 @@ class acc_user_importer_Admin
             (count($user_roles) != 1 ||
                 !in_array($ex_user_role_value, $user_roles, true))
         ) {
-            $this->log_dual(
+            accLog(
                 "> Changing user $user->ID $user->display_name role to $ex_user_role_value"
             );
             $user->set_role($ex_user_role_value);
@@ -1481,7 +1445,7 @@ class acc_user_importer_Admin
             !in_array("administrator", $user_roles, true) &&
             in_array($ex_user_role_value, $user_roles, true)
         ) {
-            $this->log_dual(
+            accLog(
                 "> Removing role $ex_user_role_value from user $user->ID $user->display_name"
             );
             $user->remove_role($ex_user_role_value);
@@ -1514,7 +1478,7 @@ class acc_user_importer_Admin
                     ($now_ts - $expiry_ts) / (60 * 60 * 24)
                 );
                 if ($days_since_expiry >= $days_before_delete) {
-                    $this->log_dual(
+                    accLog(
                         "Need to delete $user->display_name ($user->ID) " .
                             "expired $days_since_expiry days ago"
                     );
@@ -1540,16 +1504,16 @@ class acc_user_importer_Admin
 
         $count = count($old_user_posts);
         if ($count != 0) {
-            $this->log_dual("User $old_user_id owns $count posts");
+            accLog("User $old_user_id owns $count posts");
         }
 
         foreach ($old_user_posts as $post) {
             if ($post->post_type == "attachment") {
-                $this->log_dual(
+                accLog(
                     " post $post->ID type=$post->post_type date=$post->post_date guid=$post->guid"
                 );
             } else {
-                $this->log_dual(
+                accLog(
                     " post $post->ID type=$post->post_type date=$post->post_date title=$post->post_title"
                 );
             }
@@ -1574,14 +1538,12 @@ class acc_user_importer_Admin
 
         $verify_expiry = accUM_is_verify_expiry();
         if ($verify_expiry) {
-            $this->log_dual("");
-            $this->log_dual("=============================================");
-            $this->log_dual("Checking local DB, as stated in configuration");
-            $this->log_dual("=============================================");
+            accLog("");
+            accLog("=============================================");
+            accLog("Checking local DB, as stated in configuration");
+            accLog("=============================================");
         } else {
-            $this->log_dual(
-                "Skipping local DB sanity check, as per configuration"
-            );
+            accLog("Skipping local DB sanity check, as per configuration");
             $api_response["message"] = "success";
             $api_response["log"] = $GLOBALS["acc_logstr"]; //Return the big log string
             return $api_response;
@@ -1594,7 +1556,7 @@ class acc_user_importer_Admin
         if ($delete_ex_users) {
             //When should we delete expired users? Who will now own the content?
             $days_before_delete = accUM_get_when_2_delete_ex_user();
-            $this->log_dual(
+            accLog(
                 "Will delete users expired for more than $days_before_delete days"
             );
 
@@ -1603,16 +1565,16 @@ class acc_user_importer_Admin
             $new_owner_login = accUM_get_new_owner();
             if (empty($new_owner_login)) {
                 //User did not specify a new owner, so delete content
-                $this->log_dual("and will delete their published content");
+                accLog("and will delete their published content");
             } else {
                 $new_owner = get_user_by("login", $new_owner_login);
                 if ($new_owner instanceof WP_User) {
-                    $this->log_dual(
+                    accLog(
                         "and transfer content to $new_owner->user_nicename ($new_owner->ID)"
                     );
                 } else {
                     $new_owner_error = true;
-                    $this->log_dual(
+                    accLog(
                         "Error in config, invalid new content owner " .
                             "($new_owner_login). Skipping delete of expired users."
                     );
@@ -1646,13 +1608,13 @@ class acc_user_importer_Admin
                         $rc = wp_delete_user($user->ID);
                     }
                     if ($rc) {
-                        $this->log_dual(
+                        accLog(
                             "Successfully deleted $user->display_name ($user->ID)"
                         );
                         $deleted_users[] = "$user->display_name  ($user->user_email)";
                         continue; //User no longer exists, skip rest of loop
                     } else {
-                        $this->log_dual(
+                        accLog(
                             "Failed to delete $user->display_name ($user->ID)"
                         );
                         $errors[] = "Failed to delete $user->display_name ($user->ID)";
@@ -1686,14 +1648,14 @@ class acc_user_importer_Admin
 
         //Give a summary
         $deleted_cnt = count($deleted_users);
-        $this->log_dual("Local DB check deleted $deleted_cnt obsolete users");
-        $this->log_dual("Number of valid members = $num_active");
-        $this->log_dual("Number of expired members = $num_inactive");
-        $this->log_dual("Number of members in PROC state = $num_processing");
+        accLog("Local DB check deleted $deleted_cnt obsolete users");
+        accLog("Number of valid members = $num_active");
+        accLog("Number of expired members = $num_inactive");
+        accLog("Number of members in PROC state = $num_processing");
         foreach ($warnings as $warning) {
-            $this->log_dual("Warning: $warning");
+            accLog("Warning: $warning");
         }
-        $this->log_dual(
+        accLog(
             "<br>List of users email in PROC state = $processing_email_list<br>"
         );
 
@@ -1759,9 +1721,9 @@ class acc_user_importer_Admin
                 $content .= $warning . "\n";
             }
 
-            $this->log_dual("Sending notification email to: $email_addrs");
-            $this->log_dual("email title=$title");
-            $this->log_dual("email content=$content");
+            accLog("Sending notification email to: $email_addrs");
+            accLog("email title=$title");
+            accLog("email content=$content");
             $rc = wp_mail(
                 $email_addrs,
                 $title,
@@ -1769,11 +1731,9 @@ class acc_user_importer_Admin
                 "Content-Type: text/plain; charset=UTF-8"
             );
             if ($rc) {
-                $this->log_dual(
-                    "Successfully sent notification email to: $email_addrs"
-                );
+                accLog("Sent notification email to: $email_addrs");
             } else {
-                $this->log_dual("Failed to send notification email");
+                accLog("Failed to send notification email");
             }
         }
     }
@@ -1808,16 +1768,5 @@ class acc_user_importer_Admin
             "url" => admin_url("admin-ajax.php"),
             "nonce" => wp_create_nonce("accUserAPI"),
         ]);
-    }
-
-    /**
-     * This function will log a string to the log file and also accumulate it
-     * in a variable that is sent in the API response, for displaying on the
-     * plugin Update Status window.
-     */
-    private function log_dual($string)
-    {
-        acc_log($string);
-        $GLOBALS["acc_logstr"] .= $string . "<br/>";
     }
 }
