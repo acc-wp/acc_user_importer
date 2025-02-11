@@ -1298,9 +1298,19 @@ class acc_user_importer_Admin
             $new_users[] = $accUserData["display_name"];
             $new_users_email[] = $userEmail;
             $accUserData["user_pass"] = wp_generate_password(20);
-            $accUserData["role"] = $new_user_role_value;
             $accUserData["user_nicename"] = $accUserData["display_name"]; //WP will sanitize
             $accUserData["user_login"] = $loginName;
+
+            //Pick the member role (if configured to do so)
+            $new_user_role_action = accUM_get_new_user_role_action($section);
+            $new_user_role_value = accUM_get_new_user_role_value($section);
+            if (
+                $new_user_role_action == "set_role" ||
+                $new_user_role_action == "add_role"
+            ) {
+                $accUserData["role"] = $new_user_role_value;
+                $this->log_dual("> setting role to $new_user_role_value");
+            }
 
             // Insert new user
             $userID = wp_insert_user($accUserData);
@@ -1402,7 +1412,7 @@ class acc_user_importer_Admin
         }
 
         $message =
-            "user $user->ID $user->display_name transitioned to " .
+            "> user $user->ID $user->display_name transitioned to " .
             "active, send welcome email if enabled";
         $this->log_dual($message);
         acc_send_welcome_email($section, $user->ID);
@@ -1416,7 +1426,7 @@ class acc_user_importer_Admin
                 !in_array($new_user_role_value, $user_roles, true))
         ) {
             $this->log_dual(
-                "Changing user $user->ID $user->display_name role to $new_user_role_value"
+                "> Changing user $user->ID $user->display_name role to $new_user_role_value"
             );
             $user->set_role($new_user_role_value);
         } elseif (
@@ -1424,7 +1434,7 @@ class acc_user_importer_Admin
             !in_array($new_user_role_value, $user_roles, true)
         ) {
             $this->log_dual(
-                "Adding role $new_user_role_value to user $user->ID $user->display_name"
+                "> Adding role $new_user_role_value to user $user->ID $user->display_name"
             );
             $user->add_role($new_user_role_value);
         }
@@ -1447,7 +1457,7 @@ class acc_user_importer_Admin
         }
 
         $this->log_dual(
-            "user $user->ID $user->display_name transitioned to " .
+            "> user $user->ID $user->display_name transitioned to " .
                 "inactive, send goodbye email if enabled"
         );
         acc_send_goodbye_email($section, $user->ID);
@@ -1463,7 +1473,7 @@ class acc_user_importer_Admin
                 !in_array($ex_user_role_value, $user_roles, true))
         ) {
             $this->log_dual(
-                "Changing user $user->ID $user->display_name role to $ex_user_role_value"
+                "> Changing user $user->ID $user->display_name role to $ex_user_role_value"
             );
             $user->set_role($ex_user_role_value);
         } elseif (
@@ -1472,7 +1482,7 @@ class acc_user_importer_Admin
             in_array($ex_user_role_value, $user_roles, true)
         ) {
             $this->log_dual(
-                "Removing role $ex_user_role_value from user $user->ID $user->display_name"
+                "> Removing role $ex_user_role_value from user $user->ID $user->display_name"
             );
             $user->remove_role($ex_user_role_value);
         }
