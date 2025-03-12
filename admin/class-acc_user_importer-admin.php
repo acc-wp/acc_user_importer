@@ -32,7 +32,7 @@ class acc_user_importer_Admin
 
     // List of ACC section membership types.
     // Obtained from an Interpodia Excel spreadsheet.
-    private $membershipTable = [
+    public static $membershipTable = [
         "1807" => ["section" => "YUKON", "type" => "adult"],
         "1809" => ["section" => "YUKON", "type" => "youth"],
         "1810" => ["section" => "YUKON", "type" => "family1"],

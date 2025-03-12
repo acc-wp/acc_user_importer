@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.1 Francois Bessette
+
+- Add code to display acc_memberships on the Wordpress user profile page.
+
 ## 3.0.0 Francois Bessette
 
 - Allow importing multiple sections. Many changes to the user database.

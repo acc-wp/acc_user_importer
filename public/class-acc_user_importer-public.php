@@ -77,4 +77,33 @@ class acc_user_importer_Public
             false
         );
     }
+
+    public function display_acc_memberships($user)
+    {
+        $acc_memberships = get_user_meta($user->ID, "acc_memberships", true);
+        $mshipText = "";
+        foreach ($acc_memberships as $section => $memberships) {
+            $mshipText .= "$section\n";
+            foreach ($memberships as $mId => $fields) {
+                $type = acc_user_importer_Admin::$membershipTable[$mId]["type"];
+                $mshipText .= "  $type: ";
+                foreach ($fields as $key => $value) {
+                    $mshipText .= "  $key:$value ";
+                }
+                $mshipText .= "\n";
+            }
+        }
+        ?>
+        <table class="form-table">
+            <tr>
+                <th><label for="acc_memberships">Memberships</label></th>
+                <td>
+                    <textarea id="acc_memberships" name="acc_memberships" rows="5" cols="30"><?php echo esc_textarea(
+                        $mshipText
+                    ); ?></textarea>
+                </td>
+            </tr>
+        </table>
+        <?php
+    }
 }

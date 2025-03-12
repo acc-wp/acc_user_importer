@@ -175,6 +175,17 @@ class acc_user_importer
             $plugin_public,
             "set_custom_profile_fields"
         );
+        // Add a custom section to display the "acc_memberships" metadata
+        $this->loader->add_action(
+            "show_user_profile",
+            $plugin_public,
+            "display_acc_memberships"
+        );
+        $this->loader->add_action(
+            "edit_user_profile",
+            $plugin_public,
+            "display_acc_memberships"
+        );
     }
 
     /**
