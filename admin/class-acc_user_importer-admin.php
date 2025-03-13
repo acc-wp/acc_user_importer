@@ -338,14 +338,14 @@ class acc_user_importer_Admin
                 }
             }
 
-            // If import was a success, store the date/time where we last did it.
-            // This will be used as the changed_since parameter in the next plugin run.
-            if ($mode == "Automatic" && $api_response["message"] == "success") {
-                accUM_set_since_date($iso_timestamp_start);
-                accLog("On next run, use since={$iso_timestamp_start}");
-            }
-
             accLog("");
+        }
+
+        // If import was a success, store the date/time where we last did it.
+        // This will be used as the changed_since parameter in the next plugin run.
+        if ($mode == "Automatic" && $api_response["message"] == "success") {
+            accUM_set_since_date($iso_timestamp_start);
+            accLog("On next run, use since={$iso_timestamp_start}");
         }
 
         // All sections have been successfully updated, now look for expired members

@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.0.3 Francois Bessette
+
+- Fix bug where during automatic update, only the first section is imported.
+  This was caused by an early update of since_date.
+
 ## 3.0.2 Francois Bessette
 
 - Fix crash during update caused by public membershipTable.
