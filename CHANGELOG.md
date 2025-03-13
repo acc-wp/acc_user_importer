@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.2 Francois Bessette
+
+- Fix crash during update caused by public membershipTable.
+
 ## 3.0.1 Francois Bessette
 
 - Add code to display acc_memberships on the Wordpress user profile page.

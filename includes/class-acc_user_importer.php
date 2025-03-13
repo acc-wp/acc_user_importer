@@ -145,6 +145,17 @@ class acc_user_importer
             $plugin_admin,
             "begin_automatic_update"
         );
+        // Add "acc_memberships" metadata information to the user profile page
+        $this->loader->add_action(
+            "show_user_profile",
+            $plugin_admin,
+            "display_acc_memberships"
+        );
+        $this->loader->add_action(
+            "edit_user_profile",
+            $plugin_admin,
+            "display_acc_memberships"
+        );
     }
 
     /**
@@ -174,17 +185,6 @@ class acc_user_importer
             "user_contactmethods",
             $plugin_public,
             "set_custom_profile_fields"
-        );
-        // Add a custom section to display the "acc_memberships" metadata
-        $this->loader->add_action(
-            "show_user_profile",
-            $plugin_public,
-            "display_acc_memberships"
-        );
-        $this->loader->add_action(
-            "edit_user_profile",
-            $plugin_public,
-            "display_acc_memberships"
         );
     }
 

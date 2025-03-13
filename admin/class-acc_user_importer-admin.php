@@ -32,7 +32,7 @@ class acc_user_importer_Admin
 
     // List of ACC section membership types.
     // Obtained from an Interpodia Excel spreadsheet.
-    public static $membershipTable = [
+    private $membershipTable = [
         "1807" => ["section" => "YUKON", "type" => "adult"],
         "1809" => ["section" => "YUKON", "type" => "youth"],
         "1810" => ["section" => "YUKON", "type" => "family1"],
@@ -237,6 +237,14 @@ class acc_user_importer_Admin
         //load display
         require plugin_dir_path(__FILE__) .
             "/partials/acc_user_importer-admin-settings.php";
+    }
+
+    public function getMembershipTypeFromId($mId)
+    {
+        if (array_key_exists($mId, $this->membershipTable)) {
+            return $this->membershipTable[$mId]["type"];
+        }
+        return "Unknown";
     }
 
     public function responseErrMsg($api_response)
@@ -1768,5 +1776,37 @@ class acc_user_importer_Admin
             "url" => admin_url("admin-ajax.php"),
             "nonce" => wp_create_nonce("accUserAPI"),
         ]);
+    }
+
+    /**
+     * Add acc_membership information to the user profile page
+     */
+    public function display_acc_memberships($user)
+    {
+        $acc_memberships = get_user_meta($user->ID, "acc_memberships", true);
+        $mshipText = "";
+        foreach ($acc_memberships as $section => $memberships) {
+            $mshipText .= "$section\n";
+            foreach ($memberships as $mId => $fields) {
+                $type = $this->getMembershipTypeFromId($mId);
+                $mshipText .= "  $type: ";
+                foreach ($fields as $key => $value) {
+                    $mshipText .= "  $key:$value ";
+                }
+                $mshipText .= "\n";
+            }
+        }
+        ?>
+        <table class="form-table">
+            <tr>
+                <th><label for="acc_memberships">Memberships</label></th>
+                <td>
+                    <textarea id="acc_memberships" name="acc_memberships" rows="5" cols="30"><?php echo esc_textarea(
+                        $mshipText
+                    ); ?></textarea>
+                </td>
+            </tr>
+        </table>
+        <?php
     }
 }
