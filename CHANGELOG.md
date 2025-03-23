@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.0.3 Francois Bessette
+
+- Fix bug where during automatic update, only the first section is imported.
+  This was caused by an early update of since_date.
+
+## 3.0.2 Francois Bessette
+
+- Fix crash during update caused by public membershipTable.
+
+## 3.0.1 Francois Bessette
+
+- Add code to display acc_memberships on the Wordpress user profile page.
+
+## 3.0.0 Francois Bessette
+
+- Allow importing multiple sections. Many changes to the user database.
+
 ## 2.2.14 Keith Dunwoody
 
 - Add group for Vancouver section life members.

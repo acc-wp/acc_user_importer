@@ -2,11 +2,12 @@
  * Admin-specific CSS
  */
 
+/* Comment the 3 lines below so that the Save Settings button is at the bottom as it should.
 #acc_admin_page {
   column-count: 2;
   column-gap: 20px;
 }
-
+*/
 #update_log {
   width: 96%;
   height: 700px;

@@ -90,14 +90,13 @@ Save Changes after changing parameters!
   You have the choice to take no action, set role to a value or remove a
   role from the member.
 - Role value? Value related to the previous choice.
-- Also check user expiry in local DB? If this option is
+- Also check local DB sanity? If this option is
   checked, then after syncing the received data from the 2M API,
   an additional step is done: the local database is scanned,
-  looking for expired users. This is a safeguard in case 2M forgets
-  to notify us of an expired user.
+  looking for suspicious values.
 - Delete expired user accounts after a while? Enable feature
   where obsolete user accounts are deleted after a while. This
-  logic requires the above "Also check user expiry" option
+  logic requires the above "Also check local DB sanity" option
   and enable the next 2 options.
 - How many days before deleting an expired user from database?
   In order to protect members personal information, it is good practice to eventually
@@ -227,10 +226,10 @@ An email is sent whenever the acc_status state changes. When upgrading an existi
 
 ## Hooks
 
-- `do_action('acc_new_membership', $userID)`: Called each time a new user account is created during import.
-- `do_action('acc_membership_renewal', $existingUser->ID)`: Called each time an existing user 'expiry' date changes. Yes, this is not perfect, there is an assumption here that the expiry will only change forward because of a renewal. Could be improved.
-- `do_action("acc_member_welcome", $user->ID)`: Called whenever a user's membership is switched from inactive to active.
-- `do_action("acc_member_goodbye", $user->ID)`: Called whenever a user's membership lapsed.
+- `do_action('acc_new_membership', $userID)`: Called each time a new user account is created in the database.
+- `do_action('acc_membership_renewal', $existingUser->ID)`: Called when an existing expired user renews his membership.
+- `do_action("acc_member_welcome", $user->ID)`: Called whenever a user's membership changes from (non-existent or inactive) to active
+- `do_action("acc_member_goodbye", $user->ID)`: Called whenever a user's membership becomes no longer active.
 
 ## Caveats
 
