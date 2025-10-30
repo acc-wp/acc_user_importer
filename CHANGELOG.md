@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.0 Francois Bessette
+
+- Modify plugin to receive notifications from the new Hubspot-based ACC national system.
+
 ## 3.0.3 Francois Bessette
 
 - Fix bug where during automatic update, only the first section is imported.

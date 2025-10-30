@@ -1,4 +1,24 @@
 <?php
+//---------------temp
+add_filter("wt_customer_csv_import_data", "add_acc_custom_meta_field", 10, 2);
+
+function add_acc_custom_meta_field($parsed_item, $user_id)
+{
+    error_log("in add_acc_custom_meta_field");
+    error_log(print_r($parsed_item, true));
+
+    $data = get_user_meta($user_id, "acc_waiver_signed", true);
+    if (!empty($data)) {
+        error_log("waiver_signed meta is not empty");
+        error_log(print_r($data, true));
+    } else {
+        error_log("waiver_signed meta is empty");
+    }
+
+    return $parsed_item;
+}
+
+//---------------temp
 
 add_filter("wp_authenticate_user", "acc_validate_user_login");
 
@@ -19,11 +39,11 @@ function acc_um_custom_authenticate_error_codes($third_party_codes)
  */
 function acc_cron_activate()
 {
-    if (!wp_next_scheduled("acc_automatic_import")) {
-        wp_schedule_event(time() + 3600, "twicedaily", "acc_automatic_import");
+    if (!wp_next_scheduled("acc_automatic_db_check")) {
+        wp_schedule_event(time() + 3600, "weekly", "acc_automatic_db_check");
     } else {
         error_log(
-            "Error activating plugin, acc_automatic_import was already scheduled"
+            "Error activating plugin, acc_automatic_db_check was already scheduled"
         );
     }
 }
@@ -33,112 +53,70 @@ function acc_cron_activate()
  */
 function acc_cron_deactivate()
 {
-    $timestamp = wp_next_scheduled("acc_automatic_import");
-    wp_unschedule_event($timestamp, "acc_automatic_import");
-    wp_unschedule_hook("acc_automatic_import");
-    wp_clear_scheduled_hook("acc_automatic_import");
+    $timestamp = wp_next_scheduled("acc_automatic_db_check");
+    wp_unschedule_event($timestamp, "acc_automatic_db_check");
+    wp_unschedule_hook("acc_automatic_db_check");
+    wp_clear_scheduled_hook("acc_automatic_db_check");
 }
 
 /**
- * Returns true if the membership status is valid.
- * ISSU means ISSUED
- * PROC means Processing. The member has a paid membership, however he probably
- * has not signed the waiver yet, so should not be allowed to participate to activities.
- * In this function, we consider this a valid membership because we do not want
- * to send goodbye emails for such cases.
+ * Returns an array of membership types
  */
-function acc_validMembershipStatus($membershipStatus)
+function acc_get_mship_names()
 {
-    return $membershipStatus == "ISSU" || $membershipStatus == "PROC";
+    $mshipNames = [
+        "Free",
+        "Individual",
+        "Family",
+        "Youth",
+        "Lifetime",
+        "Student",
+        "MEC Staff",
+        "ACC Staff",
+    ];
+
+    return $mshipNames;
 }
 
 /**
- * Returns true if the membership status is in PROCessing state.
+ * Returns an array of section names
  */
-function acc_MembershipStatusIsProc($membershipStatus)
+function acc_get_supported_sections()
 {
-    return $membershipStatus == "PROC";
-}
+    $sectNames = [
+        "Bugaboos",
+        "Calgary",
+        "Central Alberta",
+        "Columbia Mountains",
+        "Edmonton",
+        "Great Plains",
+        "Jasper/Hinton",
+        "Manitoba",
+        "Montréal",
+        "Newfoundland and Labrador",
+        "Okanagan",
+        "Outaouais",
+        "Ottawa",
+        "Prince George",
+        "Rocky Mountain",
+        "Saint Boniface",
+        "Saskatchewan",
+        "Sault Ste. Marie",
+        "Southern Alberta",
+        "Squamish",
+        "Thunder Bay",
+        "Toronto",
+        "Vancouver",
+        "Vancouver Island",
+        "Whistler",
+        "Yukon",
+    ];
 
-/**
- * Returns true if the membership status is in ISSUed state.
- */
-function acc_MembershipStatusIsIssu($membershipStatus)
-{
-    return $membershipStatus == "ISSU";
-}
-
-/**
- * Returns the latest date among all user memberships.
- * If the user has no membership, return NULL.
- */
-function acc_MembershipLatestDate($user)
-{
-    if (!($user instanceof WP_User)) {
-        return null; //error handling
-    }
-
-    $latestDate = null;
-    if (!empty($user->acc_memberships)) {
-        foreach ($user->acc_memberships as $section => $sect_memberships) {
-            foreach ($sect_memberships as $mId => $mship) {
-                $expiry = $mship["expiry"];
-                $status = $mship["status"];
-                if (empty($latestDate) || $expiry > $latestDate) {
-                    $latestDate = $expiry;
-                }
-            }
-        }
-    } elseif (!empty($user->expiry)) {
-        //This part is for backward compatibility
-        $latestDate = $user->expiry;
-    }
-
-    return $latestDate;
-}
-
-/**
- * Returns true if the specified user has a membership in PROC state.
- * According to Interpodia, all memberships will share the same status,
- * derived from the main national ACC base membership. So we could
- * probably just look at the first membership instead of looping.
- * If the user has no membership, return false.
- */
-function acc_MembershipIsProc($user)
-{
-    if (!($user instanceof WP_User)) {
-        return false; //error handling
-    }
-
-    if (!empty($user->acc_memberships)) {
-        foreach ($user->acc_memberships as $section => $sect_memberships) {
-            foreach ($sect_memberships as $mId => $mship) {
-                $status = $mship["status"];
-                if (acc_MembershipStatusIsProc($status)) {
-                    return true;
-                }
-            }
-        }
-    } elseif (!empty($user->membership_status)) {
-        //This part is for backward compatibility
-        $status = $user->membership_status;
-        if (acc_MembershipStatusIsProc($status)) {
-            return true;
-        }
-    }
-
-    return false;
+    return $sectNames;
 }
 
 /**
  * Returns true if the user is expired.
- * The user is consider valid if one membership_status is PROC or ISSU.
- * We first check the newest acc_memberships array.
- * For backward compatibility we also check the user membership_status.
- * For backward compatibility, if user has no membership_status, we
- * the check the 'expiry' date.  If there is no expiry, the user is
- * considered as valid.	 The user is most likely an admin, and his account was
- * created manually.
  */
 function acc_is_user_expired($user)
 {
@@ -146,49 +124,29 @@ function acc_is_user_expired($user)
         return true; //error handling
     }
 
-    if (!empty($user->acc_memberships)) {
-        $found_valid = false;
-        foreach ($user->acc_memberships as $section => $sect_memberships) {
-            foreach ($sect_memberships as $mId => $mship) {
-                $status = $mship["status"];
-                if (acc_validMembershipStatus($status)) {
-                    return false;
-                }
-            }
-        }
-
-        //We scanned and found no valid memberships. User is invalid.
+    // Manually added "admin" accounts have no member_number
+    // and should be allowed to login.
+    if (empty($user->acc_member_id)) {
+        return false;
+    }
+    if ($user->has_prop("acc_sections") && empty($user->acc_sections)) {
         return true;
-    } elseif (!empty($user->membership_status)) {
-        //This part is for backward compatibility
-        $status = $user->membership_status;
-        if (!acc_validMembershipStatus($status)) {
-            return true;
-        } else {
-            return false;
-        }
-    } elseif (!empty($user->expiry)) {
-        if ($user->expiry < date("Y-m-d")) {
-            return true;
-        } else {
-            return false;
-        }
+    }
+    if (!empty($user->acc_mship_expiry) && $user->expiry < date("Y-m-d")) {
+        return true;
     }
 
-    //Must be a manually created entry (ex: admin account). Consider active.
     return false;
 }
 
 /**
  * User is trying to login.
- * Allow login there is at least 1 section membership in ISSU state.
+ * Allow login if user is member of at least 1 section.
  * NOTE: there is no check that the user membership is part of the
  * sections configured for import. If members of a section should
  * no longer be allowed to login, then a manual DB cleanup is needed.
- * Prevent user login if membership is PROC, EXP or expiry date is passed.
  * The logic allows login of manually created accounts that have no
- * acc_memberships and no membership_status fields, as long as they have
- * an expiry date in the future.
+ * acc_sections field.
  */
 function acc_validate_user_login($user)
 {
@@ -198,83 +156,32 @@ function acc_validate_user_login($user)
             return $user;
         }
 
-        $proc_error = false;
-        $expiry_error = false;
-
-        // Plugin version 3.x.x introduces acc_memberships array
-        $memberships = get_user_meta($user->ID, "acc_memberships", true);
-        if (!empty($memberships)) {
-            foreach ($memberships as $section => $sect_memberships) {
-                foreach ($sect_memberships as $mId => $mship) {
-                    $expiry = $mship["expiry"];
-                    $status = $mship["status"];
-                    //error_log("Login: found $section with id=$mId $expiry $status");
-
-                    if (acc_MembershipStatusIsIssu($status)) {
-                        //User has at least one valid membership, let him login
-                        return $user;
-                    }
-                    if (acc_MembershipStatusIsProc($status)) {
-                        $proc_error = true;
-                    }
-                }
-            }
-
-            //If we reach here and it's not a proc error, then it must be that
-            //the membership is expired.
-            if (!$proc_error) {
-                $expiry_error = true;
-            }
-        } else {
-            //This is for backward compatibility during upgrade, it will allow
-            //users to login in the period during which the plugin has not
-            //reimported users and created the new acc_memberships array yet.
-            //Plugin version 2.2.x has a single membership_status field.
-            $status = get_user_meta($user->ID, "membership_status", "true");
-            if (!empty($status) && acc_MembershipStatusIsProc($status)) {
-                $proc_error = true;
-            } else {
-                $expiry = get_user_meta($user->ID, "expiry", "true");
-                if (
-                    (!empty($status) && !acc_validMembershipStatus($status)) ||
-                    empty($expiry) ||
-                    $expiry < date("Y-m-d")
-                ) {
-                    $expiry_error = true;
-                }
-            }
-        }
-
-        // Case where membership is in PROC state. We output a specific error.
-        if ($proc_error) {
+        // Case where waiver has not been signed. We output a specific error.
+        if ($user->waiver_signed === "false") {
             $error = new WP_Error();
             $msg =
-                "Oops. Your membership is in Processing state, which means " .
-                "a requirement is still missing. Maybe your membership renewed automatically but you did not sign the new waiver yet? " .
-                'Please check your membership at <a href="https://2mev.com/#!/login">https://2mev.com/#!/login</a> ' .
-                "and make the corrections needed. This will allow you to login and register to activities. " .
-                "Note: it may take 24 hours for the update to be propagated to our local website. <br><br>" .
-                'Il semble que votre abonnement ne soit pas complet. Peut-être que votre abonnement s\'est renouvelé ' .
-                'automatiquement mais que vous n\'avez pas encore signé le nouveau ' .
-                'formulaire d\'acceptation des risques (à signer chaque année)? Vérifiez l\'état de votre abonnement au ' .
-                '<a href="https://2mev.com/#!/login">https://2mev.com/#!/login</a> afin de pouvoir vous connecter ' .
-                "et participer aux activités. Allouez 24h pour que les changements se propagent au site web local.";
+                "Oops. Looks like a requirement is still missing on your membership. " .
+                "Maybe you did not sign the waiver yet? " .
+                "Please check your membership on the national web site and " .
+                "make the corrections needed. This will allow you to login and register to activities. " .
+                "<br><br>" .
+                "Il semble que votre abonnement ne soit pas completement activé. " .
+                "Avez-vous signé le formulaire d'acceptation des risques? " .
+                "Vérifiez l'état de votre abonnement sur le site web national et " .
+                "apportez les correctifs pour pouvoir vous connecter et participer aux activités.";
             $error->add("membership_validation_error", $msg);
             return $error;
         }
 
-        // Case where membership is not ISSU, or expiry date is passed. In theory, just
-        // checking for not ISSU should be enough. But I have seen weird cases where 2M forgot to
-        // notify us of a user expiry, and checking the expiry date here acts as a safeguard.
-        if ($expiry_error) {
+        // Case where no valid membership
+        if (acc_is_user_expired($user)) {
             $error = new WP_Error();
             $msg =
-                "Oops. Looks like your membership has expired. Please renew your membership at " .
+                "Oops. I could not find your membership. Maybe it expired? If so you can renew at " .
                 '<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ' .
-                "Allow 24 hours for the change to propagate to the local web site.<br><br>" .
-                "Il semble que votre abonnement soit échu. Renouvelez votre abonnement au " .
-                '<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ' .
-                "et allouez 24 heures pour que le changement se propage au site web local.";
+                "<br><br>" .
+                "Désolé, je ne trouve pas votre abonnement. Peut-être est-il expiré? Renouvelez au " .
+                '<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ';
             $error->add("membership_validation_error", $msg);
             return $error;
         }
@@ -331,11 +238,11 @@ static $acc_logfile = "";
  * is periodically re-init to NULL by Wordpress (in-between http requests,
  * I think).
  */
-function acc_pick_new_log_file($prefix)
+function acc_pick_new_log_file($suffix)
 {
     global $acc_logfile;
     $log_date = date_i18n("Y-m-d-H-i-s");
-    $acc_logfile = ACC_LOG_DIR . $prefix . $log_date . ".txt";
+    $acc_logfile = ACC_LOG_DIR . "log_" . $log_date . $suffix . ".txt";
     //error_log("acc_logfile defined as $acc_logfile");
     acc_write_log_filename_to_db($acc_logfile);
 
@@ -400,14 +307,17 @@ function acc_enforce_max_log_files()
 function accLog($string)
 {
     _acc_log($string);
-    $GLOBALS["acc_logstr"] .= $string . "<br/>";
+    //$GLOBALS["acc_logstr"] .= $string . "<br/>";
+    $GLOBALS["acc_logstr"] .= $string . "\n";
 }
 
 function _acc_log($v)
 {
     global $acc_logfile;
     if (empty($acc_logfile)) {
+        error_log("Need to create a new logfile");
         $acc_logfile = acc_read_log_filename_from_db();
+        error_log("new logfile is $acc_logfile");
     }
     if (!empty($acc_logfile)) {
         $log = fopen($acc_logfile, "a");

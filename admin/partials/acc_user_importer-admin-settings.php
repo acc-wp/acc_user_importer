@@ -8,45 +8,6 @@
  * @subpackage acc_user_importer/admin/partials
  */
 
-/**
- * Returns an associative array of section names and API ID.
- * Intentially omitted FQME, which maps to 10.
- */
-function acc_get_section_apis()
-{
-    $acc_section_apis = [
-        "SQUAMISH" => "1",
-        "CALGARY" => "2",
-        "MONTRÉAL" => "3",
-        "OUTAOUAIS" => "4",
-        "OTTAWA" => "5",
-        "VANCOUVER" => "6",
-        "ROCKY MOUNTAIN" => "7",
-        "EDMONTON" => "8",
-        "TORONTO" => "9",
-        "YUKON" => "11",
-        "BUGABOOS" => "12",
-    ];
-    return $acc_section_apis;
-}
-
-/**
- * Returns an array of section names
- */
-function acc_get_supported_sections()
-{
-    return array_keys(acc_get_section_apis());
-}
-
-/**
- * Returns the API ID for the specified section
- */
-function acc_get_section_api_id($section)
-{
-    $section_apis = acc_get_section_apis();
-    return $section_apis[$section];
-}
-
 /*
  * List menu page in the Wordpress admin.
  */
@@ -120,41 +81,6 @@ function accUM_is_section_imported()
     return accUM_get_section_imported() === "on";
 }
 
-// Sync changes since when?
-function accUM_get_since_date()
-{
-    $options = get_option(ACCUM_DATA);
-    $key = "since_date";
-    if (!isset($options[$key])) {
-        return null;
-    }
-    $value = $options[$key];
-    return $value;
-}
-
-function accUM_set_since_date($new_date)
-{
-    $options = get_option(ACCUM_DATA);
-    $key = "since_date";
-    $options[$key] = $new_date;
-    $rc = update_option(ACCUM_DATA, $options);
-    if ($rc != true) {
-        error_log("Failed to update since_date to $new_date");
-    }
-}
-
-// Returns the configured list of users to synchronize
-function accUM_get_sync_list()
-{
-    $options = get_option(ACCUM_DATA);
-    $key = "sync_list";
-    if (!isset($options[$key])) {
-        return null;
-    }
-    $value = $options[$key];
-    return $value;
-}
-
 // Returns the configured login name mapping
 function accUM_get_login_name_mapping()
 {
@@ -183,24 +109,6 @@ function accUM_get_transition_from_contactID()
 function accUM_is_transitionFromContactID()
 {
     return accUM_get_transition_from_contactID() === "on";
-}
-
-// Returns "on" if the plugin operates in read-only mode (for debug)
-function accUM_get_readonly_mode()
-{
-    $options = get_option(ACCUM_DATA);
-    $key = "accUM_readonly_mode";
-    if (!isset($options[$key])) {
-        return "off";
-    }
-    $value = $options[$key];
-    return $value;
-}
-
-// Returns true/false
-function accUM_is_section_readonly()
-{
-    return accUM_get_readonly_mode() === "on";
 }
 
 // Returns "on" if the plugin should scan the DB looking for expired members
@@ -300,25 +208,6 @@ function accUM_get_max_log_files()
 }
 
 //-----------get functions with a section parameter----------------
-
-function accUM_get_section_disable($section)
-{
-    if (!in_array($section, acc_get_supported_sections())) {
-        //error_log("in " . __FUNCTION__ . " section $section is invalid");
-        return "on"; //Consider this section as disabled
-    }
-    $options = get_option(ACCUM_SEC . $section);
-    if (!isset($options["disable"])) {
-        //error_log("in " . __FUNCTION__ . " false for $section");
-        return "off";
-    }
-    return $options["disable"];
-}
-
-function accUM_is_section_disabled($section)
-{
-    return accUM_get_section_disable($section) === "on";
-}
 
 // Returns the section authentication token
 function accUM_get_section_token($section)
@@ -482,57 +371,10 @@ function accUM_settings_init()
             "get" => "accUM_get_section_imported",
             "get_args" => [],
             "help" => "Select the sections to import membership from.",
-            "items" => [
-                "SQUAMISH" => "SQUAMISH",
-                "CALGARY" => "CALGARY",
-                "OTTAWA" => "OTTAWA",
-                "MONTRÉAL" => "MONTRÉAL",
-                "OUTAOUAIS" => "OUTAOUAIS",
-                "VANCOUVER" => "VANCOUVER",
-                "ROCKY MOUNTAIN" => "ROCKY MOUNTAIN",
-                "EDMONTON" => "EDMONTON",
-                "TORONTO" => "TORONTO",
-                "YUKON" => "YUKON",
-                "BUGABOOS" => "BUGABOOS",
-            ],
-        ]
-    );
-
-    add_settings_field(
-        "accUM_since_date", //ID
-        "Sync changes since when? This normally shows the last run time (in UTC), " .
-            "but you can force a date in ISO 8601 format such as 2020-11-23T15:05:00.",
-        "accUM_text_render", //Callback
-        "accUM_general_section1", //Page
-        "accUM_general_section", //Section
-        [
-            "id" => "accUM_since_date",
-            "get" => "accUM_get_since_date",
-            "get_args" => [],
-            "name" => ACCUM_DATA . "[since_date]",
-            "type" => "text",
-            "help" =>
-                "The date gets updated when the plugin runs automatically, " .
-                "but not when it runs manually with the Update button",
-        ]
-    );
-
-    add_settings_field(
-        "accUM_sync_list", //ID
-        "Only sync this comma-separated list of ACC member numbers",
-        "accUM_text_render", //Callback
-        "accUM_general_section1", //Page
-        "accUM_general_section", //Section
-        [
-            "id" => "accUM_sync_list",
-            "name" => ACCUM_DATA . "[sync_list]",
-            "get" => "accUM_get_sync_list",
-            "get_args" => [],
-            "type" => "text",
-            "help" =>
-                "Normally blank. Enter member numbers to manually sync those members " .
-                "using the Update button. Dont forget to clear the box afterward to " .
-                "ensure normal automatic sync.",
+            "items" => array_combine(
+                acc_get_supported_sections(),
+                acc_get_supported_sections()
+            ),
         ]
     );
 
@@ -568,22 +410,6 @@ function accUM_settings_init()
             "get" => "accUM_get_transition_from_contactID",
             "get_args" => [],
             "help" => "This option should normally be left unchecked.",
-        ]
-    );
-
-    add_settings_field(
-        "accUM_readonly_mode", //ID
-        "Test mode: do not update Wordpress user database",
-        "accUM_chkboxes_render", //Callback
-        "accUM_general_section1", //Page
-        "accUM_general_section", //Section
-        [
-            "id" => "accUM_readonly_mode",
-            "name" => ACCUM_DATA . "[accUM_readonly_mode]",
-            "get" => "accUM_get_readonly_mode",
-            "get_args" => [],
-            "help" =>
-                "Check this box to do a normal run but skip the local DB update.",
         ]
     );
 
@@ -720,20 +546,6 @@ function accUM_settings_init()
             "Per-section settings",
             "",
             "acc_" . $section . "_section"
-        );
-
-        add_settings_field(
-            "accUM_$section" . "_disable", //ID
-            "Temporarily disable import for this section",
-            "accUM_chkboxes_render", //Callback
-            "acc_" . $section . "_section", //Page
-            ACCUM_SEC . "_$section" . "_section",
-            [
-                "id" => "accUM_$section" . "_disable",
-                "name" => ACCUM_SEC . $section . "[disable]", //Used for writing to DB
-                "get" => "accUM_get_section_disable",
-                "get_args" => [$section],
-            ]
         );
 
         add_settings_field(

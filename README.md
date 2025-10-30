@@ -280,7 +280,7 @@ Test on a staging or development site with email transmission disabled.
 - Trigger plugin manually using Update button
 - Verify log in Update window
 - Trigger plugin by Cron job: install WP Control plugin, and under that plugin,
-  check Cron Events and for the job acc_automatic_import, click 'Run Now'.
+  check Cron Events and for the job acc_automatic_db_check, click 'Run Now'.
 - Verify log file is created correctly. Download it and inspect it.
 - In the log file, the following errors are normal. They are caused by
   family members having the same email address, or not having an email address.

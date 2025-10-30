@@ -37,10 +37,16 @@ class acc_user_importer_Public
     public function set_custom_profile_fields($fields)
     {
         // add additional fields
-        $fields["home_phone"] = __("Home Phone");
+        //$fields["home_phone"] = __("Home Phone");
         $fields["cell_phone"] = __("Cell Phone");
-        $fields["membership"] = __("Member Number");
-        $fields["city"] = __("City");
+        $fields["acc_member_id"] = __("ACC Member Number");
+        //$fields["acc_sections"] = __("ACC Sections");  Cannot display an array
+        $fields["acc_mship_type"] = __("ACC Membership Type");
+        $fields["acc_mship_expiry"] = __("ACC Membership Expiry");
+        $fields["acc_waiver_signed"] = __("ACC Waiver Signed?");
+        $fields["acc_contact_fname"] = __("ACC Contact First Name");
+        $fields["acc_contact_lname"] = __("ACC Contact Last Name");
+        $fields["acc_contact_phone"] = __("ACC Contact Phone");
 
         //remove useless fields
         unset($fields["aim"]);

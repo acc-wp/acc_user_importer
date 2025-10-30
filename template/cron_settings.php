@@ -139,7 +139,7 @@
 		<input type="hidden" id="_acc_cron_nonce" name="_acc_cron_nonce" value="796c7766b1">
 		<input type="hidden" name="_wp_http_referer" value="<?php echo $page_url; ?>">
 
-		<p>Here is the list of ACC functions triggered by a timer. acc_automatic_import
+		<p>Here is the list of ACC functions triggered by a timer. acc_automatic_db_check
 			is a function which contacts the ACC head office, downloads the list
 			of members, and updates the local user database accordinly. You may change
 			the running interval.
