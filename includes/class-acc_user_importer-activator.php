@@ -95,6 +95,16 @@ class acc_user_importer_Activator
 
         $options = get_option(ACCUM_DATA);
 
+        // For enabled sections, translate sect name to new format.
+        if (isset($options) && isset($options["enabled_sections"])) {
+            $enabledSect = $options["enabled_sections"];
+            foreach ($enabledSect as $sect => $on) {
+                $sectNewName = $this->convertSectionName($sect);
+                unset($options["enabled_sections"][$sect]);
+                $options["enabled_sections"][$sectNewName] = $on;
+            }
+        }
+
         //Delete since_date
         if (isset($options["since_date"])) {
             unset($options["since_date"]);
@@ -108,6 +118,24 @@ class acc_user_importer_Activator
         }
 
         update_option(ACCUM_DATA, $options);
+
+        // Seek for section specific options and rewrite with new section name
+        $oldSections = $this->oldSectionNames();
+        foreach ($oldSections as $oldName) {
+            $newSectionName = $this->convertSectionName($oldName);
+            if ($newSectionName == $oldName) {
+                continue;
+            }
+
+            $candidateOptionName = ACCUM_SEC . $oldName;
+            $newOptionName = ACCUM_SEC . $newSectionName;
+            $sectionOption = get_option($candidateOptionName);
+            if (false !== $sectionOption) {
+                // There are some settings for this section
+                delete_option($candidateOptionName);
+                update_option($newOptionName, $sectionOption);
+            }
+        }
     }
 
     // If a member has multiple memberships, which one do we prefer?
@@ -302,19 +330,55 @@ class acc_user_importer_Activator
         ],
     ];
 
+    private $sectionNameConversion = [
+        "BUGABOOS" => "Bugaboos",
+        "CALGARY" => "Calgary",
+        "CENTRAL ALBERTA" => "Central Alberta",
+        "COLUMBIA MOUNTAINS" => "Columbia Mountains",
+        "EDMONTON" => "Edmonton",
+        "GREAT PLAINS" => "Great Plains",
+        "JASPER / HINTON" => "Jasper/Hinton",
+        "MANITOBA" => "Manitoba",
+        "MONTRÉAL" => "Montréal",
+        "NEWFOUNDLAND & LABRADOR" => "Newfoundland and Labrador",
+        "OKANAGAN" => "Okanagan",
+        "OUTAOUAIS" => "Outaouais",
+        "OTTAWA" => "Ottawa",
+        "PRINCE GEORGE" => "Prince George",
+        "ROCKY MOUNTAIN" => "Rocky Mountain",
+        "SAINT BONIFACE" => "Saint Boniface",
+        "SASKATCHEWAN" => "Saskatchewan",
+        "SAULT STE. MARIE" => "Sault Ste. Marie",
+        "SOUTHERN ALBERTA" => "Southern Alberta",
+        "SQUAMISH" => "Squamish",
+        "THUNDER BAY" => "Thunder Bay",
+        "TORONTO" => "Toronto",
+        "VANCOUVER" => "Vancouver",
+        "VANCOUVER ISLAND" => "Vancouver Island",
+        "WHISTLER" => "Whistler",
+        "YUKON" => "Yukon",
+    ];
+
+    private function oldSectionNames()
+    {
+        return array_keys($this->sectionNameConversion);
+    }
+
+    private function convertSectionName($section)
+    {
+        if (array_key_exists($section, $this->sectionNameConversion)) {
+            return $this->sectionNameConversion[$section];
+        }
+
+        return null;
+    }
+
     private function getMembershipTypeFromId($mId)
     {
         if (array_key_exists($mId, $this->membershipTable)) {
             return $this->membershipTable[$mId]["type"];
         }
         return "Unknown";
-    }
-
-    // Section names changed from "OTTAWA" to "Ottawa"
-    private function convertSectionNameToNew($oldName)
-    {
-        $string = strtolower($oldName); // Convert entire string to lowercase
-        return ucfirst($string); // Capitalize the first character
     }
 
     /**
@@ -367,11 +431,20 @@ class acc_user_importer_Activator
             $mType = null;
             $mStatus = null;
             $newMemberships = [];
+            $userHadMemberships = false;
+
             if (!empty($user->acc_memberships)) {
+                $userHadMemberships = true;
+
                 foreach (
                     $user->acc_memberships
                     as $section => $sect_memberships
                 ) {
+                    $sectionNewName = $this->convertSectionName($section);
+                    if ($sectionNewName == null) {
+                        continue;
+                    }
+
                     foreach ($sect_memberships as $mId => $mship) {
                         $expiry = $mship["expiry"];
                         $status = $mship["status"];
@@ -383,8 +456,8 @@ class acc_user_importer_Activator
                         // Build a list of all sections with valid memberships
                         // i.e. date is good
                         if ($expiry > date("Y-m-d")) {
-                            if (!in_array($section, $newMemberships)) {
-                                $newMemberships[] = $section;
+                            if (!in_array($sectionNewName, $newMemberships)) {
+                                $newMemberships[] = $sectionNewName;
                             }
                         }
 
@@ -423,10 +496,17 @@ class acc_user_importer_Activator
                 $log
             );
 
-            update_user_meta($user_id, "acc_waiver_signed", $isWaiverSigned);
-            update_user_meta($user_id, "acc_mship_type", $mType);
-            update_user_meta($user_id, "acc_mship_expiry", $latestExpiry);
-            update_user_meta($user_id, "acc_sections", $newMemberships);
+            // For manually created admin entries, do not create useless fields.
+            if ($userHadMemberships) {
+                update_user_meta(
+                    $user_id,
+                    "acc_waiver_signed",
+                    $isWaiverSigned
+                );
+                update_user_meta($user_id, "acc_mship_type", $mType);
+                update_user_meta($user_id, "acc_mship_expiry", $latestExpiry);
+                update_user_meta($user_id, "acc_sections", $newMemberships);
+            }
 
             delete_user_meta($user_id, "expiry");
             delete_user_meta($user_id, "membership_type");

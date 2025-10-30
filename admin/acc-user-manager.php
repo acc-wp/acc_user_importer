@@ -1,5 +1,5 @@
 <?php
-//---------------temp
+//---------------temp FIXME!
 add_filter("wt_customer_csv_import_data", "add_acc_custom_meta_field", 10, 2);
 
 function add_acc_custom_meta_field($parsed_item, $user_id)
@@ -9,10 +9,10 @@ function add_acc_custom_meta_field($parsed_item, $user_id)
 
     $data = get_user_meta($user_id, "acc_waiver_signed", true);
     if (!empty($data)) {
-        error_log("waiver_signed meta is not empty");
+        error_log("acc_waiver_signed meta is not empty");
         error_log(print_r($data, true));
     } else {
-        error_log("waiver_signed meta is empty");
+        error_log("acc_waiver_signed meta is empty");
     }
 
     return $parsed_item;
@@ -124,16 +124,21 @@ function acc_is_user_expired($user)
         return true; //error handling
     }
 
-    // Manually added "admin" accounts have no member_number
-    // and should be allowed to login.
-    if (empty($user->acc_member_id)) {
-        return false;
-    }
-    if ($user->has_prop("acc_sections") && empty($user->acc_sections)) {
+    if (
+        !empty($user->acc_mship_expiry) &&
+        $user->acc_mship_expiry < date("Y-m-d")
+    ) {
         return true;
     }
-    if (!empty($user->acc_mship_expiry) && $user->expiry < date("Y-m-d")) {
-        return true;
+
+    //Check if user is member of one of the enabled sections
+    if ($user->has_prop("acc_sections")) {
+        $userSects = $user->acc_sections;
+        $enabledSects = accUM_get_enabled_sections();
+        $validSections = array_intersect($userSects, $enabledSects);
+        if (empty($validSections)) {
+            return true;
+        }
     }
 
     return false;
@@ -141,12 +146,9 @@ function acc_is_user_expired($user)
 
 /**
  * User is trying to login.
- * Allow login if user is member of at least 1 section.
- * NOTE: there is no check that the user membership is part of the
- * sections configured for import. If members of a section should
- * no longer be allowed to login, then a manual DB cleanup is needed.
- * The logic allows login of manually created accounts that have no
- * acc_sections field.
+ * Allow login if user is not expired and member of at least one
+ * of the enabled section. Allow login if user entry has been manually
+ * created and is missing typical ACC fields.
  */
 function acc_validate_user_login($user)
 {
@@ -156,21 +158,12 @@ function acc_validate_user_login($user)
             return $user;
         }
 
-        // Case where waiver has not been signed. We output a specific error.
-        if ($user->waiver_signed === "false") {
-            $error = new WP_Error();
-            $msg =
-                "Oops. Looks like a requirement is still missing on your membership. " .
-                "Maybe you did not sign the waiver yet? " .
-                "Please check your membership on the national web site and " .
-                "make the corrections needed. This will allow you to login and register to activities. " .
-                "<br><br>" .
-                "Il semble que votre abonnement ne soit pas completement activé. " .
-                "Avez-vous signé le formulaire d'acceptation des risques? " .
-                "Vérifiez l'état de votre abonnement sur le site web national et " .
-                "apportez les correctifs pour pouvoir vous connecter et participer aux activités.";
-            $error->add("membership_validation_error", $msg);
-            return $error;
+        //Allow manually created user entries
+        if (
+            !$user->has_prop("acc_mship_expiry") ||
+            !$user->has_prop("acc_sections")
+        ) {
+            return $user;
         }
 
         // Case where no valid membership
@@ -182,6 +175,26 @@ function acc_validate_user_login($user)
                 "<br><br>" .
                 "Désolé, je ne trouve pas votre abonnement. Peut-être est-il expiré? Renouvelez au " .
                 '<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ';
+            $error->add("membership_validation_error", $msg);
+            return $error;
+        }
+
+        // Case where waiver has not been signed. We output a specific error.
+        if (
+            $user->has_prop("acc_waiver_signed") &&
+            $user->acc_waiver_signed === "false"
+        ) {
+            $error = new WP_Error();
+            $msg =
+                "Oops. Looks like a requirement is still missing on your membership. " .
+                "Maybe you did not sign the waiver yet? " .
+                "Please check your membership on the national web site and " .
+                "make the corrections needed. This will allow you to login and register to activities. " .
+                "<br><br>" .
+                "Il semble que votre abonnement ne soit pas completement activé. " .
+                "Avez-vous signé le formulaire d'acceptation des risques? " .
+                "Vérifiez l'état de votre abonnement sur le site web national et " .
+                "apportez les correctifs pour pouvoir vous connecter et participer aux activités.";
             $error->add("membership_validation_error", $msg);
             return $error;
         }

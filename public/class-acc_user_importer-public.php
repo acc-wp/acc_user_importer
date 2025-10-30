@@ -40,7 +40,6 @@ class acc_user_importer_Public
         //$fields["home_phone"] = __("Home Phone");
         $fields["cell_phone"] = __("Cell Phone");
         $fields["acc_member_id"] = __("ACC Member Number");
-        //$fields["acc_sections"] = __("ACC Sections");  Cannot display an array
         $fields["acc_mship_type"] = __("ACC Membership Type");
         $fields["acc_mship_expiry"] = __("ACC Membership Expiry");
         $fields["acc_waiver_signed"] = __("ACC Waiver Signed?");

@@ -818,7 +818,10 @@ class acc_user_importer_Admin
             }
 
             //Give warning for users that have not signed a waiver
-            if (!empty($user->acc_sections) && $user->waiver_signed != "true") {
+            if (
+                !empty($user->acc_sections) &&
+                $user->acc_waiver_signed != "true"
+            ) {
                 $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has not signed waiver";
                 $processing_email_list .=
                     $user->display_name . " &lt" . $user->user_email . "&gt, ";
