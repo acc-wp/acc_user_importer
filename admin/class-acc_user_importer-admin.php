@@ -96,14 +96,51 @@ class acc_user_importer_Admin
 
     /**
      * Register the ACC REST API notifying us of membership changes
+     * This creates an endpoint such as https://mywebsite/wp-json/api/v1/members
      */
     public function register_acc_rest_api()
     {
         register_rest_route("api/v1", "/members", [
             "methods" => "POST",
             "callback" => [$this, "handle_acc_membership_notification"],
-            "permission_callback" => "__return_true", // Allow public access for now
+            "permission_callback" => [$this, "verify_bearer_token"],
+            //"permission_callback" => "__return_true", // Allow public access for now
         ]);
+    }
+
+    /**
+     * Authentication of the request
+     */
+    public function verify_bearer_token()
+    {
+        $headers = getallheaders();
+
+        if (!isset($headers["Authorization"])) {
+            return new WP_Error(
+                "no_auth_header",
+                "Authorization header missing",
+                ["status" => 401]
+            );
+        }
+
+        $auth_header = $headers["Authorization"];
+        if (strpos($auth_header, "Bearer ") !== 0) {
+            return new WP_Error(
+                "invalid_auth_format",
+                "Invalid Authorization format",
+                ["status" => 401]
+            );
+        }
+
+        $apiToken = accUM_get_api_token();
+        $token = substr($auth_header, 7); // Remove "Bearer " prefix
+        if ($token !== $apiToken) {
+            return new WP_Error("invalid_token", "Token is invalid", [
+                "status" => 403,
+            ]);
+        }
+
+        return true;
     }
 
     /**
@@ -112,22 +149,26 @@ class acc_user_importer_Admin
     public function handle_acc_membership_notification($request)
     {
         $params = $request->get_json_params();
-
+        $status = "success";
+        $message = "Member data received";
         // Log the received data
         //error_log('Webhook received: ' . print_r($params, true));
 
         $GLOBALS["acc_logstr"] = ""; //Clear the API response log string
         $rc = $this->proccess_user_data($params);
-        if (!$rc) {
+        if ($rc !== true) {
             // An error happened, warn webmaster
+            $status = "error";
+            $message = strval($rc);
+            accLog(strval($rc));
             $this->send_error_email();
         }
-        error_log($GLOBALS["acc_logstr"]); //FIXME
+        error_log($GLOBALS["acc_logstr"]); //FIXME print content of log in the debug file
 
         return new WP_REST_Response(
             [
-                "status" => "success",
-                "message" => "Member data received",
+                "status" => $status,
+                "message" => $message,
             ],
             200
         );
@@ -136,10 +177,10 @@ class acc_user_importer_Admin
     /**
      * Returns the list of sections the user has joined
      */
-    private function getSectionsAdded($rxdMships, $user)
+    private function getSectionsAdded($rxdSections, $user)
     {
         $sectionsAdded = [];
-        foreach ($rxdMships as $section) {
+        foreach ($rxdSections as $section) {
             if (!in_array($section, $user->acc_sections)) {
                 $sectionsAdded[] = $section;
             }
@@ -153,11 +194,11 @@ class acc_user_importer_Admin
     /**
      * Returns the list of sections the user has left
      */
-    private function getSectionsDeleted($rxdMships, $user)
+    private function getSectionsDeleted($rxdSections, $user)
     {
         $sectionsDeleted = [];
         foreach ($user->acc_sections as $section) {
-            if (!in_array($section, $rxdMships)) {
+            if (!in_array($section, $rxdSections)) {
                 $sectionsDeleted[] = $section;
             }
         }
@@ -171,22 +212,26 @@ class acc_user_importer_Admin
      * Update Wordpress database with member information.
      * This is where most of the work gets done.
      * Here is an example of the JSON format received from ACC national.
+     * Timestamps are numbers, UNIX Epoch (since 1970) in milliseconds.
      *     {
-     *         "action": (add, remove, update)
-     *         "acc_notif_timestamp": "2025-08-29T11:15:04Z"
-     *         "acc_member_id": "55148",
+     *         "action": (add, update, remove),
+     *         "acc_notif_timestamp": 1762456698480,
+     *         "acc_member_id": 55148,           (text or number)
      *         "first_name": "François",
      *         "last_name": "Bessette",
      *         "user_email": "francois.bessette@gmail.com",
-     *         "cell_phone": "555-555-3689",
-     *         "acc_sections": ["Outaouais", "Ottawa"],
+     *         "cell_phone": "555-555-3689",     (text or number)
+     *         "acc_sections": "Outaouais;Ottawa",  (a string)
      *         "acc_mship_type": "Individual",
-     *         "acc_mship_expiry": "2025-10-30",
-     *         "acc_waiver_signed": "true",
-     *         "acc_contact_fname": "Sonia",
-     *         "acc_contact_lname": "Pouliot",
-     *         "acc_contact_phone": "555-555-1234",
+     *         "acc_mship_expiry": 1767139200000,   (but stored as Y-M-D in DB)
+     *         "acc_waiver_expiry": 1792612236000   (but stored as Y-M-D in DB)
+     *         "acc_contact_name": "Sonia Pouliot",
+     *         "acc_contact_email": "spouliot@gmail.com",
+     *         "acc_contact_phone": "555-555-1234",    (text or number)
      *     }
+     *
+     * acc_mship_expiry will be null for auto-renewal memberships
+     * acc_waiver_expiry will be null if the person never signed the waiver
      */
     private function proccess_user_data($params)
     {
@@ -213,8 +258,8 @@ class acc_user_importer_Admin
         ];
         foreach ($needed as $index => $field) {
             if (!isset($params[$field])) {
-                accLog("Error, missing $field in notification");
-                return false;
+                $msg = "Error, missing $field in notification";
+                return $msg;
             }
         }
 
@@ -225,82 +270,101 @@ class acc_user_importer_Admin
                 "last_name",
                 "acc_sections",
                 "acc_mship_type",
-                "acc_mship_expiry",
-                "acc_waiver_signed",
             ];
             foreach ($needed as $index => $field) {
                 if (!isset($params[$field])) {
-                    accLog("Error, missing $field in notification");
-                    return false;
+                    $msg = "Error, missing $field in notification";
+                    return $msg;
                 }
             }
-        }
-        if (!is_string($params["acc_waiver_signed"])) {
-            accLog("Error, field 'acc_waiver_signed' is not a string");
-            return false;
         }
 
         // Make sure email is valid.
         if (!is_email($params["user_email"])) {
-            accLog("Error: rxd invalid email " . $params["user_email"]);
-            return false;
+            $msg = "Error: rxd invalid email " . $params["user_email"];
+            return $msg;
         }
 
         $action = $params["action"];
-        $acc_notif_timestamp = $params["acc_notif_timestamp"];
-        $userMemberNumber = $params["acc_member_id"];
+        $notifTimestamp = $params["acc_notif_timestamp"];
+        $userMemberId = strval($params["acc_member_id"]);
         $userFullName = $userFirstName . " " . $userLastName;
         $userEmail = strtolower($params["user_email"] ?? "");
-        $userCellPhone = $params["cell_phone"] ?? "";
+        $userCellPhone = strval($params["cell_phone"]) ?? "";
         $receivedSections = $params["acc_sections"] ?? [];
-        $mshipType = $params["acc_mship_type"];
-        $mshipExpiry = $params["acc_mship_expiry"];
-        $waiverSigned = $params["acc_waiver_signed"];
-        $contactFname = $params["acc_contact_fname"] ?? "";
-        $contactLname = $params["acc_contact_lname"] ?? "";
-        $contactPhone = $params["acc_contact_phone"] ?? "";
+        $mshipType = $params["acc_mship_type"] ?? "";
+        $mshipExpiry = $params["acc_mship_expiry"] ?? null;
+        $waiverExpiry = $params["acc_waiver_expiry"] ?? null;
+        $contactFname = $params["acc_contact_name"] ?? "";
+        $contactLname = $params["acc_contact_email"] ?? "";
+        $contactPhone = strval($params["acc_contact_phone"]) ?? "";
+
+        // Sanity check received timestamps and convert some to Y-M-D
+        // Keep the notification timestamp in UNIX format because
+        // we want high precision and it is not meant to be read by humans.
+        if (!is_int($notifTimestamp)) {
+            $msg = "Error, rxd 'acc_notif_timestamp' is not integer";
+            return $msg;
+        }
+        if (!empty($waiverExpiry) && !is_int($waiverExpiry)) {
+            return "Error, rxd 'acc_waiver_expiry' is not integer";
+        }
+        if (!empty($mshipExpiry) && !is_int($mshipExpiry)) {
+            return "Error, rxd 'acc_mship_expiry' is not integer";
+        }
+        if (!empty($waiverExpiry)) {
+            $waiverExpiry = date("Y-m-d", intval($waiverExpiry / 1000));
+        }
+        if (!empty($mshipExpiry)) {
+            $mshipExpiry = date("Y-m-d", intval($mshipExpiry / 1000));
+        }
 
         $sectionsOfInterest = accUM_get_enabled_sections();
 
         //Validate received membership type
         $validMships = acc_get_mship_names();
         if (!in_array($mshipType, $validMships)) {
-            accLog(" > Error, $mshipType is an invalid membership name");
-            return false;
+            return " > Error, $mshipType is an invalid membership name";
         }
 
         // Sanity check: keep only sections we are interested in. Log
         // warning if ACC notifies us about sections we dont care about.
         $validSections = acc_get_supported_sections();
-        $rxdMships = [];
-        foreach ($receivedSections as $section) {
+        $rxdSections = [];
+        $sectionsArray = explode(";", $receivedSections); //Split the string
+
+        foreach ($sectionsArray as $section) {
+            $section = trim($section); // Trim whitespace
+
             if (!in_array($section, $validSections)) {
-                accLog(" > Error, $section is an invalid section");
-                return false;
+                return " > Error, $section is an invalid section";
             }
 
             if (in_array($section, $sectionsOfInterest)) {
                 // Rxd membership is in our interest list, keep it.
-                $rxdMships[] = $section;
+                $rxdSections[] = $section;
                 //accLog("Rxd membership for section $section is part of our interest list");
             } else {
-                accLog(
-                    "Warning: ACC notified us about $section not in our interest list "
-                );
+                // Nothing to do. It is not an error. The server will notify
+                // about members belonging to the section of interest, but a
+                // member can also be part of other sections and Hubspot will
+                // not filter the information, it will give a transparent view
+                // of what the member is part of. Just ignore the sections we
+                // do not care about.
             }
         }
 
         //Log the info we received for this user
-        // $userInfoString = "Received [" . $acc_notif_timestamp . "] ";
-        // $userInfoString .= "$action $userMemberNumber ";
+        // $userInfoString = "Received [" . $notifTimestamp . "] ";
+        // $userInfoString .= "$action $userMemberId ";
         // $userInfoString .= $userFirstName . " " . $userLastName;
         // $userInfoString .= " " . $userEmail;
-        // $userInfoString .= " with waiver " . ($waiverSigned ? "signed" : "NOT signed");
+        // $userInfoString .= " with waiver " . ($waiverExpiry ? "signed" : "NOT signed");
         // accLog($userInfoString);
 
         // Does received user have a membership?
-        if ($action == "remove" || empty($rxdMships)) {
-            $rxdMships = [];
+        if ($action == "remove" || empty($rxdSections)) {
+            $rxdSections = [];
             $userIsValid = false;
         } else {
             $userIsValid = true;
@@ -313,7 +377,7 @@ class acc_user_importer_Admin
                 break;
             case "member_number":
             default:
-                $loginName = sanitize_user($userMemberNumber);
+                $loginName = sanitize_user($userMemberId);
                 break;
         }
         accLog("User login name is $loginName");
@@ -334,17 +398,17 @@ class acc_user_importer_Admin
         ];
 
         $accUserMetaData = [
-            "acc_notif_timestamp" => $acc_notif_timestamp,
+            "acc_notif_timestamp" => strval($notifTimestamp),
             "acc_mship_type" => $mshipType,
-            "acc_waiver_signed" => $waiverSigned,
+            "acc_waiver_expiry" => $waiverExpiry,
             "acc_mship_expiry" => $mshipExpiry,
-            "acc_contact_fname" => $contactFname,
-            "acc_contact_lname" => $contactLname,
+            "acc_contact_name" => $contactFname,
+            "acc_contact_email" => $contactLname,
             "acc_contact_phone" => $contactPhone,
             "cell_phone" => $userCellPhone,
-            "acc_member_id" => $userMemberNumber,
+            "acc_member_id" => $userMemberId,
             "nickname" => $userFirstName . " " . $userLastName,
-            "acc_sections" => $rxdMships,
+            "acc_sections" => $rxdSections,
         ];
 
         do {
@@ -382,17 +446,32 @@ class acc_user_importer_Admin
                 // Reject if rxd notification seems to be backward in time
                 if (
                     isset($user->acc_notif_timestamp) &&
-                    $user->acc_notif_timestamp > $acc_notif_timestamp
+                    intval($user->acc_notif_timestamp) > $notifTimestamp
                 ) {
                     $err =
                         "Error, notification seems outdated. " .
                         "Last rxd one was $user->acc_notif_timestamp";
-                    accLog(" > $err");
-                    return false;
+                    return $err;
                 }
 
-                $sectionsAdded = $this->getSectionsAdded($rxdMships, $user);
-                $sectionsDeleted = $this->getSectionsDeleted($rxdMships, $user);
+                $sectionsAdded = $this->getSectionsAdded($rxdSections, $user);
+                $sectionsDeleted = $this->getSectionsDeleted(
+                    $rxdSections,
+                    $user
+                );
+
+                // Special case for safety: if the action is remove,
+                // bring back the user expiry to today if needed.
+                if (!$userIsValid) {
+                    $today = date("Y-m-d");
+                    if (
+                        empty($accUserMetaData["acc_mship_expiry"]) ||
+                        $accUserMetaData["acc_mship_expiry"] > $today
+                    ) {
+                        $accUserMetaData["acc_mship_expiry"] = $today;
+                        accLog(" > Forced user expiry to today");
+                    }
+                }
 
                 // Check which fields might have changed. On purpose we dont want to check nicename.
                 $updatedFields = [];
@@ -427,9 +506,8 @@ class acc_user_importer_Admin
                     // Passing in the $user object with the updated values will persist to the database.
                     $updateResp = wp_update_user($user);
                     if (is_wp_error($updateResp)) {
-                        accLog(" > error, failed to update user");
                         accLog(" > WP:" . $updateResp->get_error_message());
-                        return false;
+                        return " > error, failed to update user";
                     }
                     accLog(" > updated userid " . $updateResp);
 
@@ -502,16 +580,15 @@ class acc_user_importer_Admin
             // Insert new user
             $userID = wp_insert_user($accUserData);
             if (is_wp_error($userID)) {
-                accLog(" > error, failed to create user");
                 accLog(" > WP:" . $userID->get_error_message());
-                return false;
+                return " > error, failed to create user";
             }
 
             accLog(" > Created new user " . $userID);
             $new_active_users[] = $accUserData["display_name"];
 
             //Insert meta fields.
-            $accUserMetaData["acc_sections"] = $rxdMships;
+            $accUserMetaData["acc_sections"] = $rxdSections;
             foreach ($accUserMetaData as $field => $value) {
                 update_user_meta($userID, $field, $value);
             }
@@ -519,7 +596,7 @@ class acc_user_importer_Admin
             // Execute hooks for new membership
             do_action("acc_new_membership", $userID);
 
-            $sectionsAdded = $rxdMships;
+            $sectionsAdded = $rxdSections;
             foreach ($sectionsAdded as $section) {
                 $this->takeActionOnNewUser($section, $userID);
             }
@@ -574,7 +651,7 @@ class acc_user_importer_Admin
         }
         if ($new_user_role_action == "set_role") {
             if (!in_array($new_user_role_value, $user_roles, true)) {
-                accLog("> Changing user role to $new_user_role_value");
+                accLog(" > Changing user role to $new_user_role_value");
                 $user->set_role($new_user_role_value);
             } else {
                 accLog(" > User already has role $new_user_role_value");
@@ -820,7 +897,7 @@ class acc_user_importer_Admin
             //Give warning for users that have not signed a waiver
             if (
                 !empty($user->acc_sections) &&
-                $user->acc_waiver_signed != "true"
+                $user->acc_waiver_expiry != "true"
             ) {
                 $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has not signed waiver";
                 $processing_email_list .=
@@ -849,7 +926,7 @@ class acc_user_importer_Admin
             "<br>List of users email with no waivers = $processing_email_list<br>"
         );
 
-        //FIXME reevaluate the admin email function
+        //FIXME reevaluate the admin email function?
         $operation =
             "The ACC web site local DB check made the following changes:";
         $this->send_admin_email(
@@ -1001,12 +1078,41 @@ class acc_user_importer_Admin
      */
     public function display_acc_sections_field($user)
     {
+        // Get the raw UNIX timestamp from user meta
+        $notif_timestamp = get_user_meta(
+            $user->ID,
+            "acc_notif_timestamp",
+            true
+        );
+
+        // Convert to human-readable format if valid
+        if (!empty($notif_timestamp) && is_numeric($notif_timestamp)) {
+            $formatted_date = date(
+                "Y-m-d H:i:s",
+                intval($notif_timestamp / 1000)
+            );
+        } else {
+            $formatted_date = "Not set or invalid";
+        }
+        ?>
+        <table class="form-table">
+            <tr>
+                <th><label for="acc_notif_timestamp">Last API Notification</label></th>
+                <td>
+                    <input type="text" name="acc_notif_timestamp" id="acc_notif_timestamp"
+                        value="<?php echo esc_attr(
+                            $formatted_date
+                        ); ?>" class="regular-text" disabled />
+                    <p class="description">This is when we received the last notification (read-only).</p>
+                </td>
+            </tr>
+        </table>
+        <?php
         $acc_sections = get_user_meta($user->ID, "acc_sections", true);
         if (!is_array($acc_sections)) {
             $acc_sections = [];
         }
         ?>
-        <h3>Access Sections</h3>
         <table class="form-table">
             <tr>
                 <th><label for="acc_sections">Sections</label></th>

@@ -1,24 +1,4 @@
 <?php
-//---------------temp FIXME!
-add_filter("wt_customer_csv_import_data", "add_acc_custom_meta_field", 10, 2);
-
-function add_acc_custom_meta_field($parsed_item, $user_id)
-{
-    error_log("in add_acc_custom_meta_field");
-    error_log(print_r($parsed_item, true));
-
-    $data = get_user_meta($user_id, "acc_waiver_signed", true);
-    if (!empty($data)) {
-        error_log("acc_waiver_signed meta is not empty");
-        error_log(print_r($data, true));
-    } else {
-        error_log("acc_waiver_signed meta is empty");
-    }
-
-    return $parsed_item;
-}
-
-//---------------temp
 
 add_filter("wp_authenticate_user", "acc_validate_user_login");
 
@@ -70,6 +50,7 @@ function acc_get_mship_names()
         "Family",
         "Youth",
         "Lifetime",
+        "Honorary",
         "Student",
         "MEC Staff",
         "ACC Staff",
@@ -169,32 +150,18 @@ function acc_validate_user_login($user)
         // Case where no valid membership
         if (acc_is_user_expired($user)) {
             $error = new WP_Error();
-            $msg =
-                "Oops. I could not find your membership. Maybe it expired? If so you can renew at " .
-                '<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ' .
-                "<br><br>" .
-                "Désolé, je ne trouve pas votre abonnement. Peut-être est-il expiré? Renouvelez au " .
-                '<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ';
+            $msg = accUM_get_oops_expired_text();
             $error->add("membership_validation_error", $msg);
             return $error;
         }
 
         // Case where waiver has not been signed. We output a specific error.
         if (
-            $user->has_prop("acc_waiver_signed") &&
-            $user->acc_waiver_signed === "false"
+            !$user->has_prop("acc_waiver_expiry") ||
+            $user->acc_waiver_expiry < date("Y-m-d")
         ) {
             $error = new WP_Error();
-            $msg =
-                "Oops. Looks like a requirement is still missing on your membership. " .
-                "Maybe you did not sign the waiver yet? " .
-                "Please check your membership on the national web site and " .
-                "make the corrections needed. This will allow you to login and register to activities. " .
-                "<br><br>" .
-                "Il semble que votre abonnement ne soit pas completement activé. " .
-                "Avez-vous signé le formulaire d'acceptation des risques? " .
-                "Vérifiez l'état de votre abonnement sur le site web national et " .
-                "apportez les correctifs pour pouvoir vous connecter et participer aux activités.";
+            $msg = accUM_get_oops_waiver_text();
             $error->add("membership_validation_error", $msg);
             return $error;
         }

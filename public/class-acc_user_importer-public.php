@@ -42,9 +42,9 @@ class acc_user_importer_Public
         $fields["acc_member_id"] = __("ACC Member Number");
         $fields["acc_mship_type"] = __("ACC Membership Type");
         $fields["acc_mship_expiry"] = __("ACC Membership Expiry");
-        $fields["acc_waiver_signed"] = __("ACC Waiver Signed?");
-        $fields["acc_contact_fname"] = __("ACC Contact First Name");
-        $fields["acc_contact_lname"] = __("ACC Contact Last Name");
+        $fields["acc_waiver_expiry"] = __("ACC Waiver Expiry");
+        $fields["acc_contact_name"] = __("ACC Contact First Name");
+        $fields["acc_contact_email"] = __("ACC Contact Last Name");
         $fields["acc_contact_phone"] = __("ACC Contact Phone");
 
         //remove useless fields

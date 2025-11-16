@@ -142,6 +142,7 @@ class acc_user_importer_Activator
     // This is also used to resolve collisions when multiple members have
     // the same email address and we can insert only 1 in the WP database.
     private $membershipPref = [
+        "Honorary" => 7,
         "Lifetime" => 6,
         "Family" => 5,
         "ACC Staff" => 4,
@@ -426,7 +427,7 @@ class acc_user_importer_Activator
                 delete_user_meta($user_id, "membership");
             }
 
-            $isWaiverSigned = "false";
+            $isWaiverSigned = false;
             $latestExpiry = null;
             $mType = null;
             $mStatus = null;
@@ -448,9 +449,9 @@ class acc_user_importer_Activator
                     foreach ($sect_memberships as $mId => $mship) {
                         $expiry = $mship["expiry"];
                         $status = $mship["status"];
-                        if ($isWaiverSigned == "false" && $status == "ISSU") {
+                        if (!$isWaiverSigned && $status == "ISSU") {
                             //error_log("Waiver has been signed\n",3,$log);
-                            $isWaiverSigned = "true"; //not a boolean
+                            $isWaiverSigned = true;
                         }
 
                         // Build a list of all sections with valid memberships
@@ -498,11 +499,13 @@ class acc_user_importer_Activator
 
             // For manually created admin entries, do not create useless fields.
             if ($userHadMemberships) {
-                update_user_meta(
-                    $user_id,
-                    "acc_waiver_signed",
-                    $isWaiverSigned
-                );
+                if ($isWaiverSigned) {
+                    update_user_meta(
+                        $user_id,
+                        "acc_waiver_expiry",
+                        $latestExpiry
+                    );
+                }
                 update_user_meta($user_id, "acc_mship_type", $mType);
                 update_user_meta($user_id, "acc_mship_expiry", $latestExpiry);
                 update_user_meta($user_id, "acc_sections", $newMemberships);

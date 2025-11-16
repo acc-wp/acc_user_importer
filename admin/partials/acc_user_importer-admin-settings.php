@@ -81,6 +81,18 @@ function accUM_is_section_imported()
     return accUM_get_section_imported() === "on";
 }
 
+// Returns the authentication token to accept incoming notifications from ACC
+function accUM_get_api_token()
+{
+    $options = get_option(ACCUM_DATA);
+    $key = "api_token";
+    if (!isset($options[$key])) {
+        return null;
+    }
+    $value = $options[$key];
+    return $value;
+}
+
 // Returns the configured login name mapping
 function accUM_get_login_name_mapping()
 {
@@ -91,24 +103,6 @@ function accUM_get_login_name_mapping()
     }
     $value = $options[$key];
     return $value;
-}
-
-//Returns "on" if transition from Contact ID is selected
-function accUM_get_transition_from_contactID()
-{
-    $options = get_option(ACCUM_DATA);
-    if (isset($options["accUM_transition_from_contactID"])) {
-        $value = $options["accUM_transition_from_contactID"];
-        //error_log("in " . __FUNCTION__ . " returning $value");
-        return $value;
-    }
-    return "off";
-}
-
-// Returns true if the database is transitioning from FromContactID usernames.
-function accUM_is_transitionFromContactID()
-{
-    return accUM_get_transition_from_contactID() === "on";
 }
 
 // Returns "on" if the plugin should scan the DB looking for expired members
@@ -207,19 +201,41 @@ function accUM_get_max_log_files()
     return $value;
 }
 
-//-----------get functions with a section parameter----------------
-
-// Returns the section authentication token
-function accUM_get_section_token($section)
+// Text to be displayed on failed login because user is expired
+function accUM_get_oops_expired_text()
 {
-    $options = get_option(ACCUM_SEC . $section);
-    $key = "token";
+    $options = get_option(ACCUM_DATA);
+    $key = "oops_expired_text";
     if (!isset($options[$key])) {
-        return null;
+        return "Oops. I could not find your membership. Maybe it expired? If so you can renew at " .
+            '<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ' .
+            "<br><br>" .
+            "Désolé, je ne trouve pas votre abonnement. Peut-être est-il expiré? Renouvelez au " .
+            '<a href="https://www.alpineclubofcanada.ca">www.alpineclubofcanada.ca</a>. ';
     }
     $value = $options[$key];
     return $value;
 }
+
+// Text to be displayed on failed login because user has not signed waiver
+function accUM_get_oops_waiver_text()
+{
+    $options = get_option(ACCUM_DATA);
+    $key = "oops_waiver_text";
+    if (!isset($options[$key])) {
+        return "Oops. Looks like you did not sign the ACC waiver yet. " .
+            "Please check your membership on the national web site and " .
+            "make the corrections needed. This will allow you to login and register to activities. " .
+            "<br><br>" .
+            "Il semble que votre vous n'ayez pas encore signé le formulaire d'acceptation des risques. " .
+            "Vérifiez l'état de votre abonnement sur le site web national et " .
+            "apportez les correctifs pour pouvoir vous connecter et participer aux activités.";
+    }
+    $value = $options[$key];
+    return $value;
+}
+
+//-----------get functions with a section parameter----------------
 
 // Returns what to do with the role of a new user.
 function accUM_get_new_user_role_action($section)
@@ -379,6 +395,21 @@ function accUM_settings_init()
     );
 
     add_settings_field(
+        "accUM_api_token", //ID
+        "API authentication token",
+        "accUM_text_render", //Callback
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
+        [
+            "id" => "accUM_api_token",
+            "name" => ACCUM_DATA . "[api_token]", //for writing DB
+            "get" => "accUM_get_api_token",
+            "get_args" => [],
+            "type" => "password",
+        ]
+    );
+
+    add_settings_field(
         "accUM_login_name_mapping", //ID
         "Set usernames to (Use with caution, this affects login of users, " .
             "although they always can login using their email)",
@@ -394,22 +425,6 @@ function accUM_settings_init()
                 "member_number" => "ACC member number",
                 "Firstname Lastname" => "Firstname Lastname",
             ],
-        ]
-    );
-
-    add_settings_field(
-        "accUM_transition_from_contactID", //ID
-        "Usernames will transition from ContactID to Interpodia member_number? " .
-            "Check this box for a safer transition (verifies that member being synced has the right name)",
-        "accUM_chkboxes_render", //Callback
-        "accUM_general_section1", //Page
-        "accUM_general_section", //Section
-        [
-            "id" => "accUM_transition_from_contactID",
-            "name" => ACCUM_DATA . "[accUM_transition_from_contactID]",
-            "get" => "accUM_get_transition_from_contactID",
-            "get_args" => [],
-            "help" => "This option should normally be left unchecked.",
         ]
     );
 
@@ -532,6 +547,34 @@ function accUM_settings_init()
         ]
     );
 
+    add_settings_field(
+        "accUM_oops_expired", //ID
+        "Text to display on failed login because user is expired",
+        "accUM_wpeditor_render", //Callback
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
+        [
+            "id" => "accUM_oops_expired",
+            "name" => ACCUM_DATA . "[oops_expired_text]",
+            "get" => "accUM_get_oops_expired_text",
+            "get_args" => [],
+        ]
+    );
+
+    add_settings_field(
+        "accUM_oops_waiver", //ID
+        "Text to display on failed login because user has not signed the waiver",
+        "accUM_wpeditor_render", //Callback
+        "accUM_general_section1", //Page
+        "accUM_general_section", //Section
+        [
+            "id" => "accUM_oops_waiver",
+            "name" => ACCUM_DATA . "[oops_waiver_text]",
+            "get" => "accUM_get_oops_waiver_text",
+            "get_args" => [],
+        ]
+    );
+
     //-------------------Define per-section settings--------------------------
     foreach (acc_get_supported_sections() as $section) {
         register_setting(
@@ -546,21 +589,6 @@ function accUM_settings_init()
             "Per-section settings",
             "",
             "acc_" . $section . "_section"
-        );
-
-        add_settings_field(
-            "accUM_$section" . "_token", //ID
-            "Section authentication token",
-            "accUM_text_render", //Callback
-            "acc_" . $section . "_section", //Page
-            ACCUM_SEC . "_$section" . "_section",
-            [
-                "id" => "accUM_$section" . "_token",
-                "name" => ACCUM_SEC . $section . "[token]", //for writing DB
-                "get" => "accUM_get_section_token",
-                "get_args" => [$section],
-                "type" => "password",
-            ]
         );
 
         add_settings_field(

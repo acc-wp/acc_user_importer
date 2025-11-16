@@ -142,7 +142,7 @@ class acc_user_importer
             $plugin_admin,
             "automatic_db_check"
         );
-        // Add "acc_memberships" metadata information to the user profile page
+        // Add "acc_sections" metadata information to the user profile page
         $this->loader->add_action(
             "show_user_profile",
             $plugin_admin,
