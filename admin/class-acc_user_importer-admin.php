@@ -104,7 +104,7 @@ class acc_user_importer_Admin
             "methods" => "POST",
             "callback" => [$this, "handle_acc_membership_notification"],
             "permission_callback" => [$this, "verify_bearer_token"],
-            //"permission_callback" => "__return_true", // Allow public access for now
+            //"permission_callback" => "__return_true", // for no authentication
         ]);
     }
 
@@ -163,7 +163,7 @@ class acc_user_importer_Admin
             accLog(strval($rc));
             $this->send_error_email();
         }
-        error_log($GLOBALS["acc_logstr"]); //FIXME print content of log in the debug file
+        //error_log($GLOBALS["acc_logstr"]); //print content of log in the debug file
 
         return new WP_REST_Response(
             [
@@ -549,8 +549,6 @@ class acc_user_importer_Admin
 
                 // For each section added to the user membership, send welcome email, etc.
                 foreach ($sectionsAdded as $section) {
-                    // Trigger hook if expiry date changed (updated membership)
-                    do_action("acc_membership_renewal", $userID); //FIXME this is outdated
                     $this->takeActionOnNewUser($section, $userID);
                 }
 
@@ -811,6 +809,7 @@ class acc_user_importer_Admin
             accLog("=============================================");
         } else {
             accLog("Skipping local DB sanity check, as per configuration");
+            return;
         }
 
         $warnings = [];
@@ -850,7 +849,7 @@ class acc_user_importer_Admin
         $deleted_users = [];
         $num_active = 0;
         $num_inactive = 0;
-        $num_processing = 0;
+        $num_wo_waiver = 0;
         $processing_email_list = "";
         $more_than_a_year_from_now = acc_now_plus_N_days(400);
         $user_ids = get_users(["fields" => "ID"]);
@@ -886,23 +885,29 @@ class acc_user_importer_Admin
                 }
             }
 
+            // Some WP accounts are manually created for admin purposes. Those
+            // typically have no ACC member ID. Not much validation done on those.
+            if (!$user->has_prop("acc_member_id")) {
+                $warnings[] = "$user->display_name ($user->user_email) has no ACC " .
+                              "member ID, it's probably a manually created admin account";
+                continue;
+            }
+
             //Sanity check: raise a warning if user has no or weird expiry date.
-            $expiry = $user->acc_mship_expiry;
-            if (empty($expiry)) {
+            $expiry = $user->acc_mship_expiry ?? null;
+            if ($expiry == null) {
                 $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has no membership expiry!";
             } elseif ($expiry > $more_than_a_year_from_now) {
                 $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has expiry=$expiry!";
             }
 
-            //Give warning for users that have not signed a waiver
-            if (
-                !empty($user->acc_sections) &&
-                $user->acc_waiver_expiry != "true"
-            ) {
+            //Give warning for users with a membership but no signed waiver
+            if (!acc_is_user_expired($user) &&
+                !acc_is_waiver_valid($user)) {
                 $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has not signed waiver";
                 $processing_email_list .=
                     $user->display_name . " &lt" . $user->user_email . "&gt, ";
-                $num_processing++;
+                $num_wo_waiver++;
             }
 
             //count active and inactive
@@ -918,7 +923,7 @@ class acc_user_importer_Admin
         accLog("Local DB check deleted $deleted_cnt obsolete users");
         accLog("Number of valid members = $num_active");
         accLog("Number of expired members = $num_inactive");
-        accLog("Number of members without signed waiver = $num_processing");
+        accLog("Number of members without signed waiver = $num_wo_waiver");
         foreach ($warnings as $warning) {
             accLog("Warning: $warning");
         }
@@ -926,7 +931,6 @@ class acc_user_importer_Admin
             "<br>List of users email with no waivers = $processing_email_list<br>"
         );
 
-        //FIXME reevaluate the admin email function?
         $operation =
             "The ACC web site local DB check made the following changes:";
         $this->send_admin_email(
@@ -992,9 +996,9 @@ class acc_user_importer_Admin
         if (
             !empty($email_addrs) &&
             (!empty($sectionsAdded) ||
-                !empty($sectionsDeleted) ||
-                !empty($errors) ||
-                !empty($deleted_users))
+             !empty($sectionsDeleted) ||
+             !empty($errors) ||
+             !empty($deleted_users))
         ) {
             $title = accUM_get_notification_title();
             $content = $operation . "\n\n";

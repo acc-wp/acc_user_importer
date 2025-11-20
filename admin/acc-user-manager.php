@@ -15,7 +15,7 @@ function acc_um_custom_authenticate_error_codes($third_party_codes)
 
 /**
  * On plugin activation, schedule CRON job.
- * Update will happen in 1 hour, then twice a day afterward.
+ * First occurence will happen in 1 hour, then every week afterward.
  */
 function acc_cron_activate()
 {
@@ -126,6 +126,20 @@ function acc_is_user_expired($user)
 }
 
 /**
+ * Returns true if the user waiver is valid.
+ * If the field does not exists or is null, it means the waiver was
+ * not signed.
+ */
+function acc_is_waiver_valid($user)
+{
+    if (!$user->has_prop("acc_waiver_expiry") ||
+        $user->acc_waiver_expiry < date("Y-m-d")) {
+        return false;
+    }
+    return true;
+}
+
+/**
  * User is trying to login.
  * Allow login if user is not expired and member of at least one
  * of the enabled section. Allow login if user entry has been manually
@@ -156,10 +170,7 @@ function acc_validate_user_login($user)
         }
 
         // Case where waiver has not been signed. We output a specific error.
-        if (
-            !$user->has_prop("acc_waiver_expiry") ||
-            $user->acc_waiver_expiry < date("Y-m-d")
-        ) {
+        if (!acc_is_waiver_valid($user)) {
             $error = new WP_Error();
             $msg = accUM_get_oops_waiver_text();
             $error->add("membership_validation_error", $msg);
