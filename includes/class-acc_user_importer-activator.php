@@ -133,7 +133,14 @@ class acc_user_importer_Activator
             if (false !== $sectionOption) {
                 // There are some settings for this section
                 delete_option($candidateOptionName);
-                update_option($newOptionName, $sectionOption);
+                $rc = update_option($newOptionName, $sectionOption);
+                if ($rc) {
+                    error_log("Renamed setting $candidateOptionName to " .
+                              "$newOptionName\n", 3, $log);
+                } else {
+                    error_log("Failed to renamed setting $candidateOptionName ".
+                              "to $newOptionName\n", 3, $log);
+                }
             }
         }
     }
@@ -421,12 +428,6 @@ class acc_user_importer_Activator
                 continue;
             }
 
-            // Rename membership->acc_member_id
-            if (!empty($user->membership)) {
-                update_user_meta($user_id, "acc_member_id", $user->membership);
-                delete_user_meta($user_id, "membership");
-            }
-
             $isWaiverSigned = false;
             $latestExpiry = null;
             $mType = null;
@@ -434,7 +435,12 @@ class acc_user_importer_Activator
             $newMemberships = [];
             $userHadMemberships = false;
 
-            if (!empty($user->acc_memberships)) {
+            if (empty($user->acc_memberships)) {
+                // User is still stored in v2.x format
+                error_log("Error, unrecognized user format, ".
+                          "this is not handled. Skipping\n",3,$log);
+                continue;
+            } else {
                 $userHadMemberships = true;
 
                 foreach (
@@ -484,6 +490,12 @@ class acc_user_importer_Activator
                 }
             }
 
+            // Rename membership->acc_member_id
+            if (!empty($user->membership)) {
+                update_user_meta($user_id, "acc_member_id", $user->membership);
+                delete_user_meta($user_id, "membership");
+            }
+
             $mshipTxt = serialize($user->acc_memberships);
             error_log(
                 "Before: user $user->ID memberships $mshipTxt\n",
@@ -517,6 +529,7 @@ class acc_user_importer_Activator
             delete_user_meta($user_id, "membership_status");
             delete_user_meta($user_id, "acc_memberships");
             delete_user_meta($user_id, "imis_id");
+            delete_user_meta($user_id, "previous_roles");
         }
     }
 
