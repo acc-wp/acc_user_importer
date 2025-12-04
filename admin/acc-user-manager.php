@@ -113,14 +113,15 @@ function acc_is_user_expired($user)
     }
 
     //Check if user is member of one of the enabled sections
-    if ($user->has_prop("acc_sections")) {
-        $userSects = $user->acc_sections;
-        $enabledSects = accUM_get_enabled_sections();
-        $validSections = array_intersect($userSects, $enabledSects);
-        if (empty($validSections)) {
-            return true;
-        }
-    }
+    //Code is disabled because not sure about old members.
+    // if ($user->has_prop("acc_sections")) {
+    //     $userSects = $user->acc_sections;
+    //     $enabledSects = accUM_get_enabled_sections();
+    //     $validSections = array_intersect($userSects, $enabledSects);
+    //     if (empty($validSections)) {
+    //         return true;
+    //     }
+    // }
 
     return false;
 }
@@ -156,7 +157,7 @@ function acc_validate_user_login($user)
         //Allow manually created user entries
         if (
             !$user->has_prop("acc_mship_expiry") ||
-            !$user->has_prop("acc_sections")
+            !$user->has_prop("acc_member_id")
         ) {
             return $user;
         }

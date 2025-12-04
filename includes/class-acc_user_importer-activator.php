@@ -29,7 +29,7 @@ class acc_user_importer_Activator
         $oldVersion = $this->get_old_plugin_version_from_db();
         if (
             $oldVersion === "unknown" ||
-            ($oldVersion >= "3.0.0" && $oldVersion < "4.0.0")
+            ($oldVersion >= "2.0.9" && $oldVersion < "4.0.0")
         ) {
             $this->process_upgrade($oldVersion);
         }
@@ -52,15 +52,6 @@ class acc_user_importer_Activator
         return $oldVersion;
     }
 
-    // Write the current plugin version in the DB.
-    private function write_new_plugin_version_to_db($log)
-    {
-        $options = get_option(ACCUM_DATA);
-        $options["accUM_plugin_version"] = $this->version;
-        update_option(ACCUM_DATA, $options);
-        error_log("Updated version# to $this->version in DB\n", 3, $log);
-    }
-
     /**
      * Upon activation, there might be some upgrade/downgrade cleanup work.
      */
@@ -75,7 +66,6 @@ class acc_user_importer_Activator
         );
         $this->convert_settings($log);
         $this->scan_user_db_and_upgrade($log);
-        $this->write_new_plugin_version_to_db($log);
         error_log("Upgrade done\n", 3, $log);
     }
 
@@ -117,6 +107,10 @@ class acc_user_importer_Activator
             error_log("Deleted sync_list\n", 3, $log);
         }
 
+        // Update database version.
+        $options["accUM_plugin_version"] = $this->version;
+        error_log("Updated version# to $this->version in DB\n", 3, $log);
+
         update_option(ACCUM_DATA, $options);
 
         // Seek for section specific options and rewrite with new section name
@@ -157,6 +151,15 @@ class acc_user_importer_Activator
         "Youth" => 2,
         "Student" => 1,
         ACC_UNKNOWN_MSHIP => 0,
+    ];
+
+    //To convert old membership types to new Hubspot syntax
+    private $newMembershipName = [
+        "adult" => "Individual",
+        "family1" => "Family",
+        "family2" => "Family",
+        "child" => "Family",
+        "youth" => "Youth",
     ];
 
     // List of ACC section membership types.
@@ -381,6 +384,17 @@ class acc_user_importer_Activator
         return null;
     }
 
+    private function convertMembershipName($oldtype)
+    {
+        if (array_key_exists($oldtype, $this->newMembershipName)) {
+            return $this->newMembershipName[$oldtype];
+        } else {
+            error_log("Warning, unknown mship type $oldtype\n", 3, $log);
+        }
+
+        return $oldtype;
+    }
+
     private function getMembershipTypeFromId($mId)
     {
         if (array_key_exists($mId, $this->membershipTable)) {
@@ -421,27 +435,51 @@ class acc_user_importer_Activator
             //Safety. acc_member_id was introduced in v4.0.0
             if (isset($user->acc_member_id)) {
                 error_log(
-                    "User entry was already upgraded, skip...\n",
+                    " User entry was already upgraded, skip...\n",
                     3,
                     $log
                 );
                 continue;
             }
 
-            $isWaiverSigned = false;
-            $latestExpiry = null;
-            $mType = null;
-            $mStatus = null;
-            $newMemberships = [];
-            $userHadMemberships = false;
-
             if (empty($user->acc_memberships)) {
-                // User is still stored in v2.x format
-                error_log("Error, unrecognized user format, ".
-                          "this is not handled. Skipping\n",3,$log);
-                continue;
+                // User is still stored in v2.x format. Let's do our best.
+                error_log(" Warning, user has no acc_memberships array. ".
+                          "We dont know which section he belongs to\n",3,$log);
+
+                //Convert membership type.
+                //FIXME, is the 2M spelling the same as Hubspot??
+                if (empty($user->membership_type)) {
+                    error_log(" Warning, user has no membership_type\n", 3, $log);
+                } else {
+                    $newMshipType = $this->convertMembershipName($user->membership_type);
+                    update_user_meta($user_id, "acc_mship_type", $newMshipType);
+                    error_log(" acc_mship_type=$newMshipType\n", 3, $log);
+                }
+                
+                //Convert expiry.
+                if (empty($user->expiry)) {
+                    error_log(" Warning, user has no expiry\n", 3, $log);
+                } else {
+                    update_user_meta($user_id, "acc_mship_expiry", $user->expiry);
+                    error_log(" acc_mship_expiry=$user->expiry\n", 3, $log);
+
+                    //Convert membership_status
+                    if ($user->expiry > date("Y-m-d") &&
+                        $user->membership_status == "ISSU") {
+                        update_user_meta($user_id, "acc_waiver_expiry", $user->expiry);
+                        error_log(" user status ISSU, forcing acc_waiver_expiry ".
+                                  "to user expiry\n", 3, $log);
+                    } else {
+                        error_log(" No need to set acc_waiver_expiry\n", 3, $log);
+                    }
+                }
             } else {
-                $userHadMemberships = true;
+                $isWaiverSigned = false;
+                $latestExpiry = null;
+                $mType = null;
+                $mStatus = null;
+                $newMemberships = [];
 
                 foreach (
                     $user->acc_memberships
@@ -456,7 +494,7 @@ class acc_user_importer_Activator
                         $expiry = $mship["expiry"];
                         $status = $mship["status"];
                         if (!$isWaiverSigned && $status == "ISSU") {
-                            //error_log("Waiver has been signed\n",3,$log);
+                            //error_log(" Waiver has been signed\n",3,$log);
                             $isWaiverSigned = true;
                         }
 
@@ -488,29 +526,20 @@ class acc_user_importer_Activator
                         }
                     }
                 }
-            }
+                $mshipTxt = serialize($user->acc_memberships);
+                error_log(
+                    " Before: user $user->ID memberships $mshipTxt\n",
+                    3,
+                    $log
+                );
+                $mshipTxt = implode(",", $newMemberships);
+                error_log(
+                    " After: user $user->ID $mType exp $latestExpiry sect: $mshipTxt\n",
+                    3,
+                    $log
+                );
 
-            // Rename membership->acc_member_id
-            if (!empty($user->membership)) {
-                update_user_meta($user_id, "acc_member_id", $user->membership);
-                delete_user_meta($user_id, "membership");
-            }
-
-            $mshipTxt = serialize($user->acc_memberships);
-            error_log(
-                "Before: user $user->ID memberships $mshipTxt\n",
-                3,
-                $log
-            );
-            $mshipTxt = implode(",", $newMemberships);
-            error_log(
-                "After: user $user->ID $mType exp $latestExpiry sect: $mshipTxt\n",
-                3,
-                $log
-            );
-
-            // For manually created admin entries, do not create useless fields.
-            if ($userHadMemberships) {
+                // For manually created admin entries, do not create useless fields.
                 if ($isWaiverSigned) {
                     update_user_meta(
                         $user_id,
@@ -521,6 +550,12 @@ class acc_user_importer_Activator
                 update_user_meta($user_id, "acc_mship_type", $mType);
                 update_user_meta($user_id, "acc_mship_expiry", $latestExpiry);
                 update_user_meta($user_id, "acc_sections", $newMemberships);
+            }
+
+            // Rename membership->acc_member_id
+            if (!empty($user->membership)) {
+                update_user_meta($user_id, "acc_member_id", $user->membership);
+                delete_user_meta($user_id, "membership");
             }
 
             delete_user_meta($user_id, "expiry");

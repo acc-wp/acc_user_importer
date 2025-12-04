@@ -549,7 +549,7 @@ class acc_user_importer_Admin
 
                 // For each section added to the user membership, send welcome email, etc.
                 foreach ($sectionsAdded as $section) {
-                    $this->takeActionOnNewUser($section, $userID);
+                    $this->takeActionOnNewUser($section, $userID, false);
                 }
 
                 // For each section deleted from the user membership, send goodbye email, etc.
@@ -596,7 +596,7 @@ class acc_user_importer_Admin
 
             $sectionsAdded = $rxdSections;
             foreach ($sectionsAdded as $section) {
-                $this->takeActionOnNewUser($section, $userID);
+                $this->takeActionOnNewUser($section, $userID, true);
             }
         } while (false); //end dummy user processing loop
 
@@ -618,7 +618,7 @@ class acc_user_importer_Admin
     /**
      * A user became valid, take the necessary actions (ex: change role, send email)
      */
-    private function takeActionOnNewUser($section, $user_id)
+    private function takeActionOnNewUser($section, $user_id, $newUser)
     {
         $new_user_role_action = accUM_get_new_user_role_action($section);
         $new_user_role_value = accUM_get_new_user_role_value($section);
@@ -646,7 +646,14 @@ class acc_user_importer_Admin
             in_array("administrator", $user_roles, true)
         ) {
             $new_user_role_action = "add_role"; //Change set_role to add_role
+        } else if ($newUser && $new_user_role_action == "add_role") {
+            // User has just been created, and Wordpress assigned an annoying
+            // default role we want to get rid of. Change to set_role
+            // in order to overwrite the Wordpress default role.
+            accLog(" > use set_role to overwrite default Wordpress role");
+            $new_user_role_action = "set_role";
         }
+
         if ($new_user_role_action == "set_role") {
             if (!in_array($new_user_role_value, $user_roles, true)) {
                 accLog(" > Changing user role to $new_user_role_value");

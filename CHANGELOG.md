@@ -1,6 +1,10 @@
 # Changelog
 
-## 4.0.0 Francois Bessette
+## 4.0.2 Francois Bessette
+
+- Fix unwanted role when a new user is created with add_role setting.
+
+## 4.0.1 Francois Bessette
 
 - Modify plugin to receive notifications from the new Hubspot-based ACC national system.
 
