@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.3 Francois Bessette
+
+- Fix FQME unknown section error.
+
 ## 4.0.2 Francois Bessette
 
 - Fix unwanted role when a new user is created with add_role setting.

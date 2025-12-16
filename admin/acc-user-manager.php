@@ -70,6 +70,7 @@ function acc_get_supported_sections()
         "Central Alberta",
         "Columbia Mountains",
         "Edmonton",
+        "FQME",
         "Great Plains",
         "Jasper/Hinton",
         "Manitoba",

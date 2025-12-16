@@ -337,7 +337,7 @@ class acc_user_importer_Admin
             $section = trim($section); // Trim whitespace
 
             if (!in_array($section, $validSections)) {
-                return " > Error, $section is an invalid section";
+                $warnings[] = " > warning, $section is an invalid section";
             }
 
             if (in_array($section, $sectionsOfInterest)) {
