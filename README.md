@@ -137,21 +137,26 @@ Recent log files. The log file can be downloaded.
   missed the deadline) and we dont want to delete his website
   contributions (posts, activities, etc) unnecessarily.
 
-### What decides if a user can connect or not to the site?
+### User Login
 
 The plugin adds a hooks to Wordpress. Each time a user tries to login,
 the plugin verifies the following:
 
-- We check the acc_mship_expiry field and if the date is
-  in the past or the user is not part of any section, then the
-  user is declared expired and not allowed to login. If the
-  acc_mship_expiry field is empty, it may be a Lifetime member
-  with no end date, allowed to login forever.
-- We also check the acc_waiver_expiry date. If in the past,
-  it means the user does not have a valid signed waiver and
-  we do not let him login.  NOTE: if a user has no acc_mship_expiry
-  or no acc_sections field defined, he is considered a 
-  manually created Wordpress account and allowed to login.
+#### Normal case
+- Allow user if acc_mship_expiry date is good and
+  acc_waiver_expiry date is good (indicating waiver has been signed).
+- A specific error message is given in the case where the waiver
+  needs to be signed.
+#### Special cases
+- If the user is a Wordpress admin, we allow login
+- If the user does not have an acc_member_id, we assume it is a manually
+  created account (for admin purpose) and we allow login.
+- If the user has an empty acc_mship_expiry date, it is either a lifetime
+  member or an auto-renewed membership, so we allow login, as long as
+  the acc_waiver_expiry date is good. In terms of security, if an auto-renewed
+  membership does not renew, Hubspot will send us a notification to
+  terminate membership. And the acc_waiver_expiry field would anyway
+  prevent login eventually if the waiver is not renewed.
 
 
 ### Deletion of outdated members
