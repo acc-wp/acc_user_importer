@@ -27,31 +27,17 @@ array_multisort(
     $files
 );
 foreach ($files as $filename) {
-    $split_filename;
     $page_url =
         get_site_url() .
         "/wp-admin/users.php?page=acc_admin_page&log=" .
         $filename;
     $complete_url = wp_nonce_url($page_url, "trash-log", "acc_nonce");
-    preg_match(
-        "/log_(.*)_(\d+-\d+-\d+)-(\d+-\d+-\d+).txt/mis",
-        $filename,
-        $split_filename
-    );
 
     $log_list .=
         '
 		<li>
-			<strong>
-				Log ' .
-        $split_filename[1] .
-        '
-			</strong> &mdash;
-			<em>
 				' .
-        $split_filename[2] .
-        " " .
-        str_replace("-", ":", $split_filename[3]) .
+        $filename .
         '
 			</em> &mdash;
 			<a href="' .

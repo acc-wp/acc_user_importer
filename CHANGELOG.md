@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.3 Francois Bessette
+
+- Fix FQME unknown section error.
+
+## 4.0.2 Francois Bessette
+
+- Fix unwanted role when a new user is created with add_role setting.
+
+## 4.0.1 Francois Bessette
+
+- Modify plugin to receive notifications from the new Hubspot-based ACC national system.
+
 ## 3.0.3 Francois Bessette
 
 - Fix bug where during automatic update, only the first section is imported.

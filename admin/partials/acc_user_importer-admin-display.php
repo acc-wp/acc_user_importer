@@ -52,7 +52,7 @@
 	<form id="acc_admin_page" method="post" action="options.php">
 		<div>
 			<h2 id="updateStatusTitle">Update Log</h2>
-			<input type="submit" name="update_status_submit" id="update_status_submit" class="button button-primary" value="Manual Membership Update">
+			<input type="submit" name="update_status_submit" id="update_status_submit" class="button button-primary" value="Manual DB Check">
 			<div type="textarea" name="update_log" id="update_log" contenteditable="false" val="1">
 				Output window ready.
 			</div>

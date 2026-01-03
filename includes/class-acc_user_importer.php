@@ -136,25 +136,37 @@ class acc_user_importer
             "__return_false"
         ); // fix variable $plugin_public that isn't defined in this function //karinegaufre
 
-        //automatic update function (for testing)
-        //$this->loader->add_action( 'admin_head', $plugin_admin, 'begin_automatic_update' );
-
-        //action hook for automatic updates
+        //Action hook for periodic DB sanity check
         $this->loader->add_action(
-            "acc_automatic_import",
+            "acc_automatic_db_check",
             $plugin_admin,
-            "begin_automatic_update"
+            "automatic_db_check"
         );
-        // Add "acc_memberships" metadata information to the user profile page
+        // Add "acc_sections" metadata information to the user profile page
         $this->loader->add_action(
             "show_user_profile",
             $plugin_admin,
-            "display_acc_memberships"
+            "display_acc_sections_field"
         );
         $this->loader->add_action(
             "edit_user_profile",
             $plugin_admin,
-            "display_acc_memberships"
+            "display_acc_sections_field"
+        );
+        $this->loader->add_action(
+            "personal_options_update",
+            $plugin_admin,
+            "save_acc_sections_field"
+        );
+        $this->loader->add_action(
+            "edit_user_profile_update",
+            $plugin_admin,
+            "save_acc_sections_field"
+        );
+        $this->loader->add_action(
+            "rest_api_init",
+            $plugin_admin,
+            "register_acc_rest_api"
         );
     }
 
