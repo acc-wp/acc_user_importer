@@ -99,6 +99,8 @@ function acc_get_supported_sections()
 
 /**
  * Returns true if the user is expired.
+ * As per the API specification, members that have an auto-renewed membership
+ * do not have an expiry date. So the acc_mship_expiry field is empty.
  */
 function acc_is_user_expired($user)
 {
@@ -142,10 +144,22 @@ function acc_is_waiver_valid($user)
 }
 
 /**
- * User is trying to login.
- * Allow login if user is not expired and member of at least one
- * of the enabled section. Allow login if user entry has been manually
- * created and is missing typical ACC fields.
+ * Login logic.
+ * --- Normal case ---
+ * - Allow user if acc_mship_expiry date is good and
+ *   acc_waiver_expiry date is good (indicating waiver has been signed).
+ * - A specific error message is given in the case where the waiver
+ *   needs to be signed.
+ * --- Special case ---
+ * - If the user is a Wordpress admin, we allow login
+ * - If the user does not have an acc_member_id, we assume it is a manually
+ *   created account (for admin purpose) and we allow login.
+ * - If the user has an empty acc_mship_expiry date, it is either a lifetime
+ *   member or an auto-renewed membership, so we allow login, as long as
+ *   the acc_waiver_expiry date is good. In terms of security, if an auto-renewed
+ *   membership does not renew, Hubspot will send us a notification to
+ *   terminate membership. And the acc_waiver_expiry field would anyway
+ *   prevent login eventually if the waiver is not renewed.
  */
 function acc_validate_user_login($user)
 {
