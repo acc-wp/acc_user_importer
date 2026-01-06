@@ -321,10 +321,14 @@ class acc_user_importer_Admin
 
         $sectionsOfInterest = accUM_get_enabled_sections();
 
-        //Validate received membership type
-        $validMships = acc_get_mship_names();
-        if (!in_array($mshipType, $validMships)) {
-            return " > Error, $mshipType is an invalid membership name";
+        //Validate received membership type (but not for action=remove)
+        if ($action != "remove") {
+            $validMships = acc_get_mship_names();
+            if (!in_array($mshipType, $validMships)) {
+                $msg = " > warning, $mshipType is an invalid membership type";
+                $warnings[] = $msg;
+                accLog($msg);
+            }
         }
 
         // Sanity check: keep only sections we are interested in. Log
@@ -337,7 +341,9 @@ class acc_user_importer_Admin
             $section = trim($section); // Trim whitespace
 
             if (!in_array($section, $validSections)) {
-                $warnings[] = " > warning, $section is an invalid section";
+                $msg = " > warning, $section is an invalid section";
+                $warnings[] = $msg;
+                accLog($msg);
             }
 
             if (in_array($section, $sectionsOfInterest)) {
@@ -380,7 +386,7 @@ class acc_user_importer_Admin
                 $loginName = sanitize_user($userMemberId);
                 break;
         }
-        accLog("User login name is $loginName");
+        accLog(" > User login name is $loginName");
 
         // Create an array for the core wordpress user information.
         // accUserData lists all fields that will be checked for existing users.
@@ -540,7 +546,7 @@ class acc_user_importer_Admin
                         $result_str = " success";
                     }
                     accLog(
-                        "> user {$userID} username changed from " .
+                        " > user {$userID} username changed from " .
                             "{$user->user_login} to {$loginName}, update database $result_str"
                     );
                     //Erase user cache so that future access gets the right data.

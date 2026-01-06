@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.4 Francois Bessette
+
+- Fix error caused by missing membership type on remove notification
+
 ## 4.0.3 Francois Bessette
 
 - Fix FQME unknown section error.
