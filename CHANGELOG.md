@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.5 Francois Bessette
+
+- On Remove notification, do not change expiry and membership type in user DB
+- Do not report an error if the notification is missing email (child account)
+- In local_db_check do not raise warning for no membership expiry and
+  no signe waiver.
+- During local_db_check raise warning if member is not expired but not part of a section. 
+
 ## 4.0.4 Francois Bessette
 
 - Fix error caused by missing membership type on remove notification

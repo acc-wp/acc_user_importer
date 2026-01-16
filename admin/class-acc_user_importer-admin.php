@@ -257,9 +257,18 @@ class acc_user_importer_Admin
             "user_email",
         ];
         foreach ($needed as $index => $field) {
-            if (!isset($params[$field])) {
-                $msg = "Error, missing $field in notification";
-                return $msg;
+            // The 'empty' test will trigger for numbers 0 but that is fine,
+            // we should never have an acc_member_id being 0.
+            if (empty($params[$field])) {
+                if ($field == "user_email") {
+                    // Children memberships often do not have an email address.
+                    // Not an error, just ignore notification.
+                    accLog("No email, skip this notification");
+                    return true;
+                } else {
+                    $msg = "Error, missing $field in notification";
+                    return $msg;
+                }
             }
         }
 
@@ -466,17 +475,29 @@ class acc_user_importer_Admin
                     $user
                 );
 
-                // Special case for safety: if the action is remove,
-                // bring back the user expiry to today if needed.
+                // Special case for safety: if the action is remove, Hubspot
+                // does not set the expiry field. But we want to keep the one
+                // already in user DB. Unless it needs to be shortened.
+                // Also do not erase the DB acc_mship_type.
                 if (!$userIsValid) {
                     $today = date("Y-m-d");
-                    if (
-                        empty($accUserMetaData["acc_mship_expiry"]) ||
-                        $accUserMetaData["acc_mship_expiry"] > $today
-                    ) {
+                    if (empty($accUserMetaData["acc_mship_expiry"])) {
+                        $accUserMetaData["acc_mship_expiry"] = $user->acc_mship_expiry;
+                        accLog(" > No expiry in notification, use ".
+                               "$user->acc_mship_expiry from DB");
+                    }
+
+                    if ($accUserMetaData["acc_mship_expiry"] > $today) {
                         $accUserMetaData["acc_mship_expiry"] = $today;
                         accLog(" > Forced user expiry to today");
                     }
+
+                    if (empty($accUserMetaData["acc_mship_type"])) {
+                        $accUserMetaData["acc_mship_type"] = $user->acc_mship_type;
+                        accLog(" > No membership type in notification, use ".
+                               "$user->acc_mship_type from DB");
+                    }
+
                 }
 
                 // Check which fields might have changed. On purpose we dont want to check nicename.
@@ -863,7 +884,6 @@ class acc_user_importer_Admin
         $num_active = 0;
         $num_inactive = 0;
         $num_wo_waiver = 0;
-        $processing_email_list = "";
         $more_than_a_year_from_now = acc_now_plus_N_days(400);
         $user_ids = get_users(["fields" => "ID"]);
 
@@ -906,20 +926,29 @@ class acc_user_importer_Admin
                 continue;
             }
 
+            if (!$user->has_prop("acc_sections")) {
+                $warnings[] = "$user->display_name ($user->user_email) has no " .
+                              "acc_sections entry in DB, weird";
+            } else if (!acc_is_user_expired($user)) {
+                $sections = $user->acc_sections;
+                if (!is_array($sections) || empty($sections)) {
+                    $warnings[] = "$user->display_name ($user->user_email) is not " .
+                                "expired but not part of any section";
+                }
+            }
+
             //Sanity check: raise a warning if user has no or weird expiry date.
             $expiry = $user->acc_mship_expiry ?? null;
             if ($expiry == null) {
-                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has no membership expiry!";
+                //Must be an auto-renewal account
             } elseif ($expiry > $more_than_a_year_from_now) {
-                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has expiry=$expiry!";
+                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) ".
+                              "has suspicious expiry=$expiry!";
             }
 
             //Give warning for users with a membership but no signed waiver
             if (!acc_is_user_expired($user) &&
                 !acc_is_waiver_valid($user)) {
-                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has not signed waiver";
-                $processing_email_list .=
-                    $user->display_name . " &lt" . $user->user_email . "&gt, ";
                 $num_wo_waiver++;
             }
 
@@ -940,9 +969,6 @@ class acc_user_importer_Admin
         foreach ($warnings as $warning) {
             accLog("Warning: $warning");
         }
-        accLog(
-            "<br>List of users email with no waivers = $processing_email_list<br>"
-        );
 
         $operation =
             "The ACC web site local DB check made the following changes:";

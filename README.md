@@ -68,6 +68,7 @@ Submit Changes after changing parameters!
 - Title of admin notification email
 - Maximum number of log files to keep: how many log files to keep on the disk.
   Note that each new notification from Hubspot creates a distinct logfile.
+  Do not use value 0, it does not work.
 - Text to display on failed login because user is expired: What error
   to display to a user when he is expired.
 - Text to display on failed login because user has not signed the waiver:
