@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.6 Francois Bessette
+
+- Allow incoming memberships with missing first or last name
+
 ## 4.0.5 Francois Bessette
 
 - On Remove notification, do not change expiry and membership type in user DB

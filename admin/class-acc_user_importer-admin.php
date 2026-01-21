@@ -275,8 +275,6 @@ class acc_user_importer_Admin
         if ($params["action"] == "add" || $params["action"] == "update") {
             //Sanity checks for additional mandatory fields
             $needed = [
-                "first_name",
-                "last_name",
                 "acc_sections",
                 "acc_mship_type",
             ];
