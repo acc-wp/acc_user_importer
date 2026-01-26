@@ -239,7 +239,7 @@ class acc_user_importer_Admin
         $userFirstName = $params["first_name"] ?? "";
         $userLastName = $params["last_name"] ?? "";
         $userNameInLog = "_" . $userFirstName . "_" . $userLastName;
-        preg_replace("/[^A-Za-z0-9.\-_]/", "_", $userNameInLog);
+        $userNameInLog = preg_replace("/[^A-Za-z0-9\-_]/", "_", $userNameInLog);
         $logfilename = basename(acc_pick_new_log_file($userNameInLog));
         accLog("Received the following membership notification: ");
         accLog(var_export($params, true));
@@ -295,7 +295,6 @@ class acc_user_importer_Admin
         $action = $params["action"];
         $notifTimestamp = $params["acc_notif_timestamp"];
         $userMemberId = strval($params["acc_member_id"]);
-        $userFullName = $userFirstName . " " . $userLastName;
         $userEmail = strtolower($params["user_email"] ?? "");
         $userCellPhone = strval($params["cell_phone"]) ?? "";
         $receivedSections = $params["acc_sections"] ?? [];
@@ -305,6 +304,20 @@ class acc_user_importer_Admin
         $contactFname = $params["acc_contact_name"] ?? "";
         $contactLname = $params["acc_contact_email"] ?? "";
         $contactPhone = strval($params["acc_contact_phone"]) ?? "";
+
+        if (empty($userFirstName) && empty($userLastName)) {
+            // This case has been seen and can be a valid ACC account.
+            // For display purpose, use the email address.
+            // Wordpress uses nicename as a unique user identifier in URL
+            // and author archives. So it should be unique and
+            // hopefully never change. Best to use the ACC memberID.
+            accLog(" > Empty name, will use email and memberID");
+            $userDisplayname = strstr($userEmail, '@', true);
+            $userNicename = $userMemberId;
+        } else {
+            $userDisplayname = $userFirstName . " " . $userLastName;
+            $userNicename = $userDisplayname;
+        }
 
         // Sanity check received timestamps and convert some to Y-M-D
         // Keep the notification timestamp in UNIX format because
@@ -367,14 +380,6 @@ class acc_user_importer_Admin
             }
         }
 
-        //Log the info we received for this user
-        // $userInfoString = "Received [" . $notifTimestamp . "] ";
-        // $userInfoString .= "$action $userMemberId ";
-        // $userInfoString .= $userFirstName . " " . $userLastName;
-        // $userInfoString .= " " . $userEmail;
-        // $userInfoString .= " with waiver " . ($waiverExpiry ? "signed" : "NOT signed");
-        // accLog($userInfoString);
-
         // Does received user have a membership?
         if ($action == "remove" || empty($rxdSections)) {
             $rxdSections = [];
@@ -386,7 +391,7 @@ class acc_user_importer_Admin
         $loginNameMapping = accUM_get_login_name_mapping();
         switch ($loginNameMapping) {
             case "Firstname Lastname":
-                $loginName = "$userFirstName $userLastName";
+                $loginName = $userDisplayname;
                 break;
             case "member_number":
             default:
@@ -406,7 +411,7 @@ class acc_user_importer_Admin
         $accUserData = [
             "first_name" => $userFirstName,
             "last_name" => $userLastName,
-            "display_name" => $userFirstName . " " . $userLastName,
+            "display_name" => $userDisplayname,
             "user_email" => $userEmail,
         ];
 
@@ -420,7 +425,7 @@ class acc_user_importer_Admin
             "acc_contact_phone" => $contactPhone,
             "cell_phone" => $userCellPhone,
             "acc_member_id" => $userMemberId,
-            "nickname" => $userFirstName . " " . $userLastName,
+            "nickname" => $userDisplayname,
             "acc_sections" => $rxdSections,
         ];
 
@@ -435,7 +440,7 @@ class acc_user_importer_Admin
                 accLog(" > not found by login");
                 $user = get_user_by("email", $userEmail);
                 if (is_a($user, WP_User::class)) {
-                    if ($user->display_name == $userFullName) {
+                    if ($user->display_name == $userDisplayname) {
                         accLog(
                             " > found by email existing userId $user->ID " .
                                 "named $user->display_name"
@@ -560,7 +565,7 @@ class acc_user_importer_Admin
                     );
                     if ($result === false) {
                         $result_str = " failed";
-                        accLog("Error changing loginName for $userFullName");
+                        accLog("Error changing loginName for $userDisplayname");
                     } else {
                         $result_str = " success";
                     }
@@ -597,7 +602,7 @@ class acc_user_importer_Admin
             //--------CREATE NEW USER-----
             accLog(" > email not found on any other users");
             $accUserData["user_pass"] = wp_generate_password(20);
-            $accUserData["user_nicename"] = $accUserData["display_name"]; //WP will sanitize
+            $accUserData["user_nicename"] = $userNicename;  //WP will sanitize
             $accUserData["user_login"] = $loginName;
 
             // Insert new user
@@ -627,7 +632,7 @@ class acc_user_importer_Admin
 
         $operation =
             "The ACC website received the following changes " .
-            "for $userFullName <$userEmail>:";
+            "for $userDisplayname <$userEmail>:";
         $this->send_admin_email(
             $operation,
             $sectionsAdded,

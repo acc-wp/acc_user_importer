@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.8 Francois Bessette
+
+- Fix incoming memberships with missing first or last name.
+
 ## 4.0.7 Francois Bessette
 
 - Fix upgrade logic, do not upgrade if old version is unknown
