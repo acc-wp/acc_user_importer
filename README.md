@@ -10,7 +10,6 @@ License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
 Repository: https://github.com/acc-wp/acc_user_importer
 
-
 ## Description
 
 Wordpress plugin used to synchronize the membership list obtained from the
@@ -68,6 +67,7 @@ Submit Changes after changing parameters!
 - Title of admin notification email
 - Maximum number of log files to keep: how many log files to keep on the disk.
   Note that each new notification from Hubspot creates a distinct logfile.
+  Do not use value 0, it does not work.
 - Text to display on failed login because user is expired: What error
   to display to a user when he is expired.
 - Text to display on failed login because user has not signed the waiver:
@@ -94,7 +94,6 @@ the settings.
 - Send Goodbye email? If enabled, the plugin will send a goodbye email.
 - Goodbye email title
 - Goodbye email content
-
 
 #### Manual DB Check
 
@@ -143,11 +142,14 @@ The plugin adds a hooks to Wordpress. Each time a user tries to login,
 the plugin verifies the following:
 
 #### Normal case
+
 - Allow user if acc_mship_expiry date is good and
   acc_waiver_expiry date is good (indicating waiver has been signed).
 - A specific error message is given in the case where the waiver
   needs to be signed.
+
 #### Special cases
+
 - If the user is a Wordpress admin, we allow login
 - If the user does not have an acc_member_id, we assume it is a manually
   created account (for admin purpose) and we allow login.
@@ -157,7 +159,6 @@ the plugin verifies the following:
   membership does not renew, Hubspot will send us a notification to
   terminate membership. And the acc_waiver_expiry field would anyway
   prevent login eventually if the waiver is not renewed.
-
 
 ### Deletion of outdated members
 
@@ -173,7 +174,6 @@ the plugin verifies the following:
   something but that user cannot be found, the plugin generates an error
   in the log but does not proceed with the delete.
 
-
 ### Sending of "Welcome" and "Goodbye" emails
 
 There are checkboxes to control whether a Welcome and Goodbye email are sent to a new or expired member.
@@ -188,12 +188,10 @@ Sending of a Goodbye email is done whenever a member becomes not valid.
 
 ## Caveats
 
-
 ## Ideas for the future
 
 - add a action and filter hook when receiving new users. This way someone could
   decide to filter out some people, or reformat phone numbers, etc.
-
 
 ## Contact
 
@@ -230,7 +228,7 @@ Test on a staging or development site with email transmission disabled.
 - Test user expiry
   - pick an active user in the local DB.
   - in the user profile page, double-check that the acc_mship_expiry date is in
-    the future. 
+    the future.
   - Using Postman, send a Remove notification with acc_mship_expiry in the past.
   - Check the log, the plugin should declare the user is expired.
   - verify goodbye email is sent (if option is enabled).

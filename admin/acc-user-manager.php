@@ -136,8 +136,10 @@ function acc_is_user_expired($user)
  */
 function acc_is_waiver_valid($user)
 {
-    if (!$user->has_prop("acc_waiver_expiry") ||
-        $user->acc_waiver_expiry < date("Y-m-d")) {
+    if (
+        !$user->has_prop("acc_waiver_expiry") ||
+        $user->acc_waiver_expiry < date("Y-m-d")
+    ) {
         return false;
     }
     return true;
@@ -278,6 +280,7 @@ function acc_read_log_filename_from_db()
 
 /*
  * Delete old log files to ensure it does not grow to infinity
+ * The setting with value 0 does not work.
  */
 function acc_enforce_max_log_files()
 {

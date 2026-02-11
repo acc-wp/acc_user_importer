@@ -27,11 +27,10 @@ class acc_user_importer_Activator
     public function activate()
     {
         $oldVersion = $this->get_old_plugin_version_from_db();
-        if (
-            $oldVersion === "unknown" ||
-            ($oldVersion >= "2.0.9" && $oldVersion < "4.0.0")
-        ) {
+        if ($oldVersion >= "2.0.9" && $oldVersion < "4.0.0") {
             $this->process_upgrade($oldVersion);
+        } else {
+            $this->update_plugin_version();
         }
 
         acc_cron_activate();
@@ -50,6 +49,16 @@ class acc_user_importer_Activator
             $oldVersion = "unknown";
         }
         return $oldVersion;
+    }
+
+    // Update the plugin version.
+    // Avoid calling this function if we are changing ACCUM_DATA
+    // somewhere else, there seems to be cache and race issues.
+    private function update_plugin_version()
+    {
+        $options = get_option(ACCUM_DATA);
+        $options["accUM_plugin_version"] = $this->version;
+        update_option(ACCUM_DATA, $options);
     }
 
     /**
@@ -129,11 +138,19 @@ class acc_user_importer_Activator
                 delete_option($candidateOptionName);
                 $rc = update_option($newOptionName, $sectionOption);
                 if ($rc) {
-                    error_log("Renamed setting $candidateOptionName to " .
-                              "$newOptionName\n", 3, $log);
+                    error_log(
+                        "Renamed setting $candidateOptionName to " .
+                            "$newOptionName\n",
+                        3,
+                        $log
+                    );
                 } else {
-                    error_log("Failed to renamed setting $candidateOptionName ".
-                              "to $newOptionName\n", 3, $log);
+                    error_log(
+                        "Failed to renamed setting $candidateOptionName " .
+                            "to $newOptionName\n",
+                        3,
+                        $log
+                    );
                 }
             }
         }
@@ -444,34 +461,62 @@ class acc_user_importer_Activator
 
             if (empty($user->acc_memberships)) {
                 // User is still stored in v2.x format. Let's do our best.
-                error_log(" Warning, user has no acc_memberships array. ".
-                          "We dont know which section he belongs to\n",3,$log);
+                error_log(
+                    " Warning, user has no acc_memberships array. " .
+                        "We dont know which section he belongs to\n",
+                    3,
+                    $log
+                );
 
                 //Convert membership type.
                 //FIXME, is the 2M spelling the same as Hubspot??
                 if (empty($user->membership_type)) {
-                    error_log(" Warning, user has no membership_type\n", 3, $log);
+                    error_log(
+                        " Warning, user has no membership_type\n",
+                        3,
+                        $log
+                    );
                 } else {
-                    $newMshipType = $this->convertMembershipName($user->membership_type);
+                    $newMshipType = $this->convertMembershipName(
+                        $user->membership_type
+                    );
                     update_user_meta($user_id, "acc_mship_type", $newMshipType);
                     error_log(" acc_mship_type=$newMshipType\n", 3, $log);
                 }
-                
+
                 //Convert expiry.
                 if (empty($user->expiry)) {
                     error_log(" Warning, user has no expiry\n", 3, $log);
                 } else {
-                    update_user_meta($user_id, "acc_mship_expiry", $user->expiry);
+                    update_user_meta(
+                        $user_id,
+                        "acc_mship_expiry",
+                        $user->expiry
+                    );
                     error_log(" acc_mship_expiry=$user->expiry\n", 3, $log);
 
                     //Convert membership_status
-                    if ($user->expiry > date("Y-m-d") &&
-                        $user->membership_status == "ISSU") {
-                        update_user_meta($user_id, "acc_waiver_expiry", $user->expiry);
-                        error_log(" user status ISSU, forcing acc_waiver_expiry ".
-                                  "to user expiry\n", 3, $log);
+                    if (
+                        $user->expiry > date("Y-m-d") &&
+                        $user->membership_status == "ISSU"
+                    ) {
+                        update_user_meta(
+                            $user_id,
+                            "acc_waiver_expiry",
+                            $user->expiry
+                        );
+                        error_log(
+                            " user status ISSU, forcing acc_waiver_expiry " .
+                                "to user expiry\n",
+                            3,
+                            $log
+                        );
                     } else {
-                        error_log(" No need to set acc_waiver_expiry\n", 3, $log);
+                        error_log(
+                            " No need to set acc_waiver_expiry\n",
+                            3,
+                            $log
+                        );
                     }
                 }
             } else {
