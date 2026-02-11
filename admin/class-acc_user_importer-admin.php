@@ -179,9 +179,12 @@ class acc_user_importer_Admin
      */
     private function getSectionsAdded($rxdSections, $user)
     {
+        $userSections = is_array($user->acc_sections)
+            ? $user->acc_sections
+            : [];
         $sectionsAdded = [];
         foreach ($rxdSections as $section) {
-            if (!in_array($section, $user->acc_sections)) {
+            if (!in_array($section, $userSections)) {
                 $sectionsAdded[] = $section;
             }
         }
@@ -196,8 +199,11 @@ class acc_user_importer_Admin
      */
     private function getSectionsDeleted($rxdSections, $user)
     {
+        $userSections = is_array($user->acc_sections)
+            ? $user->acc_sections
+            : [];
         $sectionsDeleted = [];
-        foreach ($user->acc_sections as $section) {
+        foreach ($userSections as $section) {
             if (!in_array($section, $rxdSections)) {
                 $sectionsDeleted[] = $section;
             }
@@ -517,7 +523,10 @@ class acc_user_importer_Admin
                             //we serialize and print the string.
                             // $old = serialize($user->$field);
                             // $new = serialize($value);
-                            $old = implode(",", $user->$field);
+                            $oldVal = is_array($user->$field)
+                                ? $user->$field
+                                : [];
+                            $old = implode(",", $oldVal);
                             $new = implode(",", $value);
                             accLog(" > $field changed from " . "$old to $new");
                         } else {

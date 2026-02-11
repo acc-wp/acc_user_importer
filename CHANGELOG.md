@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.10 Terence Goldberg
+
+- Fix in_array() and implode() crashes when acc_sections user meta is a string instead of an array
+
 ## 4.0.8 Francois Bessette
 
 - Fix incoming memberships with missing first or last name.
