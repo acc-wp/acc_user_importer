@@ -179,9 +179,12 @@ class acc_user_importer_Admin
      */
     private function getSectionsAdded($rxdSections, $user)
     {
+        $userSections = is_array($user->acc_sections)
+            ? $user->acc_sections
+            : [];
         $sectionsAdded = [];
         foreach ($rxdSections as $section) {
-            if (!in_array($section, $user->acc_sections)) {
+            if (!in_array($section, $userSections)) {
                 $sectionsAdded[] = $section;
             }
         }
@@ -196,8 +199,11 @@ class acc_user_importer_Admin
      */
     private function getSectionsDeleted($rxdSections, $user)
     {
+        $userSections = is_array($user->acc_sections)
+            ? $user->acc_sections
+            : [];
         $sectionsDeleted = [];
-        foreach ($user->acc_sections as $section) {
+        foreach ($userSections as $section) {
             if (!in_array($section, $rxdSections)) {
                 $sectionsDeleted[] = $section;
             }
@@ -515,7 +521,10 @@ class acc_user_importer_Admin
                             //we serialize and print the string.
                             // $old = serialize($user->$field);
                             // $new = serialize($value);
-                            $old = implode(",", $user->$field);
+                            $oldVal = is_array($user->$field)
+                                ? $user->$field
+                                : [];
+                            $old = implode(",", $oldVal);
                             $new = implode(",", $value);
                             accLog(" > $field changed from " . "$old to $new");
                         } else {
@@ -676,7 +685,7 @@ class acc_user_importer_Admin
             in_array("administrator", $user_roles, true)
         ) {
             $new_user_role_action = "add_role"; //Change set_role to add_role
-        } else if ($newUser && $new_user_role_action == "add_role") {
+        } elseif ($newUser && $new_user_role_action == "add_role") {
             // User has just been created, and Wordpress assigned an annoying
             // default role we want to get rid of. Change to set_role
             // in order to overwrite the Wordpress default role.
@@ -924,8 +933,9 @@ class acc_user_importer_Admin
             // Some WP accounts are manually created for admin purposes. Those
             // typically have no ACC member ID. Not much validation done on those.
             if (!$user->has_prop("acc_member_id")) {
-                $warnings[] = "$user->display_name ($user->user_email) has no ACC " .
-                              "member ID, it's probably a manually created admin account";
+                $warnings[] =
+                    "$user->display_name ($user->user_email) has no ACC " .
+                    "member ID, it's probably a manually created admin account";
                 continue;
             }
 
@@ -1038,9 +1048,9 @@ class acc_user_importer_Admin
         if (
             !empty($email_addrs) &&
             (!empty($sectionsAdded) ||
-             !empty($sectionsDeleted) ||
-             !empty($errors) ||
-             !empty($deleted_users))
+                !empty($sectionsDeleted) ||
+                !empty($errors) ||
+                !empty($deleted_users))
         ) {
             $title = accUM_get_notification_title();
             $content = $operation . "\n\n";

@@ -136,8 +136,10 @@ function acc_is_user_expired($user)
  */
 function acc_is_waiver_valid($user)
 {
-    if (!$user->has_prop("acc_waiver_expiry") ||
-        $user->acc_waiver_expiry < date("Y-m-d")) {
+    if (
+        !$user->has_prop("acc_waiver_expiry") ||
+        $user->acc_waiver_expiry < date("Y-m-d")
+    ) {
         return false;
     }
     return true;

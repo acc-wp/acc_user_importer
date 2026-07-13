@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.10 Terence Goldberg
+
+- Fix in_array() and implode() crashes when acc_sections user meta is a string instead of an array
+
 ## 4.0.8 Francois Bessette
 
 - Fix incoming memberships with missing first or last name.
@@ -18,7 +22,7 @@
 - Do not report an error if the notification is missing email (child account)
 - In local_db_check do not raise warning for no membership expiry and
   no signe waiver.
-- During local_db_check raise warning if member is not expired but not part of a section. 
+- During local_db_check raise warning if member is not expired but not part of a section.
 
 ## 4.0.4 Francois Bessette
 
