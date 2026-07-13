@@ -239,7 +239,7 @@ class acc_user_importer_Admin
         $userFirstName = $params["first_name"] ?? "";
         $userLastName = $params["last_name"] ?? "";
         $userNameInLog = "_" . $userFirstName . "_" . $userLastName;
-        preg_replace("/[^A-Za-z0-9.\-_]/", "_", $userNameInLog);
+        $userNameInLog = preg_replace("/[^A-Za-z0-9\-_]/", "_", $userNameInLog);
         $logfilename = basename(acc_pick_new_log_file($userNameInLog));
         accLog("Received the following membership notification: ");
         accLog(var_export($params, true));
@@ -257,17 +257,24 @@ class acc_user_importer_Admin
             "user_email",
         ];
         foreach ($needed as $index => $field) {
-            if (!isset($params[$field])) {
-                $msg = "Error, missing $field in notification";
-                return $msg;
+            // The 'empty' test will trigger for numbers 0 but that is fine,
+            // we should never have an acc_member_id being 0.
+            if (empty($params[$field])) {
+                if ($field == "user_email") {
+                    // Children memberships often do not have an email address.
+                    // Not an error, just ignore notification.
+                    accLog("No email, skip this notification");
+                    return true;
+                } else {
+                    $msg = "Error, missing $field in notification";
+                    return $msg;
+                }
             }
         }
 
         if ($params["action"] == "add" || $params["action"] == "update") {
             //Sanity checks for additional mandatory fields
             $needed = [
-                "first_name",
-                "last_name",
                 "acc_sections",
                 "acc_mship_type",
             ];
@@ -288,7 +295,6 @@ class acc_user_importer_Admin
         $action = $params["action"];
         $notifTimestamp = $params["acc_notif_timestamp"];
         $userMemberId = strval($params["acc_member_id"]);
-        $userFullName = $userFirstName . " " . $userLastName;
         $userEmail = strtolower($params["user_email"] ?? "");
         $userCellPhone = strval($params["cell_phone"]) ?? "";
         $receivedSections = $params["acc_sections"] ?? [];
@@ -298,6 +304,20 @@ class acc_user_importer_Admin
         $contactFname = $params["acc_contact_name"] ?? "";
         $contactLname = $params["acc_contact_email"] ?? "";
         $contactPhone = strval($params["acc_contact_phone"]) ?? "";
+
+        if (empty($userFirstName) && empty($userLastName)) {
+            // This case has been seen and can be a valid ACC account.
+            // For display purpose, use the email address.
+            // Wordpress uses nicename as a unique user identifier in URL
+            // and author archives. So it should be unique and
+            // hopefully never change. Best to use the ACC memberID.
+            accLog(" > Empty name, will use email and memberID");
+            $userDisplayname = strstr($userEmail, '@', true);
+            $userNicename = $userMemberId;
+        } else {
+            $userDisplayname = $userFirstName . " " . $userLastName;
+            $userNicename = $userDisplayname;
+        }
 
         // Sanity check received timestamps and convert some to Y-M-D
         // Keep the notification timestamp in UNIX format because
@@ -321,10 +341,14 @@ class acc_user_importer_Admin
 
         $sectionsOfInterest = accUM_get_enabled_sections();
 
-        //Validate received membership type
-        $validMships = acc_get_mship_names();
-        if (!in_array($mshipType, $validMships)) {
-            return " > Error, $mshipType is an invalid membership name";
+        //Validate received membership type (but not for action=remove)
+        if ($action != "remove") {
+            $validMships = acc_get_mship_names();
+            if (!in_array($mshipType, $validMships)) {
+                $msg = " > warning, $mshipType is an invalid membership type";
+                $warnings[] = $msg;
+                accLog($msg);
+            }
         }
 
         // Sanity check: keep only sections we are interested in. Log
@@ -337,7 +361,9 @@ class acc_user_importer_Admin
             $section = trim($section); // Trim whitespace
 
             if (!in_array($section, $validSections)) {
-                $warnings[] = " > warning, $section is an invalid section";
+                $msg = " > warning, $section is an invalid section";
+                $warnings[] = $msg;
+                accLog($msg);
             }
 
             if (in_array($section, $sectionsOfInterest)) {
@@ -354,14 +380,6 @@ class acc_user_importer_Admin
             }
         }
 
-        //Log the info we received for this user
-        // $userInfoString = "Received [" . $notifTimestamp . "] ";
-        // $userInfoString .= "$action $userMemberId ";
-        // $userInfoString .= $userFirstName . " " . $userLastName;
-        // $userInfoString .= " " . $userEmail;
-        // $userInfoString .= " with waiver " . ($waiverExpiry ? "signed" : "NOT signed");
-        // accLog($userInfoString);
-
         // Does received user have a membership?
         if ($action == "remove" || empty($rxdSections)) {
             $rxdSections = [];
@@ -373,14 +391,14 @@ class acc_user_importer_Admin
         $loginNameMapping = accUM_get_login_name_mapping();
         switch ($loginNameMapping) {
             case "Firstname Lastname":
-                $loginName = "$userFirstName $userLastName";
+                $loginName = $userDisplayname;
                 break;
             case "member_number":
             default:
                 $loginName = sanitize_user($userMemberId);
                 break;
         }
-        accLog("User login name is $loginName");
+        accLog(" > User login name is $loginName");
 
         // Create an array for the core wordpress user information.
         // accUserData lists all fields that will be checked for existing users.
@@ -393,7 +411,7 @@ class acc_user_importer_Admin
         $accUserData = [
             "first_name" => $userFirstName,
             "last_name" => $userLastName,
-            "display_name" => $userFirstName . " " . $userLastName,
+            "display_name" => $userDisplayname,
             "user_email" => $userEmail,
         ];
 
@@ -407,7 +425,7 @@ class acc_user_importer_Admin
             "acc_contact_phone" => $contactPhone,
             "cell_phone" => $userCellPhone,
             "acc_member_id" => $userMemberId,
-            "nickname" => $userFirstName . " " . $userLastName,
+            "nickname" => $userDisplayname,
             "acc_sections" => $rxdSections,
         ];
 
@@ -422,7 +440,7 @@ class acc_user_importer_Admin
                 accLog(" > not found by login");
                 $user = get_user_by("email", $userEmail);
                 if (is_a($user, WP_User::class)) {
-                    if ($user->display_name == $userFullName) {
+                    if ($user->display_name == $userDisplayname) {
                         accLog(
                             " > found by email existing userId $user->ID " .
                                 "named $user->display_name"
@@ -460,17 +478,29 @@ class acc_user_importer_Admin
                     $user
                 );
 
-                // Special case for safety: if the action is remove,
-                // bring back the user expiry to today if needed.
+                // Special case for safety: if the action is remove, Hubspot
+                // does not set the expiry field. But we want to keep the one
+                // already in user DB. Unless it needs to be shortened.
+                // Also do not erase the DB acc_mship_type.
                 if (!$userIsValid) {
                     $today = date("Y-m-d");
-                    if (
-                        empty($accUserMetaData["acc_mship_expiry"]) ||
-                        $accUserMetaData["acc_mship_expiry"] > $today
-                    ) {
+                    if (empty($accUserMetaData["acc_mship_expiry"])) {
+                        $accUserMetaData["acc_mship_expiry"] = $user->acc_mship_expiry;
+                        accLog(" > No expiry in notification, use ".
+                               "$user->acc_mship_expiry from DB");
+                    }
+
+                    if ($accUserMetaData["acc_mship_expiry"] > $today) {
                         $accUserMetaData["acc_mship_expiry"] = $today;
                         accLog(" > Forced user expiry to today");
                     }
+
+                    if (empty($accUserMetaData["acc_mship_type"])) {
+                        $accUserMetaData["acc_mship_type"] = $user->acc_mship_type;
+                        accLog(" > No membership type in notification, use ".
+                               "$user->acc_mship_type from DB");
+                    }
+
                 }
 
                 // Check which fields might have changed. On purpose we dont want to check nicename.
@@ -535,12 +565,12 @@ class acc_user_importer_Admin
                     );
                     if ($result === false) {
                         $result_str = " failed";
-                        accLog("Error changing loginName for $userFullName");
+                        accLog("Error changing loginName for $userDisplayname");
                     } else {
                         $result_str = " success";
                     }
                     accLog(
-                        "> user {$userID} username changed from " .
+                        " > user {$userID} username changed from " .
                             "{$user->user_login} to {$loginName}, update database $result_str"
                     );
                     //Erase user cache so that future access gets the right data.
@@ -572,7 +602,7 @@ class acc_user_importer_Admin
             //--------CREATE NEW USER-----
             accLog(" > email not found on any other users");
             $accUserData["user_pass"] = wp_generate_password(20);
-            $accUserData["user_nicename"] = $accUserData["display_name"]; //WP will sanitize
+            $accUserData["user_nicename"] = $userNicename;  //WP will sanitize
             $accUserData["user_login"] = $loginName;
 
             // Insert new user
@@ -602,7 +632,7 @@ class acc_user_importer_Admin
 
         $operation =
             "The ACC website received the following changes " .
-            "for $userFullName <$userEmail>:";
+            "for $userDisplayname <$userEmail>:";
         $this->send_admin_email(
             $operation,
             $sectionsAdded,
@@ -857,7 +887,6 @@ class acc_user_importer_Admin
         $num_active = 0;
         $num_inactive = 0;
         $num_wo_waiver = 0;
-        $processing_email_list = "";
         $more_than_a_year_from_now = acc_now_plus_N_days(400);
         $user_ids = get_users(["fields" => "ID"]);
 
@@ -900,20 +929,29 @@ class acc_user_importer_Admin
                 continue;
             }
 
+            if (!$user->has_prop("acc_sections")) {
+                $warnings[] = "$user->display_name ($user->user_email) has no " .
+                              "acc_sections entry in DB, weird";
+            } else if (!acc_is_user_expired($user)) {
+                $sections = $user->acc_sections;
+                if (!is_array($sections) || empty($sections)) {
+                    $warnings[] = "$user->display_name ($user->user_email) is not " .
+                                "expired but not part of any section";
+                }
+            }
+
             //Sanity check: raise a warning if user has no or weird expiry date.
             $expiry = $user->acc_mship_expiry ?? null;
             if ($expiry == null) {
-                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has no membership expiry!";
+                //Must be an auto-renewal account
             } elseif ($expiry > $more_than_a_year_from_now) {
-                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has expiry=$expiry!";
+                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) ".
+                              "has suspicious expiry=$expiry!";
             }
 
             //Give warning for users with a membership but no signed waiver
             if (!acc_is_user_expired($user) &&
                 !acc_is_waiver_valid($user)) {
-                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) has not signed waiver";
-                $processing_email_list .=
-                    $user->display_name . " &lt" . $user->user_email . "&gt, ";
                 $num_wo_waiver++;
             }
 
@@ -934,9 +972,6 @@ class acc_user_importer_Admin
         foreach ($warnings as $warning) {
             accLog("Warning: $warning");
         }
-        accLog(
-            "<br>List of users email with no waivers = $processing_email_list<br>"
-        );
 
         $operation =
             "The ACC web site local DB check made the following changes:";

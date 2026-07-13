@@ -27,11 +27,10 @@ class acc_user_importer_Activator
     public function activate()
     {
         $oldVersion = $this->get_old_plugin_version_from_db();
-        if (
-            $oldVersion === "unknown" ||
-            ($oldVersion >= "2.0.9" && $oldVersion < "4.0.0")
-        ) {
+        if ($oldVersion >= "2.0.9" && $oldVersion < "4.0.0") {
             $this->process_upgrade($oldVersion);
+        } else {
+            $this->update_plugin_version();
         }
 
         acc_cron_activate();
@@ -50,6 +49,16 @@ class acc_user_importer_Activator
             $oldVersion = "unknown";
         }
         return $oldVersion;
+    }
+
+    // Update the plugin version.
+    // Avoid calling this function if we are changing ACCUM_DATA
+    // somewhere else, there seems to be cache and race issues.
+    private function update_plugin_version()
+    {
+        $options = get_option(ACCUM_DATA);
+        $options["accUM_plugin_version"] = $this->version;
+        update_option(ACCUM_DATA, $options);
     }
 
     /**

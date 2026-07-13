@@ -1,5 +1,29 @@
 # Changelog
 
+## 4.0.8 Francois Bessette
+
+- Fix incoming memberships with missing first or last name.
+
+## 4.0.7 Francois Bessette
+
+- Fix upgrade logic, do not upgrade if old version is unknown
+
+## 4.0.6 Francois Bessette
+
+- Allow incoming memberships with missing first or last name
+
+## 4.0.5 Francois Bessette
+
+- On Remove notification, do not change expiry and membership type in user DB
+- Do not report an error if the notification is missing email (child account)
+- In local_db_check do not raise warning for no membership expiry and
+  no signe waiver.
+- During local_db_check raise warning if member is not expired but not part of a section. 
+
+## 4.0.4 Francois Bessette
+
+- Fix error caused by missing membership type on remove notification
+
 ## 4.0.3 Francois Bessette
 
 - Fix FQME unknown section error.

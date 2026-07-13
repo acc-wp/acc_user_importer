@@ -278,6 +278,7 @@ function acc_read_log_filename_from_db()
 
 /*
  * Delete old log files to ensure it does not grow to infinity
+ * The setting with value 0 does not work.
  */
 function acc_enforce_max_log_files()
 {
