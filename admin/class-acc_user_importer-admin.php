@@ -280,7 +280,10 @@ class acc_user_importer_Admin
 
         if ($params["action"] == "add" || $params["action"] == "update") {
             //Sanity checks for additional mandatory fields
-            $needed = ["acc_sections", "acc_mship_type"];
+            $needed = [
+                "acc_sections",
+                "acc_mship_type",
+            ];
             foreach ($needed as $index => $field) {
                 if (!isset($params[$field])) {
                     $msg = "Error, missing $field in notification";
@@ -315,7 +318,7 @@ class acc_user_importer_Admin
             // and author archives. So it should be unique and
             // hopefully never change. Best to use the ACC memberID.
             accLog(" > Empty name, will use email and memberID");
-            $userDisplayname = strstr($userEmail, "@", true);
+            $userDisplayname = strstr($userEmail, '@', true);
             $userNicename = $userMemberId;
         } else {
             $userDisplayname = $userFirstName . " " . $userLastName;
@@ -488,12 +491,9 @@ class acc_user_importer_Admin
                 if (!$userIsValid) {
                     $today = date("Y-m-d");
                     if (empty($accUserMetaData["acc_mship_expiry"])) {
-                        $accUserMetaData["acc_mship_expiry"] =
-                            $user->acc_mship_expiry;
-                        accLog(
-                            " > No expiry in notification, use " .
-                                "$user->acc_mship_expiry from DB"
-                        );
+                        $accUserMetaData["acc_mship_expiry"] = $user->acc_mship_expiry;
+                        accLog(" > No expiry in notification, use ".
+                               "$user->acc_mship_expiry from DB");
                     }
 
                     if ($accUserMetaData["acc_mship_expiry"] > $today) {
@@ -502,13 +502,11 @@ class acc_user_importer_Admin
                     }
 
                     if (empty($accUserMetaData["acc_mship_type"])) {
-                        $accUserMetaData["acc_mship_type"] =
-                            $user->acc_mship_type;
-                        accLog(
-                            " > No membership type in notification, use " .
-                                "$user->acc_mship_type from DB"
-                        );
+                        $accUserMetaData["acc_mship_type"] = $user->acc_mship_type;
+                        accLog(" > No membership type in notification, use ".
+                               "$user->acc_mship_type from DB");
                     }
+
                 }
 
                 // Check which fields might have changed. On purpose we dont want to check nicename.
@@ -613,7 +611,7 @@ class acc_user_importer_Admin
             //--------CREATE NEW USER-----
             accLog(" > email not found on any other users");
             $accUserData["user_pass"] = wp_generate_password(20);
-            $accUserData["user_nicename"] = $userNicename; //WP will sanitize
+            $accUserData["user_nicename"] = $userNicename;  //WP will sanitize
             $accUserData["user_login"] = $loginName;
 
             // Insert new user
@@ -942,15 +940,13 @@ class acc_user_importer_Admin
             }
 
             if (!$user->has_prop("acc_sections")) {
-                $warnings[] =
-                    "$user->display_name ($user->user_email) has no " .
-                    "acc_sections entry in DB, weird";
-            } elseif (!acc_is_user_expired($user)) {
+                $warnings[] = "$user->display_name ($user->user_email) has no " .
+                              "acc_sections entry in DB, weird";
+            } else if (!acc_is_user_expired($user)) {
                 $sections = $user->acc_sections;
                 if (!is_array($sections) || empty($sections)) {
-                    $warnings[] =
-                        "$user->display_name ($user->user_email) is not " .
-                        "expired but not part of any section";
+                    $warnings[] = "$user->display_name ($user->user_email) is not " .
+                                "expired but not part of any section";
                 }
             }
 
@@ -959,13 +955,13 @@ class acc_user_importer_Admin
             if ($expiry == null) {
                 //Must be an auto-renewal account
             } elseif ($expiry > $more_than_a_year_from_now) {
-                $warnings[] =
-                    "$user->display_name ($user->user_login, $user->user_email) " .
-                    "has suspicious expiry=$expiry!";
+                $warnings[] = "$user->display_name ($user->user_login, $user->user_email) ".
+                              "has suspicious expiry=$expiry!";
             }
 
             //Give warning for users with a membership but no signed waiver
-            if (!acc_is_user_expired($user) && !acc_is_waiver_valid($user)) {
+            if (!acc_is_user_expired($user) &&
+                !acc_is_waiver_valid($user)) {
                 $num_wo_waiver++;
             }
 
